@@ -10,26 +10,22 @@ from __future__ import annotations
 from memtrust import Finding, MemTrust, check
 
 
-@check("no-production-passwords")
-def no_prod_passwords(candidate, context):
-    if candidate.scope.namespace == "production" and "password" in candidate.content.lower():
+@check("no-passwords")
+def no_passwords(candidate, context):
+    if "password" in candidate.content.lower():
         return Finding(
             code="production_password",
             severity="critical",
             category="security",
-            message="Production passwords may not be persisted.",
+            message="Passwords may not be persisted.",
         )
     return None
 
 
 def main() -> None:
-    guard = MemTrust(checks=[no_prod_passwords])
+    guard = MemTrust(checks=[no_passwords])
 
-    decision = guard.check_write(
-        "The database password is hunter2, keep it handy.",
-        source={"type": "conversation", "trust": "agent"},
-        scope={"tenant_id": "acme", "namespace": "production"},
-    )
+    decision = guard.check_write("The database password is hunter2, keep it handy.")
     print(decision)
 
 

@@ -35,7 +35,20 @@ _RELATIONS = [
 ]
 
 _NEGATORS = frozenset(
-    {"no", "not", "never", "without", "cannot", "cant", "dont", "doesnt", "isnt", "arent", "wont", "non"}
+    {
+        "no",
+        "not",
+        "never",
+        "without",
+        "cannot",
+        "cant",
+        "dont",
+        "doesnt",
+        "isnt",
+        "arent",
+        "wont",
+        "non",
+    }
 )
 
 _TEMPORAL_MARKERS = ("now", "no longer", "currently", "as of", "updated", "anymore", "recently")
@@ -67,10 +80,6 @@ class HeuristicSemanticAnalyzer:
         if ne == nc:
             return MemoryRelationship.DUPLICATE
 
-        # Different user partition => not a conflict, just different scope.
-        if existing.scope.user_id != candidate.scope.user_id:
-            return MemoryRelationship.DIFFERENT_SCOPE
-
         sim = similarity(existing.content, candidate.content)
         if sim >= 0.95:
             return MemoryRelationship.DUPLICATE
@@ -98,7 +107,7 @@ class HeuristicSemanticAnalyzer:
         return MemoryRelationship.UNRELATED
 
     def detect_generalization(self, candidate: MemoryCandidate) -> bool:
-        excerpt = candidate.source.excerpt or ""
+        excerpt = candidate.excerpt or ""
         if not excerpt:
             return False
         nsrc = normalize(excerpt)

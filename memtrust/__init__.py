@@ -1,17 +1,20 @@
-"""MemTrust — security, correctness, and governance for AI-agent memory.
+"""MemTrust — security and correctness for agent long-term memory.
 
-A vendor-neutral trust boundary that sits between an agent and its memory
-backend and answers: should this be written? should this be returned? why
-does the agent believe this?
+A vendor-neutral trust boundary that sits between an agent and its knowledge
+memory (RAG corpora, user long-term facts, retrieved documents) and answers:
+should this be written? should this be returned? why?
 
-Simple API on top, rigorous trust model underneath::
+Simple API on top, two families of checks underneath::
 
     from memtrust import MemTrust
 
     guard = MemTrust()
-    decision = guard.check_write("...", source={...}, scope={...})
+    decision = guard.check_write("...")
     if not decision.allowed:
         print(decision.reason)
+
+**Security** detects poisoning, injection, and secrets.
+**Correctness** detects contradictions, duplicates, and stale facts.
 
 Advanced functionality lives under discoverable namespaces:
 ``memtrust.policies``, ``memtrust.checks``, ``memtrust.backends``,
@@ -28,7 +31,6 @@ from .exceptions import (
     BackendError,
     ConfigurationError,
     MemTrustError,
-    TenantIsolationError,
 )
 from .models import (
     Action,
@@ -44,54 +46,40 @@ from .models import (
     Policy,
     Provenance,
     ReadResult,
-    Risk,
     RevocationReport,
+    Risk,
     SafeMemory,
-    Scope,
     Severity,
-    Source,
-    TrustLevel,
 )
 
 __version__ = "0.1.0"
 
 __all__ = [
-    # Primary entry points
-    "MemTrust",
+    "Action",
+    "AddResult",
     "AsyncMemTrust",
-    # Core models most users touch
-    "MemoryCandidate",
-    "MemoryRecord",
-    "Source",
-    "Scope",
+    "AsyncProtectedMemory",
+    "BackendError",
+    "Category",
+    "Config",
+    "ConfigurationError",
     "Decision",
     "Finding",
-    "Provenance",
-    # Custom checks
-    "check",
-    # Structured results
-    "ReadResult",
-    "AddResult",
-    "SafeMemory",
-    "RevocationReport",
-    # Enums
-    "TrustLevel",
-    "Severity",
-    "Category",
-    "Action",
-    "Mode",
-    "Risk",
-    "MemoryStatus",
-    "MemoryRelationship",
-    # Config + protected wrappers
-    "Config",
-    "ProtectedMemory",
-    "AsyncProtectedMemory",
-    "Policy",
-    # Exceptions
+    "MemTrust",
     "MemTrustError",
-    "ConfigurationError",
-    "BackendError",
-    "TenantIsolationError",
+    "MemoryCandidate",
+    "MemoryRecord",
+    "MemoryRelationship",
+    "MemoryStatus",
+    "Mode",
+    "Policy",
+    "ProtectedMemory",
+    "Provenance",
+    "ReadResult",
+    "RevocationReport",
+    "Risk",
+    "SafeMemory",
+    "Severity",
     "__version__",
+    "check",
 ]

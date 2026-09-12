@@ -30,7 +30,6 @@ ATTR_FINDING_COUNT = "memtrust.finding_count"
 ATTR_BACKEND = "memtrust.backend"
 ATTR_OPERATION = "memtrust.operation"
 ATTR_MODE = "memtrust.mode"
-ATTR_TENANT = "memtrust.tenant"
 
 
 def get_logger(name: str = "memtrust") -> logging.Logger:
@@ -59,9 +58,7 @@ class NullTracer:
     """Default tracer: does nothing, allocates nothing meaningful."""
 
     @contextmanager
-    def span(
-        self, name: str, attributes: Mapping[str, object] | None = None
-    ) -> Iterator[Span]:
+    def span(self, name: str, attributes: Mapping[str, object] | None = None) -> Iterator[Span]:
         yield _NullSpan()
 
 
@@ -72,7 +69,6 @@ __all__ = [
     "ATTR_MODE",
     "ATTR_OPERATION",
     "ATTR_RISK",
-    "ATTR_TENANT",
     "SPAN_BACKEND_ADD",
     "SPAN_BACKEND_SEARCH",
     "SPAN_POLICY_EVALUATE",

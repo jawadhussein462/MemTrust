@@ -1,53 +1,18 @@
 """Enumerations used across MemTrust.
 
-All enums subclass ``str`` so they serialize cleanly to JSON and compare
-equal to their string values (``TrustLevel.USER == "user"``). Where an
-ordering is meaningful (trust, severity, risk) a ``rank`` property and an
+All enums subclass ``StrEnum`` so they serialize cleanly to JSON and compare
+equal to their string values (``Severity.HIGH == "high"``). Where an
+ordering is meaningful (severity, risk) a ``rank`` property and an
 ``is_at_least`` helper are provided rather than overriding comparison
 operators, which would be ambiguous on a ``str`` subclass.
 """
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class TrustLevel(str, Enum):
-    """How much a memory's *source* is trusted.
-
-    Ordered from least to most trustworthy. Trust is a property of where a
-    memory came from, and is deliberately separate from :class:`~memtrust`
-    authority (permission to assert something) and confidence (extraction
-    certainty).
-    """
-
-    UNTRUSTED = "untrusted"
-    USER = "user"
-    AGENT = "agent"
-    INTERNAL = "internal"
-    TRUSTED = "trusted"
-    AUTHORITATIVE = "authoritative"
-
-    @property
-    def rank(self) -> int:
-        return _TRUST_ORDER[self]
-
-    def is_at_least(self, other: TrustLevel) -> bool:
-        """Return True if this trust level is >= ``other``."""
-        return self.rank >= other.rank
-
-
-_TRUST_ORDER: dict[TrustLevel, int] = {
-    TrustLevel.UNTRUSTED: 0,
-    TrustLevel.USER: 1,
-    TrustLevel.AGENT: 2,
-    TrustLevel.INTERNAL: 3,
-    TrustLevel.TRUSTED: 4,
-    TrustLevel.AUTHORITATIVE: 5,
-}
-
-
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Severity of an individual :class:`~memtrust.Finding`."""
 
     INFO = "info"
@@ -73,7 +38,7 @@ _SEVERITY_ORDER: dict[Severity, int] = {
 }
 
 
-class Risk(str, Enum):
+class Risk(StrEnum):
     """Overall risk of a :class:`~memtrust.Decision` (worst finding)."""
 
     NONE = "none"
@@ -102,15 +67,20 @@ _RISK_ORDER: dict[Risk, int] = {
 }
 
 
-class Category(str, Enum):
-    """The concern a finding relates to."""
+class Category(StrEnum):
+    """The concern a finding relates to.
+
+    MemTrust is oriented around two families of checks:
+
+    * **security** — poisoning, injection, secrets
+    * **correctness** — contradictions, duplicates, freshness, generalization
+    """
 
     SECURITY = "security"
     CORRECTNESS = "correctness"
-    GOVERNANCE = "governance"
 
 
-class Action(str, Enum):
+class Action(StrEnum):
     """What MemTrust recommends doing with a candidate or record.
 
     Ordered by "blocking-ness" via :attr:`precedence` so that when several
@@ -152,7 +122,7 @@ _ALLOWED_ACTIONS: frozenset[Action] = frozenset(
 )
 
 
-class MemoryStatus(str, Enum):
+class MemoryStatus(StrEnum):
     """Lifecycle state of a persisted :class:`~memtrust.MemoryRecord`."""
 
     ACTIVE = "active"
@@ -162,7 +132,7 @@ class MemoryStatus(str, Enum):
     EXPIRED = "expired"
 
 
-class MemoryRelationship(str, Enum):
+class MemoryRelationship(StrEnum):
     """How a candidate memory relates to an existing one.
 
     Correctness is *not* reduced to embedding similarity: relationships are
@@ -175,11 +145,10 @@ class MemoryRelationship(str, Enum):
     CONTRADICTS = "contradicts"
     SUPERSEDES = "supersedes"
     SPECIALIZES = "specializes"
-    DIFFERENT_SCOPE = "different_scope"
     UNRELATED = "unrelated"
 
 
-class Mode(str, Enum):
+class Mode(StrEnum):
     """Enforcement mode for a :class:`~memtrust.MemTrust` instance.
 
     ``observe`` reports violations but never changes backend behaviour;
@@ -192,7 +161,7 @@ class Mode(str, Enum):
     ENFORCE = "enforce"
 
 
-class AuditEventType(str, Enum):
+class AuditEventType(StrEnum):
     """Types of events recorded in the audit trail."""
 
     WRITE_REQUESTED = "WRITE_REQUESTED"
@@ -204,7 +173,6 @@ class AuditEventType(str, Enum):
     READ_FILTERED = "READ_FILTERED"
     MEMORY_SUPERSEDED = "MEMORY_SUPERSEDED"
     MEMORY_REVOKED = "MEMORY_REVOKED"
-    SOURCE_REVOKED = "SOURCE_REVOKED"
 
 
 __all__ = [
@@ -216,5 +184,4 @@ __all__ = [
     "Mode",
     "Risk",
     "Severity",
-    "TrustLevel",
 ]

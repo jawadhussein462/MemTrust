@@ -12,7 +12,6 @@ from .enums import (
     Mode,
     Risk,
     Severity,
-    TrustLevel,
 )
 from .finding import Finding
 from .memory import MemoryCandidate, MemoryRecord
@@ -25,8 +24,6 @@ from .results import (
     RevocationReport,
     SafeMemory,
 )
-from .scope import Scope
-from .source import Source, default_authority_for
 
 __all__ = [
     "Action",
@@ -37,20 +34,16 @@ __all__ = [
     "FilteredMemory",
     "Finding",
     "MemoryCandidate",
-    "MemoryRelationship",
     "MemoryRecord",
+    "MemoryRelationship",
     "MemoryStatus",
     "Mode",
     "Policy",
     "Provenance",
     "ReadResult",
     "Retrieval",
-    "Risk",
     "RevocationReport",
+    "Risk",
     "SafeMemory",
-    "Scope",
     "Severity",
-    "Source",
-    "TrustLevel",
-    "default_authority_for",
 ]

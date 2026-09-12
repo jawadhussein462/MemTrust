@@ -33,13 +33,6 @@ class CheckError(MemTrustError):
     """A check raised unexpectedly (surfaced when fail_closed is disabled)."""
 
 
-class TenantIsolationError(MemTrustError):
-    """A hard tenant-isolation boundary was violated.
-
-    Raised only where a violation must never be swallowed silently.
-    """
-
-
 __all__ = [
     "BackendError",
     "CheckError",
@@ -47,5 +40,4 @@ __all__ = [
     "IntegrationError",
     "MemTrustError",
     "PolicyError",
-    "TenantIsolationError",
 ]

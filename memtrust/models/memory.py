@@ -4,18 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .._time import utcnow
-from .enums import MemoryStatus, TrustLevel
+from .enums import MemoryStatus
 from .provenance import Provenance
-from .scope import Scope
-from .source import Source
-
-# 0..1 score, optional.
-Score = Annotated[float, Field(ge=0.0, le=1.0)]
 
 
 def _new_id(prefix: str) -> str:
@@ -23,24 +17,14 @@ def _new_id(prefix: str) -> str:
 
 
 class MemoryCandidate(BaseModel):
-    """A proposed memory, before any persistence decision has been made.
-
-    ``authority`` and ``confidence`` are deliberately distinct: an extractor
-    may be 99% *confident* it read "refunds need no approval" from an email,
-    while the email's *authority* to set refund policy is ~zero.
-    """
+    """A proposed memory, before any persistence decision has been made."""
 
     model_config = ConfigDict(extra="forbid")
 
     content: str
-    source: Source = Field(default_factory=lambda: Source(type="unspecified"))
-    scope: Scope = Field(default_factory=Scope)
-    authority: Score | None = Field(
+    excerpt: str | None = Field(
         default=None,
-        description="Permission to assert this. Defaults to the source's implied authority.",
-    )
-    confidence: Score | None = Field(
-        default=None, description="Extraction/derivation certainty (NOT authority)."
+        description="Optional raw text the memory was derived from (generalization checks).",
     )
     metadata: dict[str, object] = Field(default_factory=dict)
     id: str | None = Field(default=None, description="Optional caller-proposed id.")
@@ -49,21 +33,6 @@ class MemoryCandidate(BaseModel):
     expires_at: datetime | None = None
     valid_from: datetime | None = None
     valid_until: datetime | None = None
-
-    @property
-    def effective_authority(self) -> float:
-        """Authority to use for decisions.
-
-        Security model: an explicit ``authority`` may only *lower* the value
-        below what the source's trust implies — it can never raise it. This
-        prevents untrusted input from defeating authority controls by simply
-        declaring ``authority=1.0``. To grant more authority, use a more
-        trusted source.
-        """
-        source_default = self.source.default_authority
-        if self.authority is not None:
-            return min(self.authority, source_default)
-        return source_default
 
     def to_record(
         self,
@@ -76,19 +45,11 @@ class MemoryCandidate(BaseModel):
     ) -> MemoryRecord:
         """Materialize this candidate into a persisted record."""
         record_id = id or self.id or _new_id("mem")
-        source_ids = [self.source.id] if self.source.id else []
-        prov = provenance or Provenance(
-            source_ids=source_ids, derived_from=list(self.derived_from)
-        )
+        prov = provenance or Provenance(derived_from=list(self.derived_from))
         return MemoryRecord(
             id=record_id,
             content=content if content is not None else self.content,
-            source=self.source,
-            scope=self.scope,
             provenance=prov,
-            authority=self.effective_authority,
-            trust=self.source.trust,
-            confidence=self.confidence,
             status=status,
             created_at=self.created_at,
             updated_at=utcnow(),
@@ -108,12 +69,7 @@ class MemoryRecord(BaseModel):
 
     id: str
     content: str
-    source: Source = Field(default_factory=lambda: Source(type="unspecified"))
-    scope: Scope = Field(default_factory=Scope)
     provenance: Provenance = Field(default_factory=Provenance)
-    authority: Score = 0.0
-    trust: TrustLevel = TrustLevel.UNTRUSTED
-    confidence: Score | None = None
     status: MemoryStatus = MemoryStatus.ACTIVE
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)

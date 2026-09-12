@@ -8,11 +8,9 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, ConfigDict, Field
 
 from .decision import Decision
-from .enums import TrustLevel
 from .finding import Finding
 from .memory import MemoryRecord
 from .provenance import Provenance
-from .scope import Scope
 
 
 @dataclass(frozen=True)
@@ -23,9 +21,8 @@ class SafeMemory:
     record::
 
         for item in results:
-            print(item.memory)       # the content
-            print(item.trust)        # how trusted its source was
-            print(item.provenance)   # where it came from
+            print(item.memory)
+            print(item.provenance)
     """
 
     record: MemoryRecord
@@ -44,16 +41,8 @@ class SafeMemory:
         return self.record.content
 
     @property
-    def trust(self) -> TrustLevel:
-        return self.record.trust
-
-    @property
     def provenance(self) -> Provenance:
         return self.record.provenance
-
-    @property
-    def scope(self) -> Scope:
-        return self.record.scope
 
 
 @dataclass(frozen=True)
@@ -115,19 +104,18 @@ class AddResult:
 
 
 class RevocationReport(BaseModel):
-    """Impact report produced by :meth:`MemTrust.revoke_source`.
+    """Impact report produced by :meth:`MemTrust.revoke`.
 
-    Serializable to JSON. ``affected_agents`` is populated only from
-    retrievals that the audit trail actually recorded — never invented.
+    Serializable to JSON. Lists the memory that was revoked plus anything
+    derived from it.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    source_id: str
+    memory_id: str
     revoked_memories: list[str] = Field(default_factory=list)
     directly_revoked: list[str] = Field(default_factory=list)
     transitively_revoked: list[str] = Field(default_factory=list)
-    affected_agents: list[str] = Field(default_factory=list)
 
     @property
     def count(self) -> int:

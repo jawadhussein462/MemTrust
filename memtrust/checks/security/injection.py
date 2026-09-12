@@ -1,24 +1,24 @@
 """Detect attempts to persist agent-directed instructions / prompt injection.
 
-Pattern matching is treated as **one signal**, not proof. The resulting
-severity depends heavily on the trust of the source: the same sentence from
-an authoritative internal policy is very different from an untrusted website.
+Pattern matching is treated as **one signal**, not proof. Novel phrasings,
+obfuscation, and non-English text will be missed.
 """
 
 from __future__ import annotations
 
 import re
 
-from ..context import CheckContext
-from ..models.enums import Action, Category, Severity, TrustLevel
-from ..models.finding import Finding
-from ..models.memory import MemoryCandidate
-from .base import BaseCheck
+from ...context import CheckContext
+from ...models.enums import Action, Category, Severity
+from ...models.finding import Finding
+from ...models.memory import MemoryCandidate
+from ..base import BaseCheck
 
 _INJECTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
     for p in [
-        r"\bignore (all |the |your )?(previous|prior|above|earlier) (instructions|rules|messages)\b",
+        r"\bignore (all |the |your )?(previous|prior|above|earlier) "
+        r"(instructions|rules|messages|context)\b",
         r"\bdisregard (all |the |your )?(previous|prior|above) (instructions|rules)\b",
         r"\bremember (this )?(permanently|forever|always)\b",
         r"\balways remember\b",
@@ -34,16 +34,6 @@ _INJECTION_PATTERNS: list[re.Pattern[str]] = [
     ]
 ]
 
-# Injection severity scales down as source trust rises.
-_SEVERITY_BY_TRUST: dict[TrustLevel, Severity] = {
-    TrustLevel.UNTRUSTED: Severity.HIGH,
-    TrustLevel.USER: Severity.HIGH,
-    TrustLevel.AGENT: Severity.MEDIUM,
-    TrustLevel.INTERNAL: Severity.LOW,
-    TrustLevel.TRUSTED: Severity.LOW,
-    TrustLevel.AUTHORITATIVE: Severity.INFO,
-}
-
 
 class InjectionCheck(BaseCheck):
     """Flag persistent-instruction / injection phrases in candidate content."""
@@ -58,21 +48,15 @@ class InjectionCheck(BaseCheck):
                 matched.append(m.group(0).strip().lower())
         if not matched:
             return []
-
-        severity = _SEVERITY_BY_TRUST[candidate.source.trust]
-        action = Action.REVIEW if severity.is_at_least(Severity.HIGH) else None
         return [
             Finding(
                 code="persistent_instruction",
                 category=Category.SECURITY,
-                severity=severity,
-                message=(
-                    "Content contains agent-directed instruction/injection phrases; "
-                    f"severity scaled to source trust '{candidate.source.trust.value}'."
-                ),
-                evidence={"matches": sorted(set(matched)), "source_trust": candidate.source.trust.value},
+                severity=Severity.HIGH,
+                message="Content contains agent-directed instruction/injection phrases.",
+                evidence={"matches": sorted(set(matched))},
                 check=self.name,
-                recommended_action=action,
+                recommended_action=Action.REVIEW,
             )
         ]
 

@@ -11,29 +11,19 @@ from collections.abc import Sequence
 
 from . import __version__
 from .client import MemTrust
-from .models.enums import AuditEventType, TrustLevel
-from .models.source import Source
+from .models.enums import AuditEventType
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="memtrust",
-        description="Security and correctness for persistent AI-agent memory.",
+        description="Security and correctness for agent long-term knowledge memory.",
     )
     parser.add_argument("--version", action="version", version=f"memtrust {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     check = sub.add_parser("check", help="Evaluate whether a memory should be written.")
     check.add_argument("content", help="The candidate memory text.")
-    check.add_argument(
-        "--trust",
-        choices=[t.value for t in TrustLevel],
-        default=TrustLevel.UNTRUSTED.value,
-        help="Trust level of the source (default: untrusted).",
-    )
-    check.add_argument("--source-type", default="cli", help="Source type label.")
-    check.add_argument("--tenant", default="default", help="Tenant id.")
-    check.add_argument("--namespace", default=None, help="Namespace (e.g. company_policy).")
     check.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
 
     audit = sub.add_parser("audit", help="Show local JSONL audit data.")
@@ -44,7 +34,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Filter by event type.",
     )
-    audit.add_argument("--tenant", default=None, help="Filter by tenant id.")
     audit.add_argument("--limit", type=int, default=20, help="Max events to show.")
     audit.add_argument("--json", action="store_true", help="Emit JSON lines.")
     return parser
@@ -52,11 +41,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _cmd_check(args: argparse.Namespace) -> int:
     guard = MemTrust()
-    decision = guard.check_write(
-        args.content,
-        source=Source(type=args.source_type, trust=TrustLevel(args.trust)),
-        scope={"tenant_id": args.tenant, "namespace": args.namespace},
-    )
+    decision = guard.check_write(args.content)
     if args.json:
         print(decision.model_dump_json(indent=2))
     else:
@@ -69,7 +54,7 @@ def _cmd_audit(args: argparse.Namespace) -> int:
 
     store = JSONLAuditStore(args.file)
     event_type = AuditEventType(args.type) if args.type else None
-    events = store.list(type=event_type, tenant_id=args.tenant, limit=args.limit)
+    events = store.list(type=event_type, limit=args.limit)
     if not events:
         print("No audit events found.")
         return 0
@@ -80,8 +65,7 @@ def _cmd_audit(args: argparse.Namespace) -> int:
             ts = event.timestamp.isoformat(timespec="seconds")
             codes = ",".join(event.finding_codes) or "-"
             action = event.action.value if event.action else "-"
-            print(f"{ts}  {event.type.value:<18} tenant={event.tenant_id or '-':<10} "
-                  f"action={action:<12} findings={codes}")
+            print(f"{ts}  {event.type.value:<18} action={action:<12} findings={codes}")
     return 0
 
 

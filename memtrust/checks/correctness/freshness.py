@@ -7,11 +7,11 @@ when a candidate is already expired or its validity window is inverted.
 
 from __future__ import annotations
 
-from ..context import CheckContext
-from ..models.enums import Action, Category, Severity
-from ..models.finding import Finding
-from ..models.memory import MemoryCandidate
-from .base import BaseCheck
+from ...context import CheckContext
+from ...models.enums import Action, Category, Severity
+from ...models.finding import Finding
+from ...models.memory import MemoryCandidate
+from ..base import BaseCheck
 
 
 class FreshnessCheck(BaseCheck):
@@ -30,7 +30,10 @@ class FreshnessCheck(BaseCheck):
                     category=Category.CORRECTNESS,
                     severity=Severity.MEDIUM,
                     message="Candidate is already expired at write time.",
-                    evidence={"expires_at": candidate.expires_at.isoformat(), "now": now.isoformat()},
+                    evidence={
+                        "expires_at": candidate.expires_at.isoformat(),
+                        "now": now.isoformat(),
+                    },
                     check=self.name,
                     recommended_action=Action.ALLOW_WITH_WARNING,
                 )

@@ -11,9 +11,34 @@ _WS = re.compile(r"\s+")
 # Common filler words ignored when comparing token sets.
 _STOPWORDS = frozenset(
     {
-        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-        "to", "of", "in", "on", "at", "for", "and", "or", "but", "with",
-        "that", "this", "it", "as", "by", "from", "now", "then",
+        "a",
+        "an",
+        "the",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "to",
+        "of",
+        "in",
+        "on",
+        "at",
+        "for",
+        "and",
+        "or",
+        "but",
+        "with",
+        "that",
+        "this",
+        "it",
+        "as",
+        "by",
+        "from",
+        "now",
+        "then",
     }
 )
 

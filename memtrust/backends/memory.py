@@ -1,15 +1,12 @@
 """Reference in-memory backends (sync + async).
 
-Excellent for local development, examples, and tests. Scope filtering mirrors
-what a real backend would do (tenant, and user when requested); the MemTrust
-guard re-checks isolation regardless, as defense in depth.
+Excellent for local development, examples, and tests.
 """
 
 from __future__ import annotations
 
 from ..models.enums import MemoryStatus
 from ..models.memory import MemoryRecord
-from ..models.scope import Scope
 from ..text import similarity
 
 
@@ -24,8 +21,8 @@ class InMemoryBackend:
         self._store[memory.id] = memory
         return memory
 
-    def search(self, query: str, *, scope: Scope, limit: int = 10) -> list[MemoryRecord]:
-        candidates = [r for r in self._store.values() if self._in_scope(r, scope)]
+    def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
+        candidates = list(self._store.values())
         if query:
             candidates.sort(key=lambda r: similarity(query, r.content), reverse=True)
         else:
@@ -49,16 +46,6 @@ class InMemoryBackend:
     def __len__(self) -> int:
         return len(self._store)
 
-    @staticmethod
-    def _in_scope(record: MemoryRecord, scope: Scope) -> bool:
-        if record.scope.tenant_id != scope.tenant_id:
-            return False
-        if scope.user_id is not None and record.scope.user_id not in (None, scope.user_id):
-            return False
-        if scope.namespace is not None and record.scope.namespace not in (None, scope.namespace):
-            return False
-        return True
-
 
 class AsyncInMemoryBackend:
     """Async wrapper over :class:`InMemoryBackend` for async code paths."""
@@ -69,8 +56,8 @@ class AsyncInMemoryBackend:
     async def add(self, memory: MemoryRecord) -> MemoryRecord:
         return self._inner.add(memory)
 
-    async def search(self, query: str, *, scope: Scope, limit: int = 10) -> list[MemoryRecord]:
-        return self._inner.search(query, scope=scope, limit=limit)
+    async def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
+        return self._inner.search(query, limit=limit)
 
     async def get(self, memory_id: str) -> MemoryRecord | None:
         return self._inner.get(memory_id)

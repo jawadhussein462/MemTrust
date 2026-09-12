@@ -24,9 +24,7 @@ class JSONLAuditStore:
         self,
         *,
         type: AuditEventType | None = None,
-        tenant_id: str | None = None,
         memory_id: str | None = None,
-        source_id: str | None = None,
         limit: int | None = None,
     ) -> list[AuditEvent]:
         if not self.path.exists():
@@ -38,13 +36,7 @@ class JSONLAuditStore:
                 if not line:
                     continue
                 event = AuditEvent.model_validate_json(line)
-                if matches_filters(
-                    event,
-                    type=type,
-                    tenant_id=tenant_id,
-                    memory_id=memory_id,
-                    source_id=source_id,
-                ):
+                if matches_filters(event, type=type, memory_id=memory_id):
                     events.append(event)
         if limit is not None:
             events = events[-limit:]

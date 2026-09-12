@@ -10,7 +10,6 @@ from memtrust import MemTrust
 from memtrust._time import utcnow
 from memtrust.clock import FixedClock
 from memtrust.context import CheckContext
-
 from tests.factories import make_context
 
 

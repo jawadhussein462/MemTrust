@@ -17,16 +17,16 @@ class Finding(BaseModel):
     Example::
 
         Finding(
-            code="cross_tenant_access",
+            code="memory_poisoning",
             category="security",
             severity="critical",
-            message="Memory belongs to another tenant.",
+            message="Content looks like an attempt to plant a false security fact.",
         )
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(description="Stable machine-readable identifier, e.g. 'cross_tenant_access'.")
+    code: str = Field(description="Stable machine-readable identifier, e.g. 'memory_poisoning'.")
     category: Category = Field(default=Category.SECURITY)
     severity: Severity = Field(default=Severity.MEDIUM)
     message: str = Field(description="Human-readable explanation.")
@@ -34,7 +34,9 @@ class Finding(BaseModel):
         default_factory=dict,
         description="Structured, non-sensitive supporting data. Never contains raw secrets.",
     )
-    check: str | None = Field(default=None, description="Name of the check/policy that raised this.")
+    check: str | None = Field(
+        default=None, description="Name of the check/policy that raised this."
+    )
     recommended_action: Action | None = Field(
         default=None,
         description="Action this finding argues for; the engine aggregates across findings.",

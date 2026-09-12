@@ -17,9 +17,7 @@ from ..models.finding import Finding
 from ..models.memory import MemoryCandidate
 
 # What a check function may return.
-CheckFunction = Callable[
-    [MemoryCandidate, CheckContext], "Finding | list[Finding] | None"
-]
+CheckFunction = Callable[[MemoryCandidate, CheckContext], "Finding | list[Finding] | None"]
 
 
 @runtime_checkable
@@ -63,9 +61,9 @@ def check(name: str) -> Callable[[CheckFunction], FunctionCheck]:
 
         @check("no-production-passwords")
         def no_prod_passwords(candidate, context):
-            if candidate.scope.namespace == "production" and "password" in candidate.content.lower():
+            if "password" in candidate.content.lower():
                 return Finding(code="production_password", severity="critical",
-                               category="security", message="Production passwords may not be persisted.")
+                               category="security", message="Passwords may not be persisted.")
     """
 
     def decorator(fn: CheckFunction) -> FunctionCheck:
@@ -81,7 +79,9 @@ def normalize_check(obj: MemoryCheck | CheckFunction) -> MemoryCheck:
     if callable(obj):
         name = getattr(obj, "__name__", None) or obj.__class__.__name__
         return FunctionCheck(name, obj)
-    raise ConfigurationError(f"Object {obj!r} is not a valid check (needs .check/.name or be callable).")
+    raise ConfigurationError(
+        f"Object {obj!r} is not a valid check (needs .check/.name or be callable)."
+    )
 
 
 __all__ = [

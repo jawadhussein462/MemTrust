@@ -12,21 +12,21 @@ reports.
 
 ## Scope and threat model
 
-MemTrust is a **trust boundary** between an AI agent and a memory backend. It is
+MemTrust is a **trust boundary** between an AI agent and a long-term
+knowledge memory (RAG store, user memory, retrieved documents). It is
 designed to reduce the risk that persistent memory becomes poisoned, injected,
-contradictory, stale, duplicated, mis-scoped, cross-tenant, unauthorized, or
-untraceable. It is one layer in a defense-in-depth strategy — not a complete
-security solution.
+secret-bearing, contradictory, stale, or duplicated. It is one layer in a
+defense-in-depth strategy — not a complete security solution.
+
+The product is oriented around two families of checks:
+
+- **Security** — poisoning, injection, secrets.
+- **Correctness** — contradictions, duplicates, freshness.
 
 ### What MemTrust enforces reliably (deterministic)
 
-- **Tenant and user isolation on read** (core engine, non-bypassable).
-- **Tenant match on write** (core engine).
 - **Filtering** of revoked, expired, quarantined, and superseded memories on
-  read.
-- **Authority gating**: lower-authority sources cannot silently replace
-  higher-authority memories, and low-authority sources cannot write to
-  policy namespaces.
+  read (core engine, non-bypassable by customizing the check list).
 - **Secret redaction** before content reaches findings, audit, or telemetry.
 - **Mode semantics**: `observe` never alters backend behavior; `enforce` blocks
   critical violations by default.
@@ -38,10 +38,12 @@ These are covered by explicit invariant tests.
 The following detectors are **heuristic** and are **not complete or
 production-perfect**. They produce strong *signals*, not guarantees.
 
+- **Poisoning detection** is pattern-based. It looks for false
+  security-relevant facts (disabled auth, attacker hosts, approval bypasses).
+  It will miss novel phrasings, obfuscation, encodings, and non-English text.
 - **Injection / persistent-instruction detection** is pattern-based. It will
   miss novel phrasings, obfuscation, encodings, and non-English text, and can
-  produce false positives. Severity is scaled by source trust, so tuning trust
-  levels correctly is essential.
+  produce false positives.
 - **Secret detection** matches common, high-signal credential formats (API
   keys, tokens, private keys, credential assignments). It will miss custom or
   unusual secret formats. Do not rely on it as your only secret scanner.
@@ -51,18 +53,14 @@ production-perfect**. They produce strong *signals*, not guarantees.
   modes (mitigated by timeouts and configurable fail-open/closed behavior).
 - **Generalization detection** is an extension point with a basic heuristic
   implementation.
-- **Scope-promotion detection** flags user/untrusted content written at tenant
-  scope; by default it warns rather than blocks. Enforce with a policy where
-  promotion must require approval.
 
 ## Operational guidance
 
 - Start in `mode="observe"`, review the audit trail, then move to `enforce`.
-- Set source `trust` levels accurately; most severities depend on them.
 - Keep `fail_closed=True` (default) in production so internal check errors block
   rather than silently allow.
-- Configure a persistent `AuditStore` (e.g. `JSONLAuditStore`) so provenance and
-  source revocation have history to work with.
+- Configure a persistent `AuditStore` (e.g. `JSONLAuditStore`) so revocation
+  has history to work with.
 - Add domain-specific custom checks and policies; the built-ins are a baseline.
 - The LLM analyzer never receives content until after secret redaction; keep it
   that way in any custom analyzer.

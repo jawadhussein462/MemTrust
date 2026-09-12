@@ -8,20 +8,16 @@ configured.
 
 from __future__ import annotations
 
-from ..context import CheckContext
-from ..models.enums import Action, Category, MemoryStatus, Severity
-from ..models.finding import Finding
-from ..models.memory import MemoryCandidate, MemoryRecord
-from ..text import similarity
-from .base import BaseCheck
+from ...context import CheckContext
+from ...models.enums import Action, Category, MemoryStatus, Severity
+from ...models.finding import Finding
+from ...models.memory import MemoryCandidate, MemoryRecord
+from ...text import similarity
+from ..base import BaseCheck
 
 
-def _same_partition(candidate: MemoryCandidate, existing: MemoryRecord) -> bool:
-    return (
-        existing.scope.tenant_id == candidate.scope.tenant_id
-        and existing.scope.user_id == candidate.scope.user_id
-        and existing.status == MemoryStatus.ACTIVE
-    )
+def _active(existing: MemoryRecord) -> bool:
+    return existing.status == MemoryStatus.ACTIVE
 
 
 class DuplicationCheck(BaseCheck):
@@ -34,7 +30,7 @@ class DuplicationCheck(BaseCheck):
         best_id: str | None = None
         best_score = 0.0
         for existing in context.existing:
-            if not _same_partition(candidate, existing):
+            if not _active(existing):
                 continue
             score = similarity(candidate.content, existing.content)
             if score > best_score:
@@ -46,7 +42,9 @@ class DuplicationCheck(BaseCheck):
                     code="duplicate_memory",
                     category=Category.CORRECTNESS,
                     severity=Severity.LOW,
-                    message=f"Candidate is ~{best_score:.0%} similar to existing memory '{best_id}'.",
+                    message=(
+                        f"Candidate is ~{best_score:.0%} similar to existing memory '{best_id}'."
+                    ),
                     evidence={"duplicate_of": best_id, "similarity": round(best_score, 3)},
                     check=self.name,
                     recommended_action=Action.ALLOW_WITH_WARNING,

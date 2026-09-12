@@ -1,10 +1,9 @@
 """The evaluation engine.
 
 Holds the mode-independent decision logic *and* the non-bypassable core
-enforcement (cross-tenant/cross-user isolation on read, tenant match on write,
-and revoked/expired/quarantined/superseded filtering on read). Pluggable
-checks and policies run on top; they can add findings but cannot remove core
-protections — this is what makes security Invariant 7 hold.
+enforcement (revoked/expired/quarantined/superseded filtering on read).
+Pluggable checks and policies run on top; they can add findings but cannot
+remove core protections.
 
 Shared by both :class:`~memtrust.MemTrust` and
 :class:`~memtrust.AsyncMemTrust`; backend I/O lives in the client wrappers.
@@ -32,7 +31,6 @@ from .models.enums import (
 from .models.finding import Finding
 from .models.memory import MemoryCandidate, MemoryRecord
 from .models.results import FilteredMemory, ReadResult, SafeMemory
-from .models.scope import Scope
 from .policies.engine import PolicyEngine
 from .redaction import redact_text
 from .semantic.base import SemanticAnalyzer
@@ -42,7 +40,6 @@ from .telemetry import (
     ATTR_MODE,
     ATTR_OPERATION,
     ATTR_RISK,
-    ATTR_TENANT,
     SPAN_READ_CHECK,
     SPAN_WRITE_CHECK,
     NullTracer,
@@ -91,13 +88,10 @@ class Evaluator:
         self,
         candidate: MemoryCandidate,
         *,
-        request_scope: Scope | None = None,
         existing: list[MemoryRecord] | None = None,
     ) -> Decision:
         now = self.clock.now()
-        req_scope = request_scope or candidate.scope
         ctx = CheckContext(
-            request_scope=req_scope,
             config=self.config,
             semantic=self.semantic,
             now=now,
@@ -107,16 +101,11 @@ class Evaluator:
 
         with self.tracer.span(
             SPAN_WRITE_CHECK,
-            {ATTR_OPERATION: "write", ATTR_MODE: self.config.mode.value, ATTR_TENANT: req_scope.tenant_id},
+            {ATTR_OPERATION: "write", ATTR_MODE: self.config.mode.value},
         ) as span:
-            self._emit(
-                AuditEventType.WRITE_REQUESTED,
-                candidate=candidate,
-                scope=candidate.scope,
-            )
+            self._emit(AuditEventType.WRITE_REQUESTED, candidate=candidate)
 
             findings: list[Finding] = []
-            findings.extend(self._core_write_findings(candidate, req_scope))
             findings.extend(self._run_checks(candidate, ctx))
             matched, policy_findings = self.policy_engine.evaluate(candidate, ctx)
             findings.extend(policy_findings)
@@ -130,34 +119,12 @@ class Evaluator:
             self._emit_write_outcome(candidate, decision)
             return decision
 
-    def _core_write_findings(self, candidate: MemoryCandidate, req_scope: Scope) -> list[Finding]:
-        """Non-bypassable write enforcement."""
-        if candidate.scope.tenant_id != req_scope.tenant_id:
-            return [
-                Finding(
-                    code="cross_tenant_access",
-                    category=Category.SECURITY,
-                    severity=Severity.CRITICAL,
-                    message=(
-                        f"Write targets tenant '{candidate.scope.tenant_id}' but the request is "
-                        f"scoped to tenant '{req_scope.tenant_id}'."
-                    ),
-                    evidence={
-                        "candidate_tenant": candidate.scope.tenant_id,
-                        "request_tenant": req_scope.tenant_id,
-                    },
-                    check="core",
-                    recommended_action=Action.BLOCK,
-                )
-            ]
-        return []
-
     def _run_checks(self, candidate: MemoryCandidate, ctx: CheckContext) -> list[Finding]:
         findings: list[Finding] = []
         for chk in self.checks:
             try:
                 findings.extend(chk.check(candidate, ctx))
-            except Exception as exc:  # noqa: BLE001 - isolation between checks is intentional
+            except Exception as exc:
                 _logger.warning("check %r raised %s", getattr(chk, "name", chk), type(exc).__name__)
                 if self.config.fail_closed:
                     findings.append(
@@ -166,8 +133,7 @@ class Evaluator:
                             category=Category.SECURITY,
                             severity=Severity.CRITICAL,
                             message=(
-                                f"Check '{getattr(chk, 'name', 'unknown')}' failed; "
-                                "failing closed."
+                                f"Check '{getattr(chk, 'name', 'unknown')}' failed; failing closed."
                             ),
                             evidence={"error_type": type(exc).__name__},
                             check="core",
@@ -178,25 +144,22 @@ class Evaluator:
 
     # -- read -------------------------------------------------------------------
 
-    def evaluate_read(
-        self, records: list[MemoryRecord], *, request_scope: Scope
-    ) -> ReadResult:
+    def evaluate_read(self, records: list[MemoryRecord]) -> ReadResult:
         now = self.clock.now()
         with self.tracer.span(
             SPAN_READ_CHECK,
-            {ATTR_OPERATION: "read", ATTR_MODE: self.config.mode.value, ATTR_TENANT: request_scope.tenant_id},
+            {ATTR_OPERATION: "read", ATTR_MODE: self.config.mode.value},
         ) as span:
-            self._emit(AuditEventType.READ_REQUESTED, scope=request_scope)
+            self._emit(AuditEventType.READ_REQUESTED)
 
             result = ReadResult()
             for record in records:
-                finding = self._core_read_finding(record, request_scope, now)
+                finding = self._core_read_finding(record, now)
                 if finding is not None:
                     result.filtered.append(FilteredMemory(record=record, finding=finding))
                     result.findings.append(finding)
                     self._emit(
                         AuditEventType.READ_FILTERED,
-                        scope=request_scope,
                         memory_id=record.id,
                         finding_codes=[finding.code],
                         risk=Risk.from_severity(finding.severity),
@@ -205,7 +168,6 @@ class Evaluator:
                 result.results.append(SafeMemory(record=record))
                 self._emit(
                     AuditEventType.READ_ALLOWED,
-                    scope=request_scope,
                     memory_id=record.id,
                 )
 
@@ -213,38 +175,12 @@ class Evaluator:
             span.set_attribute("memtrust.filtered", len(result.filtered))
             return result
 
-    def _core_read_finding(
-        self, record: MemoryRecord, request_scope: Scope, now: datetime
-    ) -> Finding | None:
+    def _core_read_finding(self, record: MemoryRecord, now: datetime) -> Finding | None:
         """Non-bypassable read enforcement; returns a Finding if withheld."""
-        if record.scope.tenant_id != request_scope.tenant_id:
-            return Finding(
-                code="cross_tenant_access",
-                category=Category.SECURITY,
-                severity=Severity.CRITICAL,
-                message="Memory belongs to another tenant.",
-                evidence={
-                    "memory_tenant": record.scope.tenant_id,
-                    "request_tenant": request_scope.tenant_id,
-                },
-                check="core",
-            )
-        if not record.scope.readable_by(request_scope):
-            return Finding(
-                code="cross_user_access",
-                category=Category.SECURITY,
-                severity=Severity.CRITICAL,
-                message="Memory belongs to another user.",
-                evidence={
-                    "memory_user": record.scope.user_id,
-                    "request_user": request_scope.user_id,
-                },
-                check="core",
-            )
         if record.status == MemoryStatus.REVOKED:
             return Finding(
                 code="memory_revoked",
-                category=Category.GOVERNANCE,
+                category=Category.SECURITY,
                 severity=Severity.HIGH,
                 message="Memory has been revoked.",
                 check="core",
@@ -289,39 +225,26 @@ class Evaluator:
         self,
         event_type: AuditEventType,
         *,
-        scope: Scope | None = None,
         memory_id: str | None = None,
-        source_id: str | None = None,
     ) -> None:
         """Public helper to record lifecycle events (supersede/revoke)."""
-        self._emit(event_type, scope=scope, memory_id=memory_id, source_id=source_id)
+        self._emit(event_type, memory_id=memory_id)
 
     def _emit(
         self,
         event_type: AuditEventType,
         *,
         candidate: MemoryCandidate | None = None,
-        scope: Scope | None = None,
         memory_id: str | None = None,
-        source_id: str | None = None,
         finding_codes: list[str] | None = None,
         risk: Risk | None = None,
     ) -> None:
-        eff_scope = scope or (candidate.scope if candidate else None)
         preview = None
         if candidate is not None:
             preview = self._content_preview(candidate.content)
-            if source_id is None:
-                source_id = candidate.source.id
         event = AuditEvent(
             type=event_type,
-            tenant_id=eff_scope.tenant_id if eff_scope else None,
-            user_id=eff_scope.user_id if eff_scope else None,
-            agent_id=eff_scope.agent_id if eff_scope else None,
-            session_id=eff_scope.session_id if eff_scope else None,
-            namespace=eff_scope.namespace if eff_scope else None,
             memory_id=memory_id,
-            source_id=source_id,
             finding_codes=finding_codes or [],
             finding_count=len(finding_codes or []),
             risk=risk,
@@ -339,12 +262,6 @@ class Evaluator:
         self.audit.append(
             AuditEvent(
                 type=event_type,
-                tenant_id=candidate.scope.tenant_id,
-                user_id=candidate.scope.user_id,
-                agent_id=candidate.scope.agent_id,
-                session_id=candidate.scope.session_id,
-                namespace=candidate.scope.namespace,
-                source_id=candidate.source.id,
                 action=decision.action,
                 risk=decision.risk,
                 finding_codes=decision.finding_codes(),

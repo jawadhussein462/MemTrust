@@ -11,11 +11,11 @@ can start heuristic and later become model-backed without changing the check.
 
 from __future__ import annotations
 
-from ..context import CheckContext
-from ..models.enums import Action, Category, Severity
-from ..models.finding import Finding
-from ..models.memory import MemoryCandidate
-from .base import BaseCheck
+from ...context import CheckContext
+from ...models.enums import Action, Category, Severity
+from ...models.finding import Finding
+from ...models.memory import MemoryCandidate
+from ..base import BaseCheck
 
 
 class GeneralizationCheck(BaseCheck):
@@ -42,7 +42,7 @@ class GeneralizationCheck(BaseCheck):
                     "Candidate appears to generalize a narrowly-scoped, one-off instruction "
                     "into a standing fact/preference."
                 ),
-                evidence={"source_excerpt": (candidate.source.excerpt or "")[:200]},
+                evidence={"excerpt": (candidate.excerpt or "")[:200]},
                 check=self.name,
                 recommended_action=Action.REVIEW,
             )

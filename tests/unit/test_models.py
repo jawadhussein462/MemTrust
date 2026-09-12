@@ -1,4 +1,4 @@
-"""Model behaviour: coercion, enums, authority, serialization, Decision."""
+"""Model behaviour: coercion, enums, serialization, Decision."""
 
 from __future__ import annotations
 
@@ -13,19 +13,11 @@ from memtrust import (
     MemoryCandidate,
     MemoryRecord,
     Risk,
-    Scope,
     Severity,
-    Source,
-    TrustLevel,
 )
+from memtrust._coerce import coerce_candidate
 from memtrust._time import utcnow
-from memtrust.models.source import default_authority_for
-
-
-def test_trust_ordering():
-    assert TrustLevel.UNTRUSTED.rank < TrustLevel.USER.rank < TrustLevel.AUTHORITATIVE.rank
-    assert TrustLevel.INTERNAL.is_at_least(TrustLevel.USER)
-    assert not TrustLevel.USER.is_at_least(TrustLevel.INTERNAL)
+from memtrust.exceptions import ConfigurationError
 
 
 def test_severity_and_action_ordering():
@@ -35,51 +27,20 @@ def test_severity_and_action_ordering():
     assert not Action.BLOCK.is_allowed
 
 
-def test_source_dict_coercion_and_default_authority():
-    src = Source.model_validate({"type": "ticket", "trust": "untrusted", "id": "t1"})
-    assert src.trust is TrustLevel.UNTRUSTED
-    assert src.default_authority == default_authority_for(TrustLevel.UNTRUSTED)
-
-
-def test_scope_defaults_and_readable_by():
-    s = Scope(tenant_id="acme", user_id="alice")
-    assert s.readable_by(Scope(tenant_id="acme", user_id="alice"))
-    assert not s.readable_by(Scope(tenant_id="acme", user_id="bob"))
-    assert not s.readable_by(Scope(tenant_id="globex", user_id="alice"))
-
-
-def test_candidate_effective_authority_capped_by_source():
-    # Default: authority implied by source trust.
-    c = MemoryCandidate(content="x", source=Source(type="a", trust="untrusted"))
-    assert c.effective_authority == default_authority_for(TrustLevel.UNTRUSTED)
-    # Explicit value below the source default is honored (you may lower).
-    lowered = MemoryCandidate(content="x", source=Source(type="a", trust="trusted"), authority=0.1)
-    assert lowered.effective_authority == 0.1
-    # Explicit value above the source default is capped (you may not raise).
-    spoof = MemoryCandidate(content="x", source=Source(type="a", trust="untrusted"), authority=0.99)
-    assert spoof.effective_authority == default_authority_for(TrustLevel.UNTRUSTED)
-
-
-def test_candidate_to_record_carries_provenance():
-    c = MemoryCandidate(
-        content="fact",
-        source=Source(type="doc", trust="internal", id="doc1"),
-        scope=Scope(tenant_id="acme"),
-        derived_from=["mem_a"],
-    )
+def test_candidate_to_record_carries_lineage():
+    c = MemoryCandidate(content="fact", derived_from=["mem_a"])
     r = c.to_record(id="mem_b")
     assert r.id == "mem_b"
-    assert r.trust is TrustLevel.INTERNAL
-    assert "doc1" in r.provenance.source_ids
     assert "mem_a" in r.provenance.derived_from
+    assert "mem_a" in r.derived_from
 
 
 def test_record_expiry_and_liveness():
     now = utcnow()
-    r = MemoryRecord(id="m", content="c", scope=Scope(tenant_id="acme"), expires_at=now - timedelta(hours=1))
+    r = MemoryRecord(id="m", content="c", expires_at=now - timedelta(hours=1))
     assert r.is_expired(now)
     assert not r.is_live(now)
-    r2 = MemoryRecord(id="m2", content="c", scope=Scope(tenant_id="acme"))
+    r2 = MemoryRecord(id="m2", content="c")
     assert r2.is_live(now)
 
 
@@ -108,25 +69,33 @@ def test_decision_str_is_readable():
         action=Action.QUARANTINE,
         recommended_action=Action.QUARANTINE,
         risk=Risk.CRITICAL,
-        findings=[Finding(code="untrusted_policy_write", severity="critical", message="m")],
+        findings=[Finding(code="memory_poisoning", severity="critical", message="m")],
     )
     text = str(d)
     assert "BLOCKED" in text
     assert "critical" in text
-    assert "untrusted_policy_write" in text
+    assert "memory_poisoning" in text
     assert "quarantine" in text
 
 
 def test_record_json_round_trip():
-    r = MemoryRecord(id="m", content="c", scope=Scope(tenant_id="acme"), authority=0.5, trust="user")
+    r = MemoryRecord(id="m", content="c")
     dumped = r.model_dump_json()
     restored = MemoryRecord.model_validate_json(dumped)
     assert restored.id == r.id
-    assert restored.scope.tenant_id == "acme"
-    assert restored.trust is TrustLevel.USER
+    assert restored.content == "c"
+
+
+def test_coerce_candidate_from_string_and_dict():
+    from_str = coerce_candidate("hello")
+    assert from_str.content == "hello"
+    from_dict = coerce_candidate({"content": "hi"})
+    assert from_dict.content == "hi"
+    already = MemoryCandidate(content="x")
+    assert coerce_candidate(already) is already
 
 
 @pytest.mark.parametrize("bad", [123, 4.5, object()])
-def test_source_coercion_rejects_bad_types(bad):
-    with pytest.raises(Exception):
-        Source.model_validate(bad)
+def test_coerce_candidate_rejects_bad_types(bad):
+    with pytest.raises(ConfigurationError):
+        coerce_candidate(bad)

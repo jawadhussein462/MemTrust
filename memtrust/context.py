@@ -13,7 +13,6 @@ from datetime import datetime
 from .config import Config
 from .models.enums import Mode
 from .models.memory import MemoryRecord
-from .models.scope import Scope
 from .semantic.base import SemanticAnalyzer
 
 
@@ -21,7 +20,6 @@ from .semantic.base import SemanticAnalyzer
 class CheckContext:
     """Read-only context for a single write or read evaluation."""
 
-    request_scope: Scope
     config: Config
     semantic: SemanticAnalyzer
     now: datetime

@@ -26,7 +26,7 @@ class Decision(BaseModel):
     action: Action = Field(description="Effective action after applying the enforcement mode.")
     recommended_action: Action = Field(
         default=Action.ALLOW,
-        description="Action the findings argue for, regardless of mode (the 'true' recommendation).",
+        description="Action the findings argue for, regardless of mode (the true recommendation).",
     )
     risk: Risk = Field(default=Risk.NONE, description="Worst severity across findings.")
     findings: list[Finding] = Field(default_factory=list)

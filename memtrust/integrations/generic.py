@@ -11,10 +11,9 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from ..models.memory import MemoryRecord
-from ..models.scope import Scope
 
 AddFn = Callable[[MemoryRecord], MemoryRecord]
-SearchFn = Callable[[str, Scope, int], list[MemoryRecord]]
+SearchFn = Callable[[str, int], list[MemoryRecord]]
 GetFn = Callable[[str], "MemoryRecord | None"]
 DeleteFn = Callable[[str], None]
 
@@ -38,8 +37,8 @@ class FunctionBackend:
     def add(self, memory: MemoryRecord) -> MemoryRecord:
         return self._add(memory)
 
-    def search(self, query: str, *, scope: Scope, limit: int = 10) -> list[MemoryRecord]:
-        return self._search(query, scope, limit)
+    def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
+        return self._search(query, limit)
 
     def get(self, memory_id: str) -> MemoryRecord | None:
         return self._get(memory_id) if self._get else None

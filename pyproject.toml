@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "memtrust"
 version = "0.1.0"
-description = "Security, correctness, and governance for persistent AI-agent memory."
+description = "Security and correctness for agent long-term knowledge memory."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
@@ -14,13 +14,19 @@ keywords = [
     "ai",
     "agents",
     "memory",
+    "long-term-memory",
+    "rag",
+    "knowledge",
     "security",
-    "governance",
-    "provenance",
+    "correctness",
+    "poisoning",
     "guardrails",
     "mem0",
     "langgraph",
-    "zep",
+    "chroma",
+    "llamaindex",
+    "qdrant",
+    "langchain",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -47,7 +53,10 @@ Changelog = "https://github.com/memtrust/memtrust/blob/main/CHANGELOG.md"
 [project.optional-dependencies]
 mem0 = ["mem0ai>=0.1.0"]
 langgraph = ["langgraph>=0.2.0"]
-zep = ["zep-cloud>=2.0.0"]
+chroma = ["chromadb>=0.5.0"]
+llamaindex = ["llama-index-core>=0.11.0"]
+qdrant = ["qdrant-client>=1.9.0"]
+langchain = ["langchain-core>=0.3.0"]
 openai = ["openai>=1.0.0"]
 otel = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
 dev = [
@@ -61,7 +70,10 @@ dev = [
 all = [
     "mem0ai>=0.1.0",
     "langgraph>=0.2.0",
-    "zep-cloud>=2.0.0",
+    "chromadb>=0.5.0",
+    "llama-index-core>=0.11.0",
+    "qdrant-client>=1.9.0",
+    "langchain-core>=0.3.0",
     "openai>=1.0.0",
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
@@ -119,7 +131,16 @@ plugins = ["pydantic.mypy"]
 exclude = ["tests/", "examples/", "build/", "dist/"]
 
 [[tool.mypy.overrides]]
-module = ["mem0.*", "langgraph.*", "zep_cloud.*", "openai.*", "opentelemetry.*"]
+module = [
+    "mem0.*",
+    "langgraph.*",
+    "chromadb.*",
+    "llama_index.*",
+    "qdrant_client.*",
+    "langchain_core.*",
+    "openai.*",
+    "opentelemetry.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

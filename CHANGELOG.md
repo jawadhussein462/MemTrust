@@ -6,6 +6,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Security + correctness only**: MemTrust is now oriented around two check
+  families. **Security** detects poisoning, injection, and secrets.
+  **Correctness** detects contradictions, duplicates, freshness, and
+  over-generalization. Built-in checks live under
+  `memtrust.checks.security` and `memtrust.checks.correctness`.
+- **Simplified API**: `check_write(content)`, `check_read(records)`,
+  `protect(...).add(content)` / `.search(query)` — no `source`, `scope`,
+  `tenant`, `trust`, or `authority` arguments.
+- **Poisoning is content-based**: `PoisoningCheck` flags false
+  security-relevant facts (disabled auth, attacker hosts, approval bypasses)
+  instead of gating writes on source trust / authority.
+- **Revocation** is `revoke(memory_id)` (a memory and anything derived from
+  it), replacing `revoke_source`.
+- **Policies** match optional metadata and `forbidden_substrings`; authority
+  and trust requirements are gone.
+
+### Removed
+
+- Source, scope, tenant, and authority models (`Source`, `Scope`,
+  `TrustLevel`, `effective_authority`).
+- `AuthorityCheck`, `ScopeCheck`, `TenantCheck`, and core cross-tenant /
+  cross-user isolation.
+- Governance as a finding category.
+- Example `02_cross_tenant_read.py` (replaced by injection) and
+  `07_user_ltm_vs_shared_knowledge.py` (replaced by secret redaction).
+- Experimental `ZepBackend` and the `zep` extra.
+
+### Added
+
+- **RAG adapters**: `ChromaBackend`, `QdrantBackend`, `LlamaIndexBackend`, and
+  `LangChainVectorStoreBackend`, plus extras `chroma`, `qdrant`, `llamaindex`,
+  and `langchain`.
+- Example `02_injection.py` and `07_secret_redaction.py`.
+
 ### Fixed
 
 - **Mem0 platform adapter**: `MemoryClient` v2+ rejects top-level `user_id` on
@@ -42,8 +78,8 @@ boundary between an AI agent and its memory backend.
   offline) and an optional provider-agnostic `LLMSemanticAnalyzer` with
   timeouts and fail-open/closed behavior.
 - **Backends**: `MemoryBackend`/`AsyncMemoryBackend` Protocols and in-memory
-  reference implementations; adapters for Mem0 and LangGraph `BaseStore`; an
-  experimental Zep (graph API) adapter; a generic `FunctionBackend`.
+  reference implementations; adapters for Mem0 and LangGraph `BaseStore`; a
+  generic `FunctionBackend`.
 - **Audit**: JSON-serializable `AuditEvent`, `InMemoryAuditStore`, and
   `JSONLAuditStore`. Secrets are redacted from audit content.
 - **Telemetry**: stdlib `logging` (no `basicConfig`) and optional OpenTelemetry

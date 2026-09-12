@@ -1,8 +1,8 @@
-"""Example 4 — Superseding an outdated fact (history preserved).
+"""Example 4 — Superseding an outdated long-term fact (history preserved).
 
 "Alice works at Stripe" then "Alice now works at Anthropic" should SUPERSEDE
 the old fact rather than blindly contradict it. The old record is marked
-superseded (not deleted) and no longer surfaces in reads.
+superseded (not deleted) and no longer surfaces in RAG / LTM reads.
 
 Run:  python examples/04_supersede_outdated_fact.py
 """
@@ -15,16 +15,14 @@ from memtrust.backends import InMemoryBackend
 
 def main() -> None:
     memory = MemTrust().protect(InMemoryBackend())
-    scope = {"tenant_id": "acme", "user_id": "alice"}
-    src = {"type": "conversation", "trust": "user"}
 
-    first = memory.add("Alice works at Stripe.", source=src, scope=scope)
+    first = memory.add("Alice works at Stripe.")
     print("first add :", first.decision.action.value, "->", first.record.id)
 
-    second = memory.add("Alice now works at Anthropic.", source=src, scope=scope)
+    second = memory.add("Alice now works at Anthropic.")
     print("second add:", second.decision.action.value, "supersedes", second.decision.supersedes)
 
-    current = memory.search("where does alice work", scope=scope)
+    current = memory.search("where does alice work")
     print("current   :", [s.memory for s in current])
 
 

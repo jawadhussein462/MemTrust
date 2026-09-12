@@ -19,18 +19,10 @@ class InMemoryAuditStore:
         self,
         *,
         type: AuditEventType | None = None,
-        tenant_id: str | None = None,
         memory_id: str | None = None,
-        source_id: str | None = None,
         limit: int | None = None,
     ) -> list[AuditEvent]:
-        out = [
-            e
-            for e in self._events
-            if matches_filters(
-                e, type=type, tenant_id=tenant_id, memory_id=memory_id, source_id=source_id
-            )
-        ]
+        out = [e for e in self._events if matches_filters(e, type=type, memory_id=memory_id)]
         if limit is not None:
             out = out[-limit:]
         return out

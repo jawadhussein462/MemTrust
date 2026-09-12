@@ -24,13 +24,7 @@ class AuditEvent(BaseModel):
     id: str = Field(default_factory=lambda: f"evt_{uuid.uuid4().hex[:12]}")
     type: AuditEventType
     timestamp: datetime = Field(default_factory=utcnow)
-    tenant_id: str | None = None
-    user_id: str | None = None
-    agent_id: str | None = None
-    session_id: str | None = None
-    namespace: str | None = None
     memory_id: str | None = None
-    source_id: str | None = None
     action: Action | None = None
     risk: Risk | None = None
     finding_codes: list[str] = Field(default_factory=list)
@@ -53,9 +47,7 @@ class AuditStore(Protocol):
         self,
         *,
         type: AuditEventType | None = None,
-        tenant_id: str | None = None,
         memory_id: str | None = None,
-        source_id: str | None = None,
         limit: int | None = None,
     ) -> list[AuditEvent]: ...
 
@@ -64,18 +56,12 @@ def matches_filters(
     event: AuditEvent,
     *,
     type: AuditEventType | None,
-    tenant_id: str | None,
     memory_id: str | None,
-    source_id: str | None,
 ) -> bool:
     """Shared filter predicate used by store implementations."""
     if type is not None and event.type != type:
         return False
-    if tenant_id is not None and event.tenant_id != tenant_id:
-        return False
-    if memory_id is not None and event.memory_id != memory_id:
-        return False
-    return not (source_id is not None and event.source_id != source_id)
+    return not (memory_id is not None and event.memory_id != memory_id)
 
 
 __all__ = ["AuditEvent", "AuditStore", "matches_filters"]

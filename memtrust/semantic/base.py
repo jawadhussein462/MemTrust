@@ -19,9 +19,7 @@ class SemanticAnalyzer(Protocol):
 
     name: str
 
-    def compare(
-        self, existing: MemoryRecord, candidate: MemoryCandidate
-    ) -> MemoryRelationship: ...
+    def compare(self, existing: MemoryRecord, candidate: MemoryCandidate) -> MemoryRelationship: ...
 
 
 @runtime_checkable

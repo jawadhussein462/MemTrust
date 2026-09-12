@@ -2,11 +2,14 @@
 
 ``default_checks()`` returns the standard pipeline. Additional checks can be
 appended without modifying the engine.
+
+Security checks detect poisoning, injection, and secrets.
+Correctness checks detect contradictions, duplicates, freshness, and
+over-generalization.
 """
 
 from __future__ import annotations
 
-from .authority import AuthorityCheck
 from .base import (
     BaseCheck,
     CheckFunction,
@@ -15,14 +18,13 @@ from .base import (
     check,
     normalize_check,
 )
-from .contradiction import ContradictionCheck
-from .duplication import DuplicationCheck
-from .freshness import FreshnessCheck
-from .generalization import GeneralizationCheck
-from .injection import InjectionCheck
-from .scope import ScopeCheck
-from .secrets import SecretsCheck
-from .tenant import TenantCheck
+from .correctness import (
+    ContradictionCheck,
+    DuplicationCheck,
+    FreshnessCheck,
+    GeneralizationCheck,
+)
+from .security import InjectionCheck, PoisoningCheck, SecretsCheck
 
 
 def default_checks() -> list[MemoryCheck]:
@@ -30,9 +32,7 @@ def default_checks() -> list[MemoryCheck]:
     return [
         SecretsCheck(),
         InjectionCheck(),
-        TenantCheck(),
-        ScopeCheck(),
-        AuthorityCheck(),
+        PoisoningCheck(),
         FreshnessCheck(),
         DuplicationCheck(),
         ContradictionCheck(),
@@ -41,7 +41,6 @@ def default_checks() -> list[MemoryCheck]:
 
 
 __all__ = [
-    "AuthorityCheck",
     "BaseCheck",
     "CheckFunction",
     "ContradictionCheck",
@@ -51,9 +50,8 @@ __all__ = [
     "GeneralizationCheck",
     "InjectionCheck",
     "MemoryCheck",
-    "ScopeCheck",
+    "PoisoningCheck",
     "SecretsCheck",
-    "TenantCheck",
     "check",
     "default_checks",
     "normalize_check",

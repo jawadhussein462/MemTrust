@@ -1,6 +1,6 @@
 """Secret detection and redaction.
 
-Used both by :class:`~memtrust.checks.secrets.SecretsCheck` and by the audit
+Used both by :class:`~memtrust.checks.security.secrets.SecretsCheck` and by the audit
 layer, so that raw secrets never reach findings, audit events, logs, or
 telemetry — even if the secrets check itself is disabled.
 
@@ -17,7 +17,10 @@ _REDACT = "[REDACTED:{kind}]"
 
 # High-signal, low-false-positive patterns, applied in this order.
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("private_key", re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----")),
+    (
+        "private_key",
+        re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----"),
+    ),
     ("private_key", re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")),
     ("openai_api_key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}")),

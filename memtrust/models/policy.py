@@ -15,19 +15,17 @@ from .enums import Action, Severity
 class Policy(BaseModel):
     """A declarative rule: *when* some conditions hold, *require* something.
 
-    Supported ``when`` keys: ``tenant_id``, ``namespace``, ``namespace_in``
-    (list), ``source_type``, ``source_trust_at_most`` (trust level name).
-    An empty ``when`` matches everything.
+    Supported ``when`` keys: metadata field names whose values must match
+    ``candidate.metadata``. An empty ``when`` matches everything.
 
-    Supported ``require`` keys: ``minimum_authority`` (float 0..1),
-    ``allowed_trust`` (list of trust level names).
+    Supported ``require`` keys: ``forbidden_substrings`` (list of strings that
+    must not appear in the candidate content).
 
     Example::
 
         Policy(
-            name="finance-policy-authority",
-            when={"namespace": "finance_policy"},
-            require={"minimum_authority": 0.9},
+            name="no-ssn",
+            require={"forbidden_substrings": ["ssn"]},
         )
     """
 

@@ -2,8 +2,7 @@
 
 Wraps a Mem0 ``Memory`` or ``MemoryClient`` so it can be protected by
 MemTrust. The full MemTrust record is stored in Mem0 ``metadata`` under the
-``memtrust`` key and reconstructed on read, so provenance/authority/scope
-survive the round-trip.
+``memtrust`` key and reconstructed on read.
 
 Install with ``pip install "memtrust[mem0]"``.
 
@@ -21,22 +20,12 @@ from typing import Any
 
 from ..exceptions import BackendError
 from ..models.memory import MemoryRecord
-from ..models.scope import Scope
 
 _MT_KEY = "memtrust"
-# Tenant assigned to records with no MemTrust provenance, so the core read
-# enforcement withholds them by default rather than trusting the requester's
-# tenant (which would make isolation depend solely on Mem0's native filtering).
-_UNVERIFIED_TENANT = "__memtrust_unverified__"
 
 
 class Mem0Backend:
     """Adapter from Mem0 to the MemTrust :class:`MemoryBackend` protocol.
-
-    By default, records that were not written through MemTrust (no ``memtrust``
-    metadata) are reconstructed with an unverified tenant so they are filtered
-    out on read. Set ``trust_native_scope=True`` only if you trust Mem0's own
-    filtering to enforce tenant isolation for legacy records.
 
     ``infer=False`` stores the already-formed MemTrust record as-is. The
     platform ``MemoryClient`` otherwise extracts facts asynchronously and
@@ -44,21 +33,19 @@ class Mem0Backend:
 
     Identity handling is auto-detected: platform ``MemoryClient`` search uses
     ``filters`` + ``top_k``; OSS ``Memory`` and test doubles keep top-level
-    ``user_id`` / ``limit``.
+    ``limit``.
     """
 
     def __init__(
         self,
         client: Any,
         *,
-        trust_native_scope: bool = False,
         infer: bool = False,
         search_filters: bool | None = None,
     ) -> None:
         if not (hasattr(client, "add") and hasattr(client, "search")):
             raise BackendError("Mem0 client must provide .add() and .search().")
         self._client = client
-        self._trust_native_scope = trust_native_scope
         self._infer = infer
         self._search_filters = (
             _client_uses_search_filters(client) if search_filters is None else search_filters
@@ -71,29 +58,25 @@ class Mem0Backend:
             "metadata": {_MT_KEY: json.dumps(memory.model_dump(mode="json"))},
             "infer": self._infer,
         }
-        kwargs.update(_identity(memory.scope))
         try:
             res = self._client.add(memory.content, **kwargs)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise BackendError(f"Mem0 add failed: {exc}") from exc
         new_id = _extract_id(res)
         if new_id:
             return memory.model_copy(update={"id": new_id})
         return memory
 
-    def search(self, query: str, *, scope: Scope, limit: int = 10) -> list[MemoryRecord]:
-        identity = _identity(scope)
+    def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
         if self._search_filters:
             kwargs: dict[str, Any] = {"top_k": limit}
-            if identity:
-                kwargs["filters"] = identity
         else:
-            kwargs = {"limit": limit, **identity}
+            kwargs = {"limit": limit}
         try:
             res = self._client.search(query, **kwargs)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise BackendError(f"Mem0 search failed: {exc}") from exc
-        return [self._to_record(item, scope) for item in _extract_results(res)]
+        return [_to_record(item) for item in _extract_results(res)]
 
     def get(self, memory_id: str) -> MemoryRecord | None:
         getter = getattr(self._client, "get", None)
@@ -101,30 +84,14 @@ class Mem0Backend:
             return None
         try:
             item = getter(memory_id)
-        except Exception:  # noqa: BLE001 - missing/invalid ids are a miss
+        except Exception:
             return None
-        return self._to_record(item, Scope()) if item else None
-
-    def _to_record(self, item: dict[str, Any], scope: Scope) -> MemoryRecord:
-        return _to_record(item, scope, trust_native=self._trust_native_scope)
+        return _to_record(item) if item else None
 
     def delete(self, memory_id: str) -> None:
         deleter = getattr(self._client, "delete", None)
         if callable(deleter):
             deleter(memory_id)
-
-
-def _identity(scope: Scope) -> dict[str, str]:
-    out: dict[str, str] = {}
-    if scope.user_id:
-        out["user_id"] = scope.user_id
-    elif scope.tenant_id:
-        out["user_id"] = scope.tenant_id
-    if scope.agent_id:
-        out["agent_id"] = scope.agent_id
-    if scope.session_id:
-        out["run_id"] = scope.session_id
-    return out
 
 
 def _client_uses_search_filters(client: Any) -> bool:
@@ -140,7 +107,9 @@ def _extract_results(res: Any) -> list[dict[str, Any]]:
         return []
     if isinstance(res, dict):
         results = res.get("results", res.get("memories", []))
-        return [item for item in results if isinstance(item, dict)] if isinstance(results, list) else []
+        if isinstance(results, list):
+            return [item for item in results if isinstance(item, dict)]
+        return []
     if isinstance(res, list):
         return [item for item in res if isinstance(item, dict)]
     return []
@@ -174,7 +143,7 @@ def _parse_stored_metadata(stored: Any) -> dict[str, Any] | None:
     return None
 
 
-def _to_record(item: dict[str, Any], scope: Scope, *, trust_native: bool) -> MemoryRecord:
+def _to_record(item: dict[str, Any]) -> MemoryRecord:
     metadata = item.get("metadata") or {}
     stored = metadata.get(_MT_KEY) if isinstance(metadata, dict) else None
     payload = _parse_stored_metadata(stored)
@@ -183,14 +152,9 @@ def _to_record(item: dict[str, Any], scope: Scope, *, trust_native: bool) -> Mem
         # Prefer MemTrust's stored content: Mem0 inference can rewrite text
         # (including quarantined poisoning attempts).
         return record.model_copy(update={"id": str(item.get("id", record.id))})
-    # Minimal reconstruction when the record wasn't written through MemTrust.
-    # Do NOT claim the requester's tenant unless explicitly trusted; otherwise
-    # the core tenant re-check would pass trivially for foreign records.
-    tenant = scope.tenant_id if trust_native else _UNVERIFIED_TENANT
     return MemoryRecord(
         id=str(item.get("id", "mem_unknown")),
         content=item.get("memory") or item.get("text") or "",
-        scope=Scope(tenant_id=tenant, user_id=item.get("user_id") or scope.user_id),
     )
 
 

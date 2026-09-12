@@ -26,9 +26,7 @@ class OtelTracer:
         self._tracer = tracer if tracer is not None else trace.get_tracer("memtrust")
 
     @contextmanager
-    def span(
-        self, name: str, attributes: Mapping[str, object] | None = None
-    ) -> Iterator[Span]:
+    def span(self, name: str, attributes: Mapping[str, object] | None = None) -> Iterator[Span]:
         with self._tracer.start_as_current_span(name) as span:  # type: ignore[union-attr]
             if attributes:
                 for key, value in attributes.items():

@@ -1,8 +1,6 @@
 """LangGraph ``BaseStore`` adapter.
 
-Maps MemTrust records onto LangGraph's namespaced key/value store. Namespaces
-are ``(tenant_id, namespace, user_id)`` tuples so tenant/user partitioning is
-reflected in the store itself (MemTrust still re-checks on read).
+Maps MemTrust records onto LangGraph's namespaced key/value store.
 
 Install with ``pip install "memtrust[langgraph]"``.
 """
@@ -12,13 +10,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..models.memory import MemoryRecord
-from ..models.scope import Scope
 
-_PLACEHOLDER = "_"
-
-
-def _namespace(tenant_id: str, namespace: str | None, user_id: str | None) -> tuple[str, ...]:
-    return (tenant_id, namespace or _PLACEHOLDER, user_id or _PLACEHOLDER)
+_NS: tuple[str, ...] = ("memtrust",)
 
 
 def _value_of(item: Any) -> dict[str, Any] | None:
@@ -42,13 +35,11 @@ class LangGraphStoreBackend:
         self._store = store
 
     def add(self, memory: MemoryRecord) -> MemoryRecord:
-        ns = _namespace(memory.scope.tenant_id, memory.scope.namespace, memory.scope.user_id)
-        self._store.put(ns, memory.id, memory.model_dump(mode="json"))
+        self._store.put(_NS, memory.id, memory.model_dump(mode="json"))
         return memory
 
-    def search(self, query: str, *, scope: Scope, limit: int = 10) -> list[MemoryRecord]:
-        prefix: tuple[str, ...] = (scope.tenant_id,)
-        items = self._store.search(prefix, query=query or None, limit=limit)
+    def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
+        items = self._store.search(_NS, query=query or None, limit=limit)
         records: list[MemoryRecord] = []
         for item in items:
             value = _value_of(item)
@@ -57,7 +48,6 @@ class LangGraphStoreBackend:
         return records
 
     def get(self, memory_id: str) -> MemoryRecord | None:
-        # BaseStore.get needs a namespace; when only an id is known, locate it.
         for item, value in self._scan():
             if getattr(item, "key", None) == memory_id or (
                 isinstance(item, dict) and item.get("key") == memory_id
@@ -67,7 +57,9 @@ class LangGraphStoreBackend:
 
     def delete(self, memory_id: str) -> None:
         for item, _value in self._scan():
-            key = getattr(item, "key", None) or (item.get("key") if isinstance(item, dict) else None)
+            key = getattr(item, "key", None) or (
+                item.get("key") if isinstance(item, dict) else None
+            )
             if key == memory_id:
                 ns = _namespace_of(item)
                 if ns is not None:

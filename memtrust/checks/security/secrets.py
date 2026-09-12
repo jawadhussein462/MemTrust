@@ -7,12 +7,12 @@ is ``rewrite`` (persist the redacted content); otherwise the write is blocked.
 
 from __future__ import annotations
 
-from ..context import CheckContext
-from ..models.enums import Action, Category, Severity
-from ..models.finding import Finding
-from ..models.memory import MemoryCandidate
-from ..redaction import redact_text
-from .base import BaseCheck
+from ...context import CheckContext
+from ...models.enums import Action, Category, Severity
+from ...models.finding import Finding
+from ...models.memory import MemoryCandidate
+from ...redaction import redact_text
+from ..base import BaseCheck
 
 
 class SecretsCheck(BaseCheck):

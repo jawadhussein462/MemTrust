@@ -8,7 +8,7 @@ Run:  python examples/05_custom_backend.py
 
 from __future__ import annotations
 
-from memtrust import MemTrust, MemoryRecord, Scope
+from memtrust import MemoryRecord, MemTrust
 
 
 class DictBackend:
@@ -21,12 +21,8 @@ class DictBackend:
         self._data[memory.id] = memory
         return memory
 
-    def search(self, query: str, *, scope: Scope, limit: int = 10) -> list[MemoryRecord]:
-        hits = [
-            r
-            for r in self._data.values()
-            if r.scope.tenant_id == scope.tenant_id and query.lower() in r.content.lower()
-        ]
+    def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
+        hits = [r for r in self._data.values() if query.lower() in r.content.lower()]
         return hits[:limit]
 
     def get(self, memory_id: str) -> MemoryRecord | None:
@@ -39,14 +35,10 @@ class DictBackend:
 def main() -> None:
     memory = MemTrust().protect(DictBackend())
 
-    memory.add(
-        "Customer prefers email over phone.",
-        source={"type": "conversation", "trust": "user"},
-        scope={"tenant_id": "acme", "user_id": "carol"},
-    )
-    results = memory.search("email", scope={"tenant_id": "acme", "user_id": "carol"})
+    memory.add("Customer prefers email over phone.")
+    results = memory.search("email")
     for item in results:
-        print(item.memory, "| trust:", item.trust.value)
+        print(item.memory)
 
 
 if __name__ == "__main__":

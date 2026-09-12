@@ -12,7 +12,8 @@ trivially mockable in tests and not coupled to any vendor. LLM calls:
 from __future__ import annotations
 
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 
 from ..exceptions import IntegrationError
 from ..models.enums import MemoryRelationship
@@ -25,7 +26,7 @@ Completer = Callable[[str], str]
 
 _PROMPT = """You classify how a NEW memory relates to an EXISTING memory for an AI agent.
 Respond with exactly one of these labels and nothing else:
-duplicate, compatible, contradicts, supersedes, specializes, different_scope, unrelated.
+duplicate, compatible, contradicts, supersedes, specializes, unrelated.
 
 Guidance: if the NEW memory is a newer version of the same fact (e.g. an updated
 value), prefer "supersedes" over "contradicts".
@@ -66,7 +67,7 @@ class LLMSemanticAnalyzer:
         )
         try:
             raw = self._pool.submit(self._complete, prompt).result(timeout=self._timeout)
-        except (FutureTimeout, Exception):  # noqa: B014 - explicit about timeout; behaviour configurable
+        except (FutureTimeout, Exception):
             return self._on_failure(existing, candidate)
 
         rel = _parse_relationship(raw)
@@ -78,9 +79,7 @@ class LLMSemanticAnalyzer:
         detector = getattr(self._fallback, "detect_generalization", None)
         return bool(detector(candidate)) if detector else False
 
-    def _on_failure(
-        self, existing: MemoryRecord, candidate: MemoryCandidate
-    ) -> MemoryRelationship:
+    def _on_failure(self, existing: MemoryRecord, candidate: MemoryCandidate) -> MemoryRelationship:
         if self._fail_open:
             return self._fallback.compare(existing, candidate)
         # Fail closed: assume the worst (a conflict), which triggers review.
