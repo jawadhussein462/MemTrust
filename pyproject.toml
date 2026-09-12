@@ -1,0 +1,134 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "memtrust"
+version = "0.1.0"
+description = "Security, correctness, and governance for persistent AI-agent memory."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "MemTrust contributors" }]
+keywords = [
+    "ai",
+    "agents",
+    "memory",
+    "security",
+    "governance",
+    "provenance",
+    "guardrails",
+    "mem0",
+    "langgraph",
+    "zep",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+
+# Core stays lightweight: only pydantic. Everything else is an optional extra.
+dependencies = ["pydantic>=2.7"]
+
+[project.urls]
+Homepage = "https://github.com/memtrust/memtrust"
+Documentation = "https://github.com/memtrust/memtrust#readme"
+Repository = "https://github.com/memtrust/memtrust"
+Changelog = "https://github.com/memtrust/memtrust/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+mem0 = ["mem0ai>=0.1.0"]
+langgraph = ["langgraph>=0.2.0"]
+zep = ["zep-cloud>=2.0.0"]
+openai = ["openai>=1.0.0"]
+otel = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "hypothesis>=6.100",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+all = [
+    "mem0ai>=0.1.0",
+    "langgraph>=0.2.0",
+    "zep-cloud>=2.0.0",
+    "openai>=1.0.0",
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+]
+
+[project.scripts]
+memtrust = "memtrust.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["memtrust"]
+
+[tool.hatch.build.targets.sdist]
+include = ["memtrust", "README.md", "LICENSE", "CHANGELOG.md"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["memtrust", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "PIE", # flake8-pie
+    "RUF", # ruff-specific
+]
+ignore = [
+    "B008",   # function call in default argument (we use pydantic Field)
+    "SIM105", # contextlib.suppress vs try/except pass — explicit is fine here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "E501"]
+"examples/**" = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["memtrust"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true
+plugins = ["pydantic.mypy"]
+exclude = ["tests/", "examples/", "build/", "dist/"]
+
+[[tool.mypy.overrides]]
+module = ["mem0.*", "langgraph.*", "zep_cloud.*", "openai.*", "opentelemetry.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning:memtrust.*"]
+
+[tool.coverage.run]
+source = ["memtrust"]
+branch = true
