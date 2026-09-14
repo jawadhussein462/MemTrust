@@ -1,4 +1,4 @@
-"""A single :class:`Finding` produced by a check or policy."""
+"""A single :class:`Finding` produced by a check."""
 
 from __future__ import annotations
 
@@ -8,11 +8,10 @@ from .enums import Action, Category, Severity
 
 
 class Finding(BaseModel):
-    """One thing a check or policy noticed about a memory.
+    """One thing a check noticed about a memory.
 
     A finding never decides the outcome on its own; the decision engine
-    aggregates all findings (and the enforcement mode) into a single
-    :class:`~memtrust.Decision`.
+    aggregates all findings into a single :class:`~memtrust.Decision`.
 
     Example::
 
@@ -35,7 +34,7 @@ class Finding(BaseModel):
         description="Structured, non-sensitive supporting data. Never contains raw secrets.",
     )
     check: str | None = Field(
-        default=None, description="Name of the check/policy that raised this."
+        default=None, description="Name of the check that raised this."
     )
     recommended_action: Action | None = Field(
         default=None,

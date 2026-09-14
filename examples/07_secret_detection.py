@@ -1,8 +1,8 @@
-"""Example 7 — Secret detection and redaction.
+"""Example 7 — Secret detection.
 
-Credentials that slip into a memory write are redacted before persistence.
+Credentials that slip into a memory write are blocked, not persisted.
 
-Run:  python examples/07_secret_redaction.py
+Run:  python examples/07_secret_detection.py
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ def main() -> None:
     result = memory.add("The billing API key is sk-abcdefghijklmnop1234567890.")
     print("allowed :", result.allowed)
     print("action  :", result.decision.action.value)
-    print("stored  :", result.record.content if result.record else None)
+    print("stored  :", result.record)
 
 
 if __name__ == "__main__":

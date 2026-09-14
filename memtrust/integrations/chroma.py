@@ -1,8 +1,7 @@
 """Chroma vector-store adapter.
 
 Wraps a Chroma ``Collection`` so ingested RAG chunks and long-term memories
-are gated by MemTrust. The full record is stored in collection metadata under
-the ``memtrust`` key and reconstructed on query.
+are gated by MemTrust. Documents are stored by id and reconstructed on query.
 
 Install with ``pip install "memtrust[chroma]"``.
 """
@@ -13,7 +12,6 @@ from typing import Any
 
 from ..exceptions import BackendError
 from ..models.memory import MemoryRecord
-from ._codec import decode_record, encode_record
 
 
 class ChromaBackend:
@@ -33,7 +31,6 @@ class ChromaBackend:
             self._collection.add(
                 ids=[memory.id],
                 documents=[memory.content],
-                metadatas=[encode_record(memory)],
             )
         except Exception as exc:
             raise BackendError(f"Chroma add failed: {exc}") from exc
@@ -75,12 +72,10 @@ def _column(res: Any, key: str) -> list[Any]:
 def _from_query(res: Any) -> list[MemoryRecord]:
     ids = [str(i) for i in _column(res, "ids")]
     docs = [str(d) if d is not None else "" for d in _column(res, "documents")]
-    metas = _column(res, "metadatas")
     records: list[MemoryRecord] = []
     for i, memory_id in enumerate(ids):
         content = docs[i] if i < len(docs) else ""
-        metadata = metas[i] if i < len(metas) else {}
-        records.append(decode_record(memory_id=memory_id, content=content, metadata=metadata))
+        records.append(MemoryRecord(id=memory_id, content=content))
     return records
 
 
@@ -89,12 +84,10 @@ def _from_get(res: Any) -> list[MemoryRecord]:
         return []
     ids = [str(i) for i in (res.get("ids") or [])]
     docs = [str(d) if d is not None else "" for d in (res.get("documents") or [])]
-    metas = list(res.get("metadatas") or [])
     records: list[MemoryRecord] = []
     for i, memory_id in enumerate(ids):
         content = docs[i] if i < len(docs) else ""
-        metadata = metas[i] if i < len(metas) else {}
-        records.append(decode_record(memory_id=memory_id, content=content, metadata=metadata))
+        records.append(MemoryRecord(id=memory_id, content=content))
     return records
 
 

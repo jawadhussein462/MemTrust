@@ -1,9 +1,7 @@
 """Local duplicate detection (no embeddings required).
 
 Uses normalization plus fuzzy string/token similarity against the existing
-records supplied in the context. This is deliberately simple and local; a
-semantic analyzer can provide higher-quality duplicate detection when
-configured.
+records supplied in the context. This is deliberately simple and local.
 """
 
 from __future__ import annotations

@@ -21,8 +21,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   instead of gating writes on source trust / authority.
 - **Revocation** is `revoke(memory_id)` (a memory and anything derived from
   it), replacing `revoke_source`.
-- **Policies** match optional metadata and `forbidden_substrings`; authority
-  and trust requirements are gone.
 
 ### Removed
 
@@ -32,15 +30,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cross-user isolation.
 - Governance as a finding category.
 - Example `02_cross_tenant_read.py` (replaced by injection) and
-  `07_user_ltm_vs_shared_knowledge.py` (replaced by secret redaction).
+  `07_user_ltm_vs_shared_knowledge.py` (replaced by secret detection).
 - Experimental `ZepBackend` and the `zep` extra.
+- Audit trail: `AuditEvent`, `AuditStore`, `InMemoryAuditStore`,
+  `JSONLAuditStore`, `AuditEventType`, `audit_store`, `audit_content` config,
+  and the `memtrust audit` CLI.
+- Policies: `Policy`, `PolicyEngine`, `PolicyCallable`, `PolicyError`,
+  `policy_matches`, `MemTrust(policies=...)`, and the `memtrust.policies`
+  package. Domain rules belong in custom checks.
+- Injectable clock: `Clock`, `SystemClock`, `FixedClock`, and the
+  `clock=` constructor argument. Evaluation uses wall-clock UTC.
+- Secret redaction: `memtrust.redaction`, `redact_secrets`, `Action.REWRITE`,
+  `Decision.rewritten_content`, and example `07_secret_redaction.py`.
+  Secret-bearing writes are blocked; findings report kinds only.
+- Enforcement modes: `Mode`, `observe` / `warn` / `enforce`, `Config.mode`,
+  `MemTrust(mode=...)`, `Decision.mode`, and `Decision.enforced`. Decisions
+  always apply the recommended action.
+- Semantic analyzer: `memtrust.semantic`, `SemanticAnalyzer`,
+  `HeuristicSemanticAnalyzer`, `LLMSemanticAnalyzer`, `openai_completer`,
+  `MemTrust(semantic_analyzer=...)`, `Config.llm_timeout`,
+  `Config.semantic_fail_open`, `Config.semantic_neighbor_limit` (renamed
+  `neighbor_limit`), the `openai` extra, and `SPAN_SEMANTIC_COMPARE`.
+  Contradiction, supersession, and generalization checks now use local
+  heuristics directly.
+- Provenance model: `Provenance`, `Retrieval`, `MemoryRecord.provenance`,
+  and `SafeMemory.provenance`. Lineage is `derived_from` on the record.
+- Time helper module `memtrust._time` (`utcnow`, `ensure_aware`).
+- Shared adapter codec `memtrust.integrations._codec` (`encode_record`,
+  `decode_record`). RAG adapters store document text by id.
 
 ### Added
 
 - **RAG adapters**: `ChromaBackend`, `QdrantBackend`, `LlamaIndexBackend`, and
   `LangChainVectorStoreBackend`, plus extras `chroma`, `qdrant`, `llamaindex`,
   and `langchain`.
-- Example `02_injection.py` and `07_secret_redaction.py`.
+- Example `02_injection.py` and `07_secret_detection.py`.
 
 ### Fixed
 
@@ -48,7 +72,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   search (requires `filters` + `top_k`), returns `PENDING` with no memory id
   when `infer=True`, and flattens nested metadata on some endpoints. The
   adapter now auto-detects platform clients, stores records as-is
-  (`infer=False`), keeps provenance as a JSON metadata string, and treats
+  (`infer=False`), keeps the record as a JSON metadata string, and treats
   invalid `get` ids as a miss.
 
 ## [0.1.0] - 2026-09-12

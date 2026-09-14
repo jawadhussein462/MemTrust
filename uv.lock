@@ -1958,7 +1958,6 @@ all = [
     { name = "langgraph" },
     { name = "llama-index-core" },
     { name = "mem0ai" },
-    { name = "openai" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
     { name = "qdrant-client" },
@@ -1986,9 +1985,6 @@ llamaindex = [
 mem0 = [
     { name = "mem0ai" },
 ]
-openai = [
-    { name = "openai" },
-]
 otel = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-sdk" },
@@ -2011,8 +2007,6 @@ requires-dist = [
     { name = "mem0ai", marker = "extra == 'all'", specifier = ">=0.1.0" },
     { name = "mem0ai", marker = "extra == 'mem0'", specifier = ">=0.1.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
-    { name = "openai", marker = "extra == 'all'", specifier = ">=1.0.0" },
-    { name = "openai", marker = "extra == 'openai'", specifier = ">=1.0.0" },
     { name = "opentelemetry-api", marker = "extra == 'all'", specifier = ">=1.20.0" },
     { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.20.0" },
     { name = "opentelemetry-sdk", marker = "extra == 'all'", specifier = ">=1.20.0" },
@@ -2025,7 +2019,7 @@ requires-dist = [
     { name = "qdrant-client", marker = "extra == 'qdrant'", specifier = ">=1.9.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
 ]
-provides-extras = ["mem0", "langgraph", "chroma", "llamaindex", "qdrant", "langchain", "openai", "otel", "dev", "all"]
+provides-extras = ["mem0", "langgraph", "chroma", "llamaindex", "qdrant", "langchain", "otel", "dev", "all"]
 
 [[package]]
 name = "mmh3"

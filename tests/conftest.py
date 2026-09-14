@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
 from memtrust import MemTrust
-from memtrust._time import utcnow
-from memtrust.clock import FixedClock
 from memtrust.context import CheckContext
 from tests.factories import make_context
 
 
 @pytest.fixture
 def now() -> datetime:
-    return utcnow()
+    return datetime.now(UTC)
 
 
 @pytest.fixture
@@ -26,8 +24,3 @@ def guard() -> MemTrust:
 @pytest.fixture
 def context() -> CheckContext:
     return make_context()
-
-
-@pytest.fixture
-def fixed_clock() -> FixedClock:
-    return FixedClock(utcnow())

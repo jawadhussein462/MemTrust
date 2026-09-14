@@ -11,9 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from .config import Config
-from .models.enums import Mode
 from .models.memory import MemoryRecord
-from .semantic.base import SemanticAnalyzer
 
 
 @dataclass
@@ -21,14 +19,9 @@ class CheckContext:
     """Read-only context for a single write or read evaluation."""
 
     config: Config
-    semantic: SemanticAnalyzer
     now: datetime
     operation: str = "write"  # "write" | "read"
     existing: list[MemoryRecord] = field(default_factory=list)
-
-    @property
-    def mode(self) -> Mode:
-        return self.config.mode
 
 
 __all__ = ["CheckContext"]

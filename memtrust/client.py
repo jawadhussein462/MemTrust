@@ -1,10 +1,9 @@
 """The public facade: :class:`MemTrust` and :class:`AsyncMemTrust`.
 
-``MemTrust`` is the one object most users import. It wires together sensible
-defaults (heuristic analyzer, in-memory audit, the standard check pipeline)
-so that ``MemTrust()`` just works, while every collaborator can be injected
-for advanced use. Sync and async are separate classes; a method is never
-sometimes-async.
+``MemTrust`` is the one object most users import. It wires together the
+standard check pipeline so that ``MemTrust()`` just works, while every
+collaborator can be injected for advanced use. Sync and async are separate
+classes; a method is never sometimes-async.
 """
 
 from __future__ import annotations
@@ -13,25 +12,16 @@ from collections.abc import Sequence
 from typing import Any
 
 from ._coerce import coerce_candidate, coerce_records
-from .audit.base import AuditStore
-from .audit.memory import InMemoryAuditStore
 from .backends.base import AsyncMemoryBackend, MemoryBackend
 from .checks import default_checks
 from .checks.base import MemoryCheck, normalize_check
-from .clock import Clock, SystemClock
 from .config import Config
 from .engine import Evaluator
-from .exceptions import BackendError, ConfigurationError
+from .exceptions import BackendError
 from .models.decision import Decision
-from .models.enums import Action, AuditEventType, MemoryStatus, Mode
+from .models.enums import Action, MemoryStatus
 from .models.memory import MemoryCandidate, MemoryRecord
-from .models.policy import Policy
 from .models.results import AddResult, ReadResult, RevocationReport, SafeMemory
-from .policies.base import PolicyCallable
-from .policies.builtin import builtin_policies
-from .policies.engine import PolicyEngine
-from .semantic.base import SemanticAnalyzer
-from .semantic.heuristic import HeuristicSemanticAnalyzer
 from .telemetry import Tracer
 
 
@@ -41,55 +31,25 @@ class _ClientBase:
     def __init__(
         self,
         *,
-        mode: Mode | str | None = None,
         fail_closed: bool | None = None,
         checks: Sequence[Any] | None = None,
-        policies: Sequence[Policy | PolicyCallable] | None = None,
-        semantic_analyzer: SemanticAnalyzer | None = None,
-        audit_store: AuditStore | None = None,
         config: Config | None = None,
-        clock: Clock | None = None,
         tracer: Tracer | None = None,
         use_default_checks: bool = True,
     ) -> None:
         base_config = config or Config()
         updates: dict[str, Any] = {}
-        if mode is not None:
-            updates["mode"] = mode if isinstance(mode, Mode) else Mode(mode)
         if fail_closed is not None:
             updates["fail_closed"] = fail_closed
         self.config: Config = base_config.model_copy(update=updates) if updates else base_config
-
-        # Use ``is None`` (not ``or``): an empty audit store is falsy via __len__.
-        self.audit_store: AuditStore = (
-            audit_store if audit_store is not None else InMemoryAuditStore()
-        )
-        semantic: SemanticAnalyzer = (
-            semantic_analyzer if semantic_analyzer is not None else HeuristicSemanticAnalyzer()
-        )
-        resolved_clock: Clock = clock if clock is not None else SystemClock()
 
         resolved_checks: list[MemoryCheck] = list(default_checks()) if use_default_checks else []
         for chk in checks or []:
             resolved_checks.append(normalize_check(chk))
 
-        declarative: list[Policy] = list(builtin_policies())
-        callables: list[PolicyCallable] = []
-        for pol in policies or []:
-            if isinstance(pol, Policy):
-                declarative.append(pol)
-            elif callable(pol):
-                callables.append(pol)
-            else:  # pragma: no cover - defensive
-                raise ConfigurationError(f"Not a policy or callable: {pol!r}")
-
         self._evaluator = Evaluator(
             config=self.config,
             checks=resolved_checks,
-            policy_engine=PolicyEngine(declarative, callables),
-            semantic=semantic,
-            audit=self.audit_store,
-            clock=resolved_clock,
             tracer=tracer,
         )
         # Lightweight index of records this guard has written (for revocation).
@@ -128,7 +88,7 @@ class _ClientBase:
             for rid, rec in pool.items():
                 if rid in revoked:
                     continue
-                parents = set(rec.derived_from) | set(rec.provenance.derived_from)
+                parents = set(rec.derived_from)
                 if parents & revoked:
                     revoked.add(rid)
                     changed = True
@@ -138,7 +98,6 @@ class _ClientBase:
                 self._index[rid] = self._index[rid].model_copy(
                     update={"status": MemoryStatus.REVOKED}
                 )
-            self._evaluator.log_event(AuditEventType.MEMORY_REVOKED, memory_id=rid)
 
         report = RevocationReport(
             memory_id=memory_id,
@@ -286,29 +245,21 @@ class ProtectedMemory:
     # -- internals --------------------------------------------------------------
 
     def _neighbors(self, candidate: MemoryCandidate) -> list[MemoryRecord]:
-        if self._config.semantic_neighbor_limit <= 0:
+        if self._config.neighbor_limit <= 0:
             return []
         try:
             return self._backend.search(
                 candidate.content,
-                limit=self._config.semantic_neighbor_limit,
+                limit=self._config.neighbor_limit,
             )
         except Exception:
             return []
 
     def _apply_write(self, candidate: MemoryCandidate, decision: Decision) -> AddResult:
         if decision.allowed:
-            content = (
-                decision.rewritten_content
-                if decision.rewritten_content is not None
-                else candidate.content
-            )
             for old_id in decision.supersedes:
                 self.set_status(old_id, MemoryStatus.SUPERSEDED)
-                self._evaluator.log_event(AuditEventType.MEMORY_SUPERSEDED, memory_id=old_id)
-            record = candidate.to_record(
-                content=content, status=MemoryStatus.ACTIVE, supersedes=decision.supersedes
-            )
+            record = candidate.to_record(status=MemoryStatus.ACTIVE, supersedes=decision.supersedes)
             stored = self._backend.add(record)
             self._guard._register(stored)
             return AddResult(allowed=True, decision=decision, record=stored)
@@ -372,29 +323,21 @@ class AsyncProtectedMemory:
         return list(lister()) if callable(lister) else []
 
     async def _neighbors(self, candidate: MemoryCandidate) -> list[MemoryRecord]:
-        if self._config.semantic_neighbor_limit <= 0:
+        if self._config.neighbor_limit <= 0:
             return []
         try:
             return await self._backend.search(
                 candidate.content,
-                limit=self._config.semantic_neighbor_limit,
+                limit=self._config.neighbor_limit,
             )
         except Exception:
             return []
 
     async def _apply_write(self, candidate: MemoryCandidate, decision: Decision) -> AddResult:
         if decision.allowed:
-            content = (
-                decision.rewritten_content
-                if decision.rewritten_content is not None
-                else candidate.content
-            )
             for old_id in decision.supersedes:
                 await self.set_status(old_id, MemoryStatus.SUPERSEDED)
-                self._evaluator.log_event(AuditEventType.MEMORY_SUPERSEDED, memory_id=old_id)
-            record = candidate.to_record(
-                content=content, status=MemoryStatus.ACTIVE, supersedes=decision.supersedes
-            )
+            record = candidate.to_record(status=MemoryStatus.ACTIVE, supersedes=decision.supersedes)
             stored = await self._backend.add(record)
             self._guard._register(stored)
             return AddResult(allowed=True, decision=decision, record=stored)

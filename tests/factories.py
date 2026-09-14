@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from memtrust import MemoryCandidate, MemoryRecord
-from memtrust._time import utcnow
 from memtrust.config import Config
 from memtrust.context import CheckContext
-from memtrust.semantic.heuristic import HeuristicSemanticAnalyzer
 
 
 def make_candidate(
@@ -38,8 +36,7 @@ def make_context(
 ) -> CheckContext:
     return CheckContext(
         config=config or Config(),
-        semantic=HeuristicSemanticAnalyzer(),
-        now=now_value or utcnow(),
+        now=now_value or datetime.now(UTC),
         operation="write",
         existing=existing or [],
     )

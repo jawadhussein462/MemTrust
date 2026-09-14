@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from .decision import Decision
 from .finding import Finding
 from .memory import MemoryRecord
-from .provenance import Provenance
 
 
 @dataclass(frozen=True)
@@ -22,7 +21,6 @@ class SafeMemory:
 
         for item in results:
             print(item.memory)
-            print(item.provenance)
     """
 
     record: MemoryRecord
@@ -39,10 +37,6 @@ class SafeMemory:
     @property
     def content(self) -> str:
         return self.record.content
-
-    @property
-    def provenance(self) -> Provenance:
-        return self.record.provenance
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 """Qdrant vector-store adapter.
 
 Wraps a Qdrant client so RAG points and long-term memories are gated by
-MemTrust. The full record lives in point payload under ``memtrust``.
+MemTrust. Point payload stores the document text.
 
 If you pass ``embed``, search uses vector similarity. Without an embedder,
 search falls back to payload scroll plus substring match (useful in tests
@@ -17,7 +17,6 @@ from typing import Any
 
 from ..exceptions import BackendError
 from ..models.memory import MemoryRecord
-from ._codec import decode_record, encode_record
 
 EmbedFn = Callable[[str], Sequence[float]]
 
@@ -47,7 +46,7 @@ class QdrantBackend:
         point = {
             "id": memory.id,
             "vector": vector,
-            "payload": {**encode_record(memory), "content": memory.content},
+            "payload": {"content": memory.content},
         }
         try:
             self._client.upsert(collection_name=self._collection, points=[point])
@@ -121,7 +120,7 @@ class QdrantBackend:
         if isinstance(point, dict):
             memory_id = str(point.get("id") or memory_id)
         content = str(payload.get("content") or "")
-        return decode_record(memory_id=memory_id, content=content, metadata=payload)
+        return MemoryRecord(id=memory_id, content=content)
 
 
 def _payload(point: Any) -> dict[str, Any]:

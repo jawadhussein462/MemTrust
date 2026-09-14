@@ -31,12 +31,14 @@ def test_supersede_marks_old_and_hides_it():
     assert "Alice now works at Anthropic." in contents
 
 
-def test_secret_write_is_redacted_before_storage():
+def test_secret_write_is_blocked():
     mem = _protected()
     result = mem.add("api key sk-abcdefghijklmnop1234567890")
-    assert result.record is not None
-    assert "sk-abcdefghijklmnop1234567890" not in result.record.content
-    assert "[REDACTED" in result.record.content
+    assert result.allowed is False
+    assert result.decision.recommended_action.value == "block"
+    assert result.record is None
+    found = mem.search("api key")
+    assert all("sk-abcdefghijklmnop1234567890" not in s.memory for s in found)
 
 
 def test_blocked_write_is_quarantined_and_hidden():

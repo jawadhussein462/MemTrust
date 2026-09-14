@@ -25,10 +25,6 @@ class IntegrationError(MemTrustError):
     """An optional integration is unavailable or misconfigured."""
 
 
-class PolicyError(MemTrustError):
-    """A policy is malformed or failed to evaluate."""
-
-
 class CheckError(MemTrustError):
     """A check raised unexpectedly (surfaced when fail_closed is disabled)."""
 
@@ -39,5 +35,4 @@ __all__ = [
     "ConfigurationError",
     "IntegrationError",
     "MemTrustError",
-    "PolicyError",
 ]

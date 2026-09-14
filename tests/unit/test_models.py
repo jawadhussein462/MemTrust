@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -16,7 +16,6 @@ from memtrust import (
     Severity,
 )
 from memtrust._coerce import coerce_candidate
-from memtrust._time import utcnow
 from memtrust.exceptions import ConfigurationError
 
 
@@ -31,12 +30,11 @@ def test_candidate_to_record_carries_lineage():
     c = MemoryCandidate(content="fact", derived_from=["mem_a"])
     r = c.to_record(id="mem_b")
     assert r.id == "mem_b"
-    assert "mem_a" in r.provenance.derived_from
     assert "mem_a" in r.derived_from
 
 
 def test_record_expiry_and_liveness():
-    now = utcnow()
+    now = datetime.now(UTC)
     r = MemoryRecord(id="m", content="c", expires_at=now - timedelta(hours=1))
     assert r.is_expired(now)
     assert not r.is_live(now)

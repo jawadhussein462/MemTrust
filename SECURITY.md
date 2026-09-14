@@ -27,9 +27,9 @@ The product is oriented around two families of checks:
 
 - **Filtering** of revoked, expired, quarantined, and superseded memories on
   read (core engine, non-bypassable by customizing the check list).
-- **Secret redaction** before content reaches findings, audit, or telemetry.
-- **Mode semantics**: `observe` never alters backend behavior; `enforce` blocks
-  critical violations by default.
+- **Secret values** are never included in findings or telemetry; secret-bearing
+  writes are blocked.
+- **Critical violations** (poisoning, injection) are blocked by default.
 
 These are covered by explicit invariant tests.
 
@@ -48,22 +48,16 @@ production-perfect**. They produce strong *signals*, not guarantees.
   keys, tokens, private keys, credential assignments). It will miss custom or
   unusual secret formats. Do not rely on it as your only secret scanner.
 - **Duplicate / contradiction / supersession** use normalization, token
-  overlap, negation/polarity, and time — not deep understanding. The optional
-  LLM analyzer improves quality but adds latency, cost, and its own failure
-  modes (mitigated by timeouts and configurable fail-open/closed behavior).
-- **Generalization detection** is an extension point with a basic heuristic
-  implementation.
+  overlap, negation/polarity, and time — not deep understanding. They will
+  miss paraphrases, implicit conflicts, and non-English text.
+- **Generalization detection** is a basic heuristic over scoped source
+  excerpts versus standing-preference language.
 
 ## Operational guidance
 
-- Start in `mode="observe"`, review the audit trail, then move to `enforce`.
 - Keep `fail_closed=True` (default) in production so internal check errors block
   rather than silently allow.
-- Configure a persistent `AuditStore` (e.g. `JSONLAuditStore`) so revocation
-  has history to work with.
-- Add domain-specific custom checks and policies; the built-ins are a baseline.
-- The LLM analyzer never receives content until after secret redaction; keep it
-  that way in any custom analyzer.
+- Add domain-specific custom checks; the built-ins are a baseline.
 
 ## Supported versions
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .enums import Action, Mode, Risk, Severity
+from .enums import Action, Risk, Severity
 from .finding import Finding
 
 
@@ -23,25 +23,15 @@ class Decision(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     allowed: bool = Field(description="Whether the underlying operation is permitted to proceed.")
-    action: Action = Field(description="Effective action after applying the enforcement mode.")
+    action: Action = Field(description="Action taken after aggregating findings.")
     recommended_action: Action = Field(
         default=Action.ALLOW,
-        description="Action the findings argue for, regardless of mode (the true recommendation).",
+        description="Action the findings argue for (same as ``action``).",
     )
     risk: Risk = Field(default=Risk.NONE, description="Worst severity across findings.")
     findings: list[Finding] = Field(default_factory=list)
     supersedes: list[str] = Field(
         default_factory=list, description="Record IDs this write should supersede, if any."
-    )
-    rewritten_content: str | None = Field(
-        default=None, description="Redacted/rewritten content to persist when action is 'rewrite'."
-    )
-    policy_matches: list[str] = Field(
-        default_factory=list, description="Names of policies that matched."
-    )
-    mode: Mode = Field(default=Mode.ENFORCE)
-    enforced: bool = Field(
-        default=True, description="Whether the mode actively changed the effective action."
     )
     metadata: dict[str, object] = Field(default_factory=dict)
 

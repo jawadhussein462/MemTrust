@@ -17,8 +17,7 @@ Simple API on top, two families of checks underneath::
 **Correctness** detects contradictions, duplicates, and stale facts.
 
 Advanced functionality lives under discoverable namespaces:
-``memtrust.policies``, ``memtrust.checks``, ``memtrust.backends``,
-``memtrust.integrations``, ``memtrust.semantic``, ``memtrust.audit``,
+``memtrust.checks``, ``memtrust.backends``, ``memtrust.integrations``,
 ``memtrust.telemetry``.
 """
 
@@ -42,9 +41,6 @@ from .models import (
     MemoryRecord,
     MemoryRelationship,
     MemoryStatus,
-    Mode,
-    Policy,
-    Provenance,
     ReadResult,
     RevocationReport,
     Risk,
@@ -71,10 +67,7 @@ __all__ = [
     "MemoryRecord",
     "MemoryRelationship",
     "MemoryStatus",
-    "Mode",
-    "Policy",
     "ProtectedMemory",
-    "Provenance",
     "ReadResult",
     "RevocationReport",
     "Risk",

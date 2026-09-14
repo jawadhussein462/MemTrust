@@ -8,15 +8,14 @@ Run:  python examples/03_expired_memory.py
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
 from memtrust import MemoryRecord, MemTrust
-from memtrust._time import utcnow
 
 
 def main() -> None:
     guard = MemTrust()
-    now = utcnow()
+    now = datetime.now(UTC)
 
     fresh = MemoryRecord(
         id="fresh",

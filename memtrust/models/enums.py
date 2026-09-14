@@ -90,7 +90,6 @@ class Action(StrEnum):
     ALLOW = "allow"
     ALLOW_WITH_WARNING = "allow_with_warning"
     SUPERSEDE = "supersede"
-    REWRITE = "rewrite"
     REVIEW = "review"
     QUARANTINE = "quarantine"
     BLOCK = "block"
@@ -106,19 +105,18 @@ class Action(StrEnum):
         return self in _ALLOWED_ACTIONS
 
 
-# Precedence: block > quarantine > review > rewrite > supersede > warn > allow
+# Precedence: block > quarantine > review > supersede > warn > allow
 _ACTION_PRECEDENCE: dict[Action, int] = {
     Action.ALLOW: 0,
     Action.ALLOW_WITH_WARNING: 1,
     Action.SUPERSEDE: 2,
-    Action.REWRITE: 3,
-    Action.REVIEW: 4,
-    Action.QUARANTINE: 5,
-    Action.BLOCK: 6,
+    Action.REVIEW: 3,
+    Action.QUARANTINE: 4,
+    Action.BLOCK: 5,
 }
 
 _ALLOWED_ACTIONS: frozenset[Action] = frozenset(
-    {Action.ALLOW, Action.ALLOW_WITH_WARNING, Action.SUPERSEDE, Action.REWRITE}
+    {Action.ALLOW, Action.ALLOW_WITH_WARNING, Action.SUPERSEDE}
 )
 
 
@@ -148,40 +146,11 @@ class MemoryRelationship(StrEnum):
     UNRELATED = "unrelated"
 
 
-class Mode(StrEnum):
-    """Enforcement mode for a :class:`~memtrust.MemTrust` instance.
-
-    ``observe`` reports violations but never changes backend behaviour;
-    ``warn`` allows operations but downgrades blocking actions to warnings;
-    ``enforce`` (the default) applies the recommended action.
-    """
-
-    OBSERVE = "observe"
-    WARN = "warn"
-    ENFORCE = "enforce"
-
-
-class AuditEventType(StrEnum):
-    """Types of events recorded in the audit trail."""
-
-    WRITE_REQUESTED = "WRITE_REQUESTED"
-    WRITE_ALLOWED = "WRITE_ALLOWED"
-    WRITE_BLOCKED = "WRITE_BLOCKED"
-    WRITE_QUARANTINED = "WRITE_QUARANTINED"
-    READ_REQUESTED = "READ_REQUESTED"
-    READ_ALLOWED = "READ_ALLOWED"
-    READ_FILTERED = "READ_FILTERED"
-    MEMORY_SUPERSEDED = "MEMORY_SUPERSEDED"
-    MEMORY_REVOKED = "MEMORY_REVOKED"
-
-
 __all__ = [
     "Action",
-    "AuditEventType",
     "Category",
     "MemoryRelationship",
     "MemoryStatus",
-    "Mode",
     "Risk",
     "Severity",
 ]

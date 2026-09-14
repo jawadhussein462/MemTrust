@@ -1,50 +1,71 @@
-"""Detect and redact secrets in candidate content.
+"""Detect secrets in candidate content.
 
-Findings never contain the raw secret — only the *kinds* detected and a
-redacted rewrite. When redaction is enabled (default) the recommended action
-is ``rewrite`` (persist the redacted content); otherwise the write is blocked.
+Findings never contain the raw secret — only the *kinds* detected.
+Secret-bearing writes are blocked.
 """
 
 from __future__ import annotations
+
+import re
 
 from ...context import CheckContext
 from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
-from ...redaction import redact_text
 from ..base import BaseCheck
+
+_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    (
+        "private_key",
+        re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----"),
+    ),
+    ("private_key", re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----")),
+    ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")),
+    ("openai_api_key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
+    ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
+    ("github_token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b")),
+    ("github_pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{22,}\b")),
+    ("bearer_token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/-]{10,}=*")),
+]
+
+_CREDENTIAL = re.compile(
+    r"(?i)\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|token)\b"
+    r"(\s*[:=]\s*)"
+    r"([^\s\"']{6,})"
+)
+
+
+def _secret_kinds(text: str) -> list[str]:
+    kinds: set[str] = set()
+    for kind, pattern in _PATTERNS:
+        if pattern.search(text):
+            kinds.add(kind)
+    if _CREDENTIAL.search(text):
+        kinds.add("credential")
+    return sorted(kinds)
 
 
 class SecretsCheck(BaseCheck):
-    """Flag credentials/keys/tokens and provide a redacted rewrite."""
+    """Flag credentials/keys/tokens and block the write."""
 
     name = "secrets"
 
     def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
-        redacted, kinds = redact_text(candidate.content)
+        kinds = _secret_kinds(candidate.content)
         if not kinds:
             return []
-
-        if context.config.redact_secrets:
-            severity = Severity.HIGH
-            action = Action.REWRITE
-            message = "Secret-like content detected; will be redacted before persistence."
-            evidence: dict[str, object] = {"kinds": kinds, "rewritten_content": redacted}
-        else:
-            severity = Severity.CRITICAL
-            action = Action.BLOCK
-            message = "Secret-like content detected; blocked (redaction disabled)."
-            evidence = {"kinds": kinds}
 
         return [
             Finding(
                 code="secret_detected",
                 category=Category.SECURITY,
-                severity=severity,
-                message=message,
-                evidence=evidence,
+                severity=Severity.CRITICAL,
+                message="Secret-like content detected; write blocked.",
+                evidence={"kinds": kinds},
                 check=self.name,
-                recommended_action=action,
+                recommended_action=Action.BLOCK,
             )
         ]
 

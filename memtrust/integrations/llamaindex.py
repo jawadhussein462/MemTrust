@@ -1,8 +1,8 @@
 """LlamaIndex adapter.
 
 Wraps a LlamaIndex index (typically ``VectorStoreIndex``) so RAG inserts and
-retrieves go through MemTrust. The full record is stored on node/document
-metadata under ``memtrust``.
+retrieves go through MemTrust. Documents are stored by id and reconstructed
+on retrieve.
 
 Install with ``pip install "memtrust[llamaindex]"``.
 """
@@ -14,7 +14,6 @@ from typing import Any
 
 from ..exceptions import BackendError
 from ..models.memory import MemoryRecord
-from ._codec import decode_record, encode_record
 
 
 class LlamaIndexBackend:
@@ -30,7 +29,7 @@ class LlamaIndexBackend:
         self._index = index
 
     def add(self, memory: MemoryRecord) -> MemoryRecord:
-        document = _document(memory.content, memory.id, encode_record(memory))
+        document = _document(memory.content, memory.id)
         try:
             self._index.insert(document)
         except Exception as exc:
@@ -74,15 +73,15 @@ class LlamaIndexBackend:
             fallback(memory_id)
 
 
-def _document(text: str, doc_id: str, metadata: dict[str, str]) -> Any:
+def _document(text: str, doc_id: str) -> Any:
     try:
         from llama_index.core import Document
     except ImportError:
         try:
             from llama_index.core.schema import Document
         except ImportError:
-            return SimpleNamespace(text=text, doc_id=doc_id, metadata=metadata, id_=doc_id)
-    return Document(text=text, doc_id=doc_id, metadata=metadata)
+            return SimpleNamespace(text=text, doc_id=doc_id, metadata={}, id_=doc_id)
+    return Document(text=text, doc_id=doc_id)
 
 
 def _node_text(node: Any) -> str:
@@ -110,7 +109,7 @@ def _from_node(node: Any) -> MemoryRecord:
         or metadata.get("id")
         or "llama_unknown"
     )
-    return decode_record(memory_id=str(memory_id), content=_node_text(node), metadata=metadata)
+    return MemoryRecord(id=str(memory_id), content=_node_text(node))
 
 
 __all__ = ["LlamaIndexBackend"]

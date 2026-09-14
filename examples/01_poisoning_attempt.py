@@ -1,7 +1,7 @@
 """Example 1 — Knowledge poisoning attempt (RAG / long-term memory).
 
 A scraped page tries to persist a false security fact plus a persistent
-instruction. MemTrust quarantines it in the default enforce mode.
+instruction. MemTrust quarantines it.
 
 Run:  python examples/01_poisoning_attempt.py
 """

@@ -32,13 +32,14 @@ All four must pass. CI runs them on Python 3.11–3.13.
   `memtrust` package. The product is two families of checks: **security**
   (poisoning, injection, secrets) and **correctness** (contradictions,
   duplicates, freshness).
-- **Deterministic first.** Cheap, offline checks run before any semantic/LLM
-  analysis. The library must be fully functional with zero external services.
-- **Extension via Protocols, not inheritance.** New checks, analyzers, audit
-  stores, and backends should satisfy the relevant `typing.Protocol`.
+- **Deterministic first.** Checks are cheap, offline, and fully functional
+  with zero external services.
+- **Extension via Protocols, not inheritance.** New checks and backends
+  should satisfy the relevant `typing.Protocol`.
 - **Core enforcement stays in the engine.** Revoked/expired/quarantined/
   superseded filtering must not be relocatable into optional checks.
-- **Never log or store secrets.** Redact before findings, audit, and telemetry.
+- **Never log or store secrets.** Findings and telemetry must not include
+  secret values.
 - **Sync is always sync; async is always async.** No method returns a coroutine
   conditionally.
 

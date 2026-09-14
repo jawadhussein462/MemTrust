@@ -1,8 +1,7 @@
 """LangChain vector-store adapter.
 
 Wraps a LangChain ``VectorStore`` so RAG ``add_texts`` / ``similarity_search``
-go through MemTrust. The full record is stored in document metadata under
-``memtrust``.
+go through MemTrust. Documents are stored by id and reconstructed on search.
 
 Install with ``pip install "memtrust[langchain]"``.
 """
@@ -13,7 +12,6 @@ from typing import Any
 
 from ..exceptions import BackendError
 from ..models.memory import MemoryRecord
-from ._codec import decode_record, encode_record
 
 
 class LangChainVectorStoreBackend:
@@ -34,7 +32,6 @@ class LangChainVectorStoreBackend:
         try:
             self._store.add_texts(
                 [memory.content],
-                metadatas=[encode_record(memory)],
                 ids=[memory.id],
             )
         except Exception as exc:
@@ -79,9 +76,7 @@ def _from_doc(doc: Any) -> MemoryRecord:
             or (metadata.get("id") if isinstance(metadata, dict) else None)
             or "lc_unknown"
         )
-    if not isinstance(metadata, dict):
-        metadata = {}
-    return decode_record(memory_id=memory_id, content=content, metadata=metadata)
+    return MemoryRecord(id=memory_id, content=content)
 
 
 __all__ = ["LangChainVectorStoreBackend"]

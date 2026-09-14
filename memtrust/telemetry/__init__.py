@@ -18,8 +18,6 @@ from typing import Protocol, runtime_checkable
 # Span names.
 SPAN_WRITE_CHECK = "memtrust.write.check"
 SPAN_READ_CHECK = "memtrust.read.check"
-SPAN_POLICY_EVALUATE = "memtrust.policy.evaluate"
-SPAN_SEMANTIC_COMPARE = "memtrust.semantic.compare"
 SPAN_BACKEND_SEARCH = "memtrust.backend.search"
 SPAN_BACKEND_ADD = "memtrust.backend.add"
 
@@ -29,7 +27,6 @@ ATTR_RISK = "memtrust.risk"
 ATTR_FINDING_COUNT = "memtrust.finding_count"
 ATTR_BACKEND = "memtrust.backend"
 ATTR_OPERATION = "memtrust.operation"
-ATTR_MODE = "memtrust.mode"
 
 
 def get_logger(name: str = "memtrust") -> logging.Logger:
@@ -66,14 +63,11 @@ __all__ = [
     "ATTR_ACTION",
     "ATTR_BACKEND",
     "ATTR_FINDING_COUNT",
-    "ATTR_MODE",
     "ATTR_OPERATION",
     "ATTR_RISK",
     "SPAN_BACKEND_ADD",
     "SPAN_BACKEND_SEARCH",
-    "SPAN_POLICY_EVALUATE",
     "SPAN_READ_CHECK",
-    "SPAN_SEMANTIC_COMPARE",
     "SPAN_WRITE_CHECK",
     "NullTracer",
     "Span",
