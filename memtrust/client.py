@@ -234,8 +234,13 @@ class ProtectedMemory:
             setter(memory_id, status)
             return
         record = self._backend.get(memory_id)
-        if record is not None:
-            self._backend.add(record.model_copy(update={"status": status}))
+        if record is None:
+            return
+        stored = self._backend.add(record.model_copy(update={"status": status}))
+        if stored.id != memory_id:
+            # The backend assigned a new id instead of upserting: drop the old
+            # copy so it cannot keep surfacing with its previous status.
+            self._backend.delete(memory_id)
 
     def _all_records(self) -> list[MemoryRecord]:
         """Internal: raw records for the revocation index (not a read API)."""
@@ -314,8 +319,13 @@ class AsyncProtectedMemory:
             await setter(memory_id, status)
             return
         record = await self._backend.get(memory_id)
-        if record is not None:
-            await self._backend.add(record.model_copy(update={"status": status}))
+        if record is None:
+            return
+        stored = await self._backend.add(record.model_copy(update={"status": status}))
+        if stored.id != memory_id:
+            # The backend assigned a new id instead of upserting: drop the old
+            # copy so it cannot keep surfacing with its previous status.
+            await self._backend.delete(memory_id)
 
     def _all_records(self) -> list[MemoryRecord]:
         """Internal: raw records for the revocation index (not a read API)."""

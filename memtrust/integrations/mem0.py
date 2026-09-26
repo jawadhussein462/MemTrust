@@ -6,20 +6,25 @@ MemTrust. The full MemTrust record is stored in Mem0 ``metadata`` under the
 
 Install with ``pip install "memtrust[mem0]"``.
 
-Note: Mem0's response shapes vary across versions (bare list vs.
-``{"results": [...]}``; ``memory`` vs. ``text`` keys). The platform
-``MemoryClient`` (v2+) requires identity in ``filters`` on search and
-returns async ``PENDING`` add responses when ``infer=True``. This adapter
-is defensive about those differences; verify against your installed version.
+Note: Mem0's call shapes vary across versions. Mem0 2.x requires an entity
+id (``user_id`` / ``agent_id`` / ``run_id``) on add and inside ``filters`` on
+search; the platform ``MemoryClient`` also takes identity inside ``filters``
+on add and returns async ``PENDING`` add responses when ``infer=True``.
+Response shapes vary too (bare list vs. ``{"results": [...]}``; ``memory``
+vs. ``text`` keys). This adapter inspects the client's signatures and is
+defensive about those differences; verify against your installed version.
 """
 
 from __future__ import annotations
 
+import inspect
 import json
 from typing import Any
 
 from ..exceptions import BackendError
+from ..models.enums import MemoryStatus
 from ..models.memory import MemoryRecord
+from ._codec import decode_record
 
 _MT_KEY = "memtrust"
 
@@ -31,15 +36,18 @@ class Mem0Backend:
     platform ``MemoryClient`` otherwise extracts facts asynchronously and
     returns a ``PENDING`` response with no memory id.
 
-    Identity handling is auto-detected: platform ``MemoryClient`` search uses
-    ``filters`` + ``top_k``; OSS ``Memory`` and test doubles keep top-level
-    ``limit``.
+    Pass ``user_id`` / ``agent_id`` / ``run_id`` to scope memories to an
+    entity (Mem0 2.x requires at least one). Status changes (supersede,
+    quarantine, revoke) are written in place with ``client.update``.
     """
 
     def __init__(
         self,
         client: Any,
         *,
+        user_id: str | None = None,
+        agent_id: str | None = None,
+        run_id: str | None = None,
         infer: bool = False,
         search_filters: bool | None = None,
     ) -> None:
@@ -47,17 +55,28 @@ class Mem0Backend:
             raise BackendError("Mem0 client must provide .add() and .search().")
         self._client = client
         self._infer = infer
+        self._identity = {
+            k: v for k, v in (("user_id", user_id), ("agent_id", agent_id), ("run_id", run_id)) if v
+        }
+        platform = _is_platform_client(client)
+        search_params = _params(client.search)
         self._search_filters = (
-            _client_uses_search_filters(client) if search_filters is None else search_filters
+            platform or "filters" in search_params if search_filters is None else search_filters
+        )
+        self._top_k = self._search_filters or "top_k" in search_params
+        self._identity_in_add_filters = platform or (
+            "filters" in _params(client.add) and "user_id" not in _params(client.add)
         )
 
     def add(self, memory: MemoryRecord) -> MemoryRecord:
         # JSON string survives Mem0's metadata flattening (nested dicts become
         # dotted-path lists on some list endpoints).
-        kwargs: dict[str, Any] = {
-            "metadata": {_MT_KEY: json.dumps(memory.model_dump(mode="json"))},
-            "infer": self._infer,
-        }
+        kwargs: dict[str, Any] = {"metadata": _metadata(memory), "infer": self._infer}
+        if self._identity:
+            if self._identity_in_add_filters:
+                kwargs["filters"] = dict(self._identity)
+            else:
+                kwargs.update(self._identity)
         try:
             res = self._client.add(memory.content, **kwargs)
         except Exception as exc:
@@ -68,10 +87,12 @@ class Mem0Backend:
         return memory
 
     def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
-        if self._search_filters:
-            kwargs: dict[str, Any] = {"top_k": limit}
-        else:
-            kwargs = {"limit": limit}
+        kwargs: dict[str, Any] = {"top_k": limit} if self._top_k else {"limit": limit}
+        if self._identity:
+            if self._search_filters:
+                kwargs["filters"] = dict(self._identity)
+            else:
+                kwargs.update(self._identity)
         try:
             res = self._client.search(query, **kwargs)
         except Exception as exc:
@@ -86,16 +107,54 @@ class Mem0Backend:
             item = getter(memory_id)
         except Exception:
             return None
-        return _to_record(item) if item else None
+        return _to_record(item) if isinstance(item, dict) and item else None
 
     def delete(self, memory_id: str) -> None:
         deleter = getattr(self._client, "delete", None)
         if callable(deleter):
             deleter(memory_id)
 
+    def set_status(self, memory_id: str, status: MemoryStatus) -> None:
+        """Rewrite the stored record's status in place (no duplicate memory)."""
+        record = self.get(memory_id)
+        if record is None:
+            return
+        updater = getattr(self._client, "update", None)
+        if not callable(updater) or not _accepts(updater, "metadata"):
+            raise BackendError(
+                "Mem0 client cannot update metadata in place; upgrade mem0ai to change "
+                "memory status without duplicating it."
+            )
+        updated = record.model_copy(update={"status": status})
+        try:
+            updater(memory_id, metadata=_metadata(updated))
+        except Exception as exc:
+            raise BackendError(f"Mem0 update failed: {exc}") from exc
 
-def _client_uses_search_filters(client: Any) -> bool:
-    """True for mem0.client MemoryClient, which rejects top-level user_id on search."""
+
+def _metadata(memory: MemoryRecord) -> dict[str, str]:
+    return {_MT_KEY: json.dumps(memory.model_dump(mode="json"))}
+
+
+def _params(fn: Any) -> set[str]:
+    """Explicitly named parameters of ``fn`` (empty when unreadable)."""
+    try:
+        return set(inspect.signature(fn).parameters)
+    except (TypeError, ValueError):
+        return set()
+
+
+def _accepts(fn: Any, name: str) -> bool:
+    """Whether ``fn`` accepts keyword ``name`` (named, via ``**kwargs``, or unknown)."""
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return True
+    return name in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
+def _is_platform_client(client: Any) -> bool:
+    """True for mem0.client MemoryClient, which takes identity inside ``filters``."""
     cls = type(client)
     module = getattr(cls, "__module__", "")
     name = cls.__name__
@@ -131,31 +190,27 @@ def _extract_id(res: Any) -> str | None:
     return None
 
 
-def _parse_stored_metadata(stored: Any) -> dict[str, Any] | None:
-    if isinstance(stored, dict):
-        return stored
+def _stored_content(stored: Any) -> str | None:
     if isinstance(stored, str):
         try:
-            parsed = json.loads(stored)
+            stored = json.loads(stored)
         except json.JSONDecodeError:
             return None
-        return parsed if isinstance(parsed, dict) else None
+    if isinstance(stored, dict) and isinstance(stored.get("content"), str):
+        return str(stored["content"])
     return None
 
 
 def _to_record(item: dict[str, Any]) -> MemoryRecord:
-    metadata = item.get("metadata") or {}
-    stored = metadata.get(_MT_KEY) if isinstance(metadata, dict) else None
-    payload = _parse_stored_metadata(stored)
-    if payload is not None:
-        record = MemoryRecord.model_validate(payload)
-        # Prefer MemTrust's stored content: Mem0 inference can rewrite text
-        # (including quarantined poisoning attempts).
-        return record.model_copy(update={"id": str(item.get("id", record.id))})
-    return MemoryRecord(
-        id=str(item.get("id", "mem_unknown")),
-        content=item.get("memory") or item.get("text") or "",
-    )
+    metadata = item.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    mem0_id = str(item.get("id") or "mem_unknown")
+    # Prefer MemTrust's stored content: Mem0 inference can rewrite text
+    # (including quarantined poisoning attempts).
+    content = _stored_content(metadata.get(_MT_KEY))
+    if content is None:
+        content = str(item.get("memory") or item.get("text") or "")
+    return decode_record(metadata, id=mem0_id, content=content)
 
 
 __all__ = ["Mem0Backend"]

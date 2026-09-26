@@ -68,6 +68,34 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Security: RAG adapters served quarantined, superseded, and revoked
+  memories.** `ChromaBackend`, `QdrantBackend`, `LlamaIndexBackend`, and
+  `LangChainVectorStoreBackend` stored only id + text, so every record came
+  back `ACTIVE`: a quarantined poisoning attempt was returned by `search()`,
+  and superseded facts kept surfacing. Record state (status, validity window,
+  lineage, metadata) now round-trips through store metadata/payload via the
+  shared `memtrust.integrations._codec`; unreadable state fails closed as
+  `QUARANTINED`.
+- **Status changes duplicated records.** Every shipped adapter now implements
+  `set_status` in place (Chroma `update`, Qdrant `set_payload`, Mem0
+  `update(metadata=...)`, LangGraph `put`, LlamaIndex/LangChain replace by
+  id). The generic fallback deletes the stale copy when a backend assigns a
+  new id instead of upserting.
+- **Qdrant adapter crashed against the real client** (plain-dict points,
+  non-UUID ids). It now sends `PointStruct`s and maps MemTrust ids to stable
+  UUIDv5 point ids. Keyword-only mode ranks by similarity instead of
+  substring match, so write-time neighbour lookup finds related facts.
+- **LlamaIndex adapter** returned node UUIDs instead of MemTrust ids, so
+  `get()` and supersession targeted the wrong records. The state JSON is
+  excluded from embedding and LLM text.
+- **Mem0 2.x**: identity (`user_id` / `agent_id` / `run_id`) is now passed
+  where each client expects it (top-level on OSS `add`, inside `filters` on
+  search and platform add), with `top_k` vs. `limit` chosen by signature.
+- **LangGraph adapter** `get`/`delete` read by key instead of scanning the
+  first 1000 items; a `namespace` argument allows per-user namespaces.
+- Revocation from a fresh guard: adapters implement `all()`
+  (`SupportsListing`), so lineage is read from the store rather than only
+  the in-process index.
 - **Mem0 platform adapter**: `MemoryClient` v2+ rejects top-level `user_id` on
   search (requires `filters` + `top_k`), returns `PENDING` with no memory id
   when `infer=True`, and flattens nested metadata on some endpoints. The

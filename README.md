@@ -144,7 +144,7 @@ from memtrust import MemTrust
 from memtrust.integrations.mem0 import Mem0Backend
 
 client = MemoryClient(api_key="...")
-memory_backend = Mem0Backend(client)
+memory_backend = Mem0Backend(client, user_id="alice")
 memory = MemTrust().protect(memory_backend)
 ```
 

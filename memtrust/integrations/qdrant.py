@@ -1,31 +1,54 @@
 """Qdrant vector-store adapter.
 
 Wraps a Qdrant client so RAG points and long-term memories are gated by
-MemTrust. Point payload stores the document text.
+MemTrust. The point payload stores the document text and MemTrust's record
+state (status, validity, lineage), so read enforcement survives a round
+trip.
+
+Qdrant point ids must be unsigned integers or UUIDs. MemTrust ids that are
+neither are mapped to a stable UUIDv5; the MemTrust id travels in the
+payload and is what callers see.
 
 If you pass ``embed``, search uses vector similarity. Without an embedder,
-search falls back to payload scroll plus substring match (useful in tests
-and keyword-only setups).
+points are stored without vectors and search falls back to a payload scroll
+ranked by text similarity (useful in tests and small keyword-only setups).
 
 Install with ``pip install "memtrust[qdrant]"``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+import uuid
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 from ..exceptions import BackendError
+from ..models.enums import MemoryStatus
 from ..models.memory import MemoryRecord
+from ..text import similarity
+from ._codec import STATE_KEY, decode_record, encode_state
 
 EmbedFn = Callable[[str], Sequence[float]]
+
+_ID_NAMESPACE = uuid.UUID("6f1d3c8e-5b0a-4c55-9a4e-1f0c7b2d9e31")
+_PAGE = 256
+
+
+def point_id(memory_id: str) -> str | int:
+    """Qdrant point id for a MemTrust id (UUIDs and integers pass through)."""
+    if memory_id.isdigit():
+        return int(memory_id)
+    try:
+        return str(uuid.UUID(memory_id))
+    except ValueError:
+        return str(uuid.uuid5(_ID_NAMESPACE, memory_id))
 
 
 class QdrantBackend:
     """Adapter from a Qdrant client to the MemTrust backend protocol.
 
     ``embed`` should return a dense vector for a string. When omitted, points
-    are stored with an empty vector and search uses payload scan.
+    are stored with no vector and search uses payload scan.
     """
 
     def __init__(
@@ -42,12 +65,8 @@ class QdrantBackend:
         self._embed = embed
 
     def add(self, memory: MemoryRecord) -> MemoryRecord:
-        vector = list(self._embed(memory.content)) if self._embed else []
-        point = {
-            "id": memory.id,
-            "vector": vector,
-            "payload": {"content": memory.content},
-        }
+        vector: Any = list(self._embed(memory.content)) if self._embed else {}
+        point = _point(point_id(memory.id), vector, _payload_for(memory))
         try:
             self._client.upsert(collection_name=self._collection, points=[point])
         except Exception as exc:
@@ -59,27 +78,55 @@ class QdrantBackend:
             points = self._query_points(query, limit=limit)
         except Exception as exc:
             raise BackendError(f"Qdrant search failed: {exc}") from exc
-        return [self._to_record(point) for point in points]
+        return [_to_record(point) for point in points]
 
     def get(self, memory_id: str) -> MemoryRecord | None:
-        retrieve = getattr(self._client, "retrieve", None)
-        if not callable(retrieve):
-            return None
         try:
-            points = retrieve(collection_name=self._collection, ids=[memory_id])
+            points = self._client.retrieve(
+                collection_name=self._collection,
+                ids=[point_id(memory_id)],
+                with_payload=True,
+            )
         except Exception:
             return None
         if not points:
             return None
-        return self._to_record(points[0])
+        return _to_record(points[0])
 
     def delete(self, memory_id: str) -> None:
-        deleter = getattr(self._client, "delete", None)
-        if callable(deleter):
-            deleter(
+        self._client.delete(
+            collection_name=self._collection,
+            points_selector=_ids_selector([point_id(memory_id)]),
+        )
+
+    def set_status(self, memory_id: str, status: MemoryStatus) -> None:
+        record = self.get(memory_id)
+        if record is None:
+            return
+        updated = record.model_copy(update={"status": status})
+        try:
+            self._client.set_payload(
                 collection_name=self._collection,
-                points_selector={"points": [memory_id]},
+                payload={STATE_KEY: encode_state(updated)},
+                points=[point_id(memory_id)],
             )
+        except Exception as exc:
+            raise BackendError(f"Qdrant set_payload failed: {exc}") from exc
+
+    def all(self) -> Iterator[MemoryRecord]:
+        """Every point in the collection, paged via ``scroll``."""
+        offset: Any = None
+        while True:
+            points, offset = self._client.scroll(
+                collection_name=self._collection,
+                limit=_PAGE,
+                offset=offset,
+                with_payload=True,
+            )
+            for point in points or []:
+                yield _to_record(point)
+            if offset is None:
+                return
 
     def _query_points(self, query: str, *, limit: int) -> list[Any]:
         if self._embed and hasattr(self._client, "query_points"):
@@ -87,8 +134,9 @@ class QdrantBackend:
                 collection_name=self._collection,
                 query=list(self._embed(query)),
                 limit=limit,
+                with_payload=True,
             )
-            return list(getattr(res, "points", None) or res or [])
+            return list(getattr(res, "points", None) or [])
         if self._embed and hasattr(self._client, "search"):
             return list(
                 self._client.search(
@@ -98,37 +146,63 @@ class QdrantBackend:
                 )
                 or []
             )
-        scroll = getattr(self._client, "scroll", None)
-        if not callable(scroll):
-            return []
-        res = scroll(collection_name=self._collection, limit=max(limit, 100))
-        points = res[0] if isinstance(res, tuple) else res
-        needle = (query or "").lower()
-        hits = []
-        for point in points or []:
-            payload = _payload(point)
-            content = str(payload.get("content") or "")
-            if not needle or needle in content.lower():
-                hits.append(point)
-            if len(hits) >= limit:
+        # Keyword mode: scan the collection and rank by text similarity, like
+        # InMemoryBackend. Linear in collection size — pass ``embed`` for scale.
+        scored: list[tuple[float, Any]] = []
+        offset: Any = None
+        while True:
+            points, offset = self._client.scroll(
+                collection_name=self._collection,
+                limit=_PAGE,
+                offset=offset,
+                with_payload=True,
+            )
+            for point in points or []:
+                content = str(_payload(point).get("content") or "")
+                scored.append((similarity(query, content) if query else 0.0, point))
+            if offset is None:
                 break
-        return hits
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [point for _, point in scored[:limit]]
 
-    def _to_record(self, point: Any) -> MemoryRecord:
-        payload = _payload(point)
-        memory_id = str(getattr(point, "id", None) or payload.get("id") or "qdrant_unknown")
-        if isinstance(point, dict):
-            memory_id = str(point.get("id") or memory_id)
-        content = str(payload.get("content") or "")
-        return MemoryRecord(id=memory_id, content=content)
+
+_ID_KEY = "memtrust_id"
+
+
+def _payload_for(memory: MemoryRecord) -> dict[str, Any]:
+    return {_ID_KEY: memory.id, "content": memory.content, STATE_KEY: encode_state(memory)}
+
+
+def _point(pid: str | int, vector: Any, payload: dict[str, Any]) -> Any:
+    try:
+        from qdrant_client.models import PointStruct
+    except ImportError:
+        return {"id": pid, "vector": vector, "payload": payload}
+    return PointStruct(id=pid, vector=vector, payload=payload)
+
+
+def _ids_selector(ids: list[str | int]) -> Any:
+    try:
+        from qdrant_client.models import PointIdsList
+    except ImportError:
+        return {"points": ids}
+    return PointIdsList(points=ids)
 
 
 def _payload(point: Any) -> dict[str, Any]:
     if isinstance(point, dict):
         payload = point.get("payload") or {}
-        return payload if isinstance(payload, dict) else {}
-    payload = getattr(point, "payload", None) or {}
+    else:
+        payload = getattr(point, "payload", None) or {}
     return payload if isinstance(payload, dict) else {}
 
 
-__all__ = ["QdrantBackend"]
+def _to_record(point: Any) -> MemoryRecord:
+    payload = _payload(point)
+    raw_id = point.get("id") if isinstance(point, dict) else getattr(point, "id", None)
+    # Points written by MemTrust carry the caller-visible id; others use the point id.
+    memory_id = payload.get(_ID_KEY) or (raw_id if raw_id is not None else "qdrant_unknown")
+    return decode_record(payload, id=str(memory_id), content=str(payload.get("content") or ""))
+
+
+__all__ = ["QdrantBackend", "point_id"]

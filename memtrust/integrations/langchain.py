@@ -1,7 +1,8 @@
 """LangChain vector-store adapter.
 
 Wraps a LangChain ``VectorStore`` so RAG ``add_texts`` / ``similarity_search``
-go through MemTrust. Documents are stored by id and reconstructed on search.
+go through MemTrust. Documents are stored by id with MemTrust's record state
+in their metadata, so read enforcement survives a round trip.
 
 Install with ``pip install "memtrust[langchain]"``.
 """
@@ -11,7 +12,9 @@ from __future__ import annotations
 from typing import Any
 
 from ..exceptions import BackendError
+from ..models.enums import MemoryStatus
 from ..models.memory import MemoryRecord
+from ._codec import decode_record, state_metadata
 
 
 class LangChainVectorStoreBackend:
@@ -19,6 +22,8 @@ class LangChainVectorStoreBackend:
 
     ``get`` uses ``get_by_ids`` when the store implements it; otherwise it
     returns ``None``. ``delete`` is a no-op when the store cannot delete by id.
+    ``set_status`` replaces the document (delete, then re-add under the same
+    id), since LangChain has no portable metadata update.
     """
 
     def __init__(self, vectorstore: Any) -> None:
@@ -32,6 +37,7 @@ class LangChainVectorStoreBackend:
         try:
             self._store.add_texts(
                 [memory.content],
+                metadatas=[state_metadata(memory)],
                 ids=[memory.id],
             )
         except Exception as exc:
@@ -62,6 +68,13 @@ class LangChainVectorStoreBackend:
         if callable(deleter):
             deleter([memory_id])
 
+    def set_status(self, memory_id: str, status: MemoryStatus) -> None:
+        record = self.get(memory_id)
+        if record is None:
+            return
+        self.delete(memory_id)
+        self.add(record.model_copy(update={"status": status}))
+
 
 def _from_doc(doc: Any) -> MemoryRecord:
     if isinstance(doc, dict):
@@ -76,7 +89,7 @@ def _from_doc(doc: Any) -> MemoryRecord:
             or (metadata.get("id") if isinstance(metadata, dict) else None)
             or "lc_unknown"
         )
-    return MemoryRecord(id=memory_id, content=content)
+    return decode_record(metadata, id=memory_id, content=content)
 
 
 __all__ = ["LangChainVectorStoreBackend"]

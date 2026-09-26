@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .base import AsyncMemoryBackend, MemoryBackend, SupportsSetStatus
+from .base import AsyncMemoryBackend, MemoryBackend, SupportsListing, SupportsSetStatus
 from .memory import AsyncInMemoryBackend, InMemoryBackend
 
 __all__ = [
@@ -10,5 +10,6 @@ __all__ = [
     "AsyncMemoryBackend",
     "InMemoryBackend",
     "MemoryBackend",
+    "SupportsListing",
     "SupportsSetStatus",
 ]

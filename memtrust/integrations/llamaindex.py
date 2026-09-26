@@ -1,26 +1,35 @@
 """LlamaIndex adapter.
 
 Wraps a LlamaIndex index (typically ``VectorStoreIndex``) so RAG inserts and
-retrieves go through MemTrust. Documents are stored by id and reconstructed
-on retrieve.
+retrieves go through MemTrust. Each record is inserted as a ``Document``
+whose ``doc_id`` is the MemTrust id; MemTrust's record state travels in the
+document metadata (excluded from embedding and LLM text), so read
+enforcement survives a round trip.
 
 Install with ``pip install "memtrust[llamaindex]"``.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
 from ..exceptions import BackendError
+from ..models.enums import MemoryStatus
 from ..models.memory import MemoryRecord
+from ._codec import STATE_KEY, decode_record, state_metadata
 
 
 class LlamaIndexBackend:
     """Adapter from a LlamaIndex index to the MemTrust backend protocol.
 
-    The index must support ``insert`` and ``as_retriever``. ``get`` / ``delete``
-    use ``docstore`` / ``delete_ref_doc`` when present.
+    The index must support ``insert`` and ``as_retriever``. ``get``,
+    ``delete``, and ``set_status`` use the index ``docstore`` and
+    ``delete_ref_doc`` when present. With an external vector store that
+    keeps the text itself, build the index with ``store_nodes_override=True``
+    so the docstore still holds nodes; otherwise ``get`` cannot find records
+    and status changes (supersede, revoke) cannot be applied.
     """
 
     def __init__(self, index: Any) -> None:
@@ -29,9 +38,10 @@ class LlamaIndexBackend:
         self._index = index
 
     def add(self, memory: MemoryRecord) -> MemoryRecord:
-        document = _document(memory.content, memory.id)
+        # Replace any previous version so one MemTrust id maps to one document.
+        self._delete_ref_doc(memory.id)
         try:
-            self._index.insert(document)
+            self._index.insert(_document(memory))
         except Exception as exc:
             raise BackendError(f"LlamaIndex insert failed: {exc}") from exc
         return memory
@@ -49,39 +59,74 @@ class LlamaIndexBackend:
         return records
 
     def get(self, memory_id: str) -> MemoryRecord | None:
-        docstore = getattr(self._index, "docstore", None)
-        getter = getattr(docstore, "get_document", None) if docstore is not None else None
-        if not callable(getter):
-            getter = getattr(docstore, "get_node", None) if docstore is not None else None
-        if not callable(getter):
-            return None
-        try:
-            node = getter(memory_id)
-        except Exception:
-            return None
-        if node is None:
-            return None
-        return _from_node(node)
+        node = self._first_node(memory_id)
+        return _from_node(node, memory_id=memory_id) if node is not None else None
 
     def delete(self, memory_id: str) -> None:
-        deleter = getattr(self._index, "delete_ref_doc", None)
-        if callable(deleter):
-            deleter(memory_id, delete_from_docstore=True)
+        if not self._delete_ref_doc(memory_id):
+            fallback = getattr(self._index, "delete", None)
+            if callable(fallback):
+                fallback(memory_id)
+
+    def set_status(self, memory_id: str, status: MemoryStatus) -> None:
+        record = self.get(memory_id)
+        if record is None:
             return
-        fallback = getattr(self._index, "delete", None)
-        if callable(fallback):
-            fallback(memory_id)
+        self.add(record.model_copy(update={"status": status}))
+
+    def all(self) -> Iterator[MemoryRecord]:
+        """Every document tracked in ``ref_doc_info``."""
+        info = getattr(self._index, "ref_doc_info", None)
+        for memory_id in list(info or {}):
+            record = self.get(str(memory_id))
+            if record is not None:
+                yield record
+
+    def _first_node(self, memory_id: str) -> Any:
+        docstore = getattr(self._index, "docstore", None)
+        get_info = getattr(docstore, "get_ref_doc_info", None)
+        info = get_info(memory_id) if callable(get_info) else None
+        node_ids = list(getattr(info, "node_ids", None) or [])
+        get_node = getattr(docstore, "get_node", None)
+        if node_ids and callable(get_node):
+            try:
+                return get_node(node_ids[0])
+            except Exception:
+                return None
+        get_document = getattr(docstore, "get_document", None)
+        if callable(get_document):
+            try:
+                return get_document(memory_id)
+            except Exception:
+                return None
+        return None
+
+    def _delete_ref_doc(self, memory_id: str) -> bool:
+        deleter = getattr(self._index, "delete_ref_doc", None)
+        if not callable(deleter):
+            return False
+        try:
+            deleter(memory_id, delete_from_docstore=True)
+        except Exception:
+            return False
+        return True
 
 
-def _document(text: str, doc_id: str) -> Any:
+def _document(memory: MemoryRecord) -> Any:
+    metadata = state_metadata(memory)
     try:
         from llama_index.core import Document
     except ImportError:
-        try:
-            from llama_index.core.schema import Document
-        except ImportError:
-            return SimpleNamespace(text=text, doc_id=doc_id, metadata={}, id_=doc_id)
-    return Document(text=text, doc_id=doc_id)
+        return SimpleNamespace(
+            text=memory.content, doc_id=memory.id, metadata=metadata, id_=memory.id
+        )
+    return Document(
+        text=memory.content,
+        doc_id=memory.id,
+        metadata=metadata,
+        excluded_embed_metadata_keys=[STATE_KEY],
+        excluded_llm_metadata_keys=[STATE_KEY],
+    )
 
 
 def _node_text(node: Any) -> str:
@@ -98,18 +143,19 @@ def _node_text(node: Any) -> str:
     return str(node)
 
 
-def _from_node(node: Any) -> MemoryRecord:
+def _from_node(node: Any, *, memory_id: str | None = None) -> MemoryRecord:
     metadata = getattr(node, "metadata", None) or getattr(node, "extra_info", None) or {}
     if not isinstance(metadata, dict):
         metadata = {}
-    memory_id = (
-        getattr(node, "doc_id", None)
+    fallback_id = (
+        memory_id
+        or getattr(node, "ref_doc_id", None)
+        or getattr(node, "doc_id", None)
         or getattr(node, "id_", None)
         or getattr(node, "node_id", None)
-        or metadata.get("id")
         or "llama_unknown"
     )
-    return MemoryRecord(id=str(memory_id), content=_node_text(node))
+    return decode_record(metadata, id=str(fallback_id), content=_node_text(node))
 
 
 __all__ = ["LlamaIndexBackend"]

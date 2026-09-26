@@ -1,17 +1,21 @@
 """LangGraph ``BaseStore`` adapter.
 
-Maps MemTrust records onto LangGraph's namespaced key/value store.
+Maps MemTrust records onto LangGraph's namespaced key/value store. The full
+record is stored as the item value, keyed by the MemTrust id.
 
 Install with ``pip install "memtrust[langgraph]"``.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
+from ..models.enums import MemoryStatus
 from ..models.memory import MemoryRecord
 
 _NS: tuple[str, ...] = ("memtrust",)
+_PAGE = 500
 
 
 def _value_of(item: Any) -> dict[str, Any] | None:
@@ -21,59 +25,48 @@ def _value_of(item: Any) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def _namespace_of(item: Any) -> tuple[str, ...] | None:
-    ns = getattr(item, "namespace", None)
-    if ns is None and isinstance(item, dict):
-        ns = item.get("namespace")
-    return tuple(ns) if ns else None
-
-
 class LangGraphStoreBackend:
-    """Adapter from a LangGraph ``BaseStore`` to the MemTrust backend protocol."""
+    """Adapter from a LangGraph ``BaseStore`` to the MemTrust backend protocol.
 
-    def __init__(self, store: Any) -> None:
+    ``namespace`` defaults to ``("memtrust",)``; use a per-user namespace such
+    as ``("memtrust", user_id)`` to keep users' memories apart.
+    """
+
+    def __init__(self, store: Any, *, namespace: tuple[str, ...] = _NS) -> None:
         self._store = store
+        self._ns = tuple(namespace)
 
     def add(self, memory: MemoryRecord) -> MemoryRecord:
-        self._store.put(_NS, memory.id, memory.model_dump(mode="json"))
+        self._store.put(self._ns, memory.id, memory.model_dump(mode="json"))
         return memory
 
     def search(self, query: str, *, limit: int = 10) -> list[MemoryRecord]:
-        items = self._store.search(_NS, query=query or None, limit=limit)
-        records: list[MemoryRecord] = []
-        for item in items:
-            value = _value_of(item)
-            if value is not None:
-                records.append(MemoryRecord.model_validate(value))
-        return records
+        items = self._store.search(self._ns, query=query or None, limit=limit)
+        return [MemoryRecord.model_validate(v) for v in map(_value_of, items) if v is not None]
 
     def get(self, memory_id: str) -> MemoryRecord | None:
-        for item, value in self._scan():
-            if getattr(item, "key", None) == memory_id or (
-                isinstance(item, dict) and item.get("key") == memory_id
-            ):
-                return MemoryRecord.model_validate(value)
-        return None
+        value = _value_of(self._store.get(self._ns, memory_id))
+        return MemoryRecord.model_validate(value) if value is not None else None
 
     def delete(self, memory_id: str) -> None:
-        for item, _value in self._scan():
-            key = getattr(item, "key", None) or (
-                item.get("key") if isinstance(item, dict) else None
-            )
-            if key == memory_id:
-                ns = _namespace_of(item)
-                if ns is not None:
-                    self._store.delete(ns, memory_id)
-                return
+        self._store.delete(self._ns, memory_id)
 
-    def _scan(self, limit: int = 1000) -> list[tuple[Any, dict[str, Any]]]:
-        items = self._store.search((), query=None, limit=limit)
-        out: list[tuple[Any, dict[str, Any]]] = []
-        for item in items:
-            value = _value_of(item)
-            if value is not None:
-                out.append((item, value))
-        return out
+    def set_status(self, memory_id: str, status: MemoryStatus) -> None:
+        record = self.get(memory_id)
+        if record is not None:
+            self.add(record.model_copy(update={"status": status}))
+
+    def all(self) -> Iterator[MemoryRecord]:
+        """Every record under this adapter's namespace, paged."""
+        offset = 0
+        while True:
+            items = list(self._store.search(self._ns, query=None, limit=_PAGE, offset=offset))
+            for value in map(_value_of, items):
+                if value is not None:
+                    yield MemoryRecord.model_validate(value)
+            if len(items) < _PAGE:
+                return
+            offset += _PAGE
 
 
 __all__ = ["LangGraphStoreBackend"]
