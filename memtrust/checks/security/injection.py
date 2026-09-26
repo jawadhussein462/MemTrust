@@ -12,7 +12,7 @@ from ...context import CheckContext
 from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
-from ..base import BaseCheck
+from ..base import WRITE_AND_READ, BaseCheck
 
 _INJECTION_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
@@ -39,6 +39,7 @@ class InjectionCheck(BaseCheck):
     """Flag persistent-instruction / injection phrases in candidate content."""
 
     name = "injection"
+    operations = WRITE_AND_READ
 
     def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
         matched: list[str] = []

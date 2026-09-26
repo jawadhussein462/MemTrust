@@ -12,7 +12,7 @@ from ...context import CheckContext
 from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
-from ..base import BaseCheck
+from ..base import WRITE_AND_READ, BaseCheck
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
@@ -51,6 +51,7 @@ class SecretsCheck(BaseCheck):
     """Flag credentials/keys/tokens and block the write."""
 
     name = "secrets"
+    operations = WRITE_AND_READ
 
     def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
         kinds = _secret_kinds(candidate.content)
@@ -62,7 +63,7 @@ class SecretsCheck(BaseCheck):
                 code="secret_detected",
                 category=Category.SECURITY,
                 severity=Severity.CRITICAL,
-                message="Secret-like content detected; write blocked.",
+                message="Secret-like content detected.",
                 evidence={"kinds": kinds},
                 check=self.name,
                 recommended_action=Action.BLOCK,

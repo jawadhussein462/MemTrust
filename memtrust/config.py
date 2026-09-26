@@ -20,6 +20,14 @@ class Config(BaseModel):
         description="On internal check errors, treat as a blocking violation rather than allowing.",
     )
 
+    read_checks: bool = Field(
+        default=True,
+        description=(
+            "Run read-capable checks (secrets, injection, poisoning) on every retrieved "
+            "record and withhold flagged ones. Core status/expiry filtering always applies."
+        ),
+    )
+
     # Correctness tuning
     duplicate_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
     contradiction_enabled: bool = Field(default=True)

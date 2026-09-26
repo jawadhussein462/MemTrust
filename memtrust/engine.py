@@ -3,7 +3,9 @@
 Holds decision aggregation *and* the non-bypassable core enforcement
 (revoked/expired/quarantined/superseded filtering on read).
 Pluggable checks run on top; they can add findings but cannot remove core
-protections.
+protections. Checks declaring the ``read`` operation also run on every
+retrieved record that passes core enforcement, so poisoned or injected
+content that reached the store some other way is still withheld.
 
 Shared by both :class:`~memtrust.MemTrust` and
 :class:`~memtrust.AsyncMemTrust`; backend I/O lives in the client wrappers.
@@ -13,7 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from .checks.base import MemoryCheck
+from .checks.base import MemoryCheck, check_operations
 from .config import Config
 from .context import CheckContext
 from .models.decision import Decision
@@ -64,6 +66,8 @@ class Evaluator:
     ) -> None:
         self.config = config
         self.checks = checks
+        self.write_checks = [c for c in checks if "write" in check_operations(c)]
+        self.read_checks = [c for c in checks if "read" in check_operations(c)]
         self.tracer: Tracer = tracer or NullTracer()
 
     # -- write ------------------------------------------------------------------
@@ -86,8 +90,7 @@ class Evaluator:
             SPAN_WRITE_CHECK,
             {ATTR_OPERATION: "write"},
         ) as span:
-            findings: list[Finding] = []
-            findings.extend(self._run_checks(candidate, ctx))
+            findings = self._run_checks(self.write_checks, candidate, ctx)
 
             decision = aggregate(findings)
 
@@ -97,9 +100,11 @@ class Evaluator:
 
             return decision
 
-    def _run_checks(self, candidate: MemoryCandidate, ctx: CheckContext) -> list[Finding]:
+    def _run_checks(
+        self, checks: list[MemoryCheck], candidate: MemoryCandidate, ctx: CheckContext
+    ) -> list[Finding]:
         findings: list[Finding] = []
-        for chk in self.checks:
+        for chk in checks:
             try:
                 findings.extend(chk.check(candidate, ctx))
             except Exception as exc:
@@ -129,17 +134,41 @@ class Evaluator:
             {ATTR_OPERATION: "read"},
         ) as span:
             result = ReadResult()
+            ctx = CheckContext(config=self.config, now=now, operation="read")
             for record in records:
                 finding = self._core_read_finding(record, now)
                 if finding is not None:
                     result.filtered.append(FilteredMemory(record=record, finding=finding))
                     result.findings.append(finding)
                     continue
+                findings = self._read_check_findings(record, ctx)
+                result.findings.extend(findings)
+                decision = aggregate(findings)
+                if not decision.allowed and decision.top_finding is not None:
+                    result.filtered.append(
+                        FilteredMemory(record=record, finding=decision.top_finding)
+                    )
+                    continue
                 result.results.append(SafeMemory(record=record))
 
             span.set_attribute("memtrust.returned", len(result.results))
             span.set_attribute("memtrust.filtered", len(result.filtered))
             return result
+
+    def _read_check_findings(self, record: MemoryRecord, ctx: CheckContext) -> list[Finding]:
+        if not self.config.read_checks or not self.read_checks:
+            return []
+        candidate = MemoryCandidate(
+            content=record.content,
+            metadata=dict(record.metadata),
+            id=record.id,
+            derived_from=list(record.derived_from),
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+            valid_from=record.valid_from,
+            valid_until=record.valid_until,
+        )
+        return self._run_checks(self.read_checks, candidate, ctx)
 
     def _core_read_finding(self, record: MemoryRecord, now: datetime) -> Finding | None:
         """Non-bypassable read enforcement; returns a Finding if withheld."""

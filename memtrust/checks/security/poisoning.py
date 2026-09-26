@@ -14,7 +14,7 @@ from ...context import CheckContext
 from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
-from ..base import BaseCheck
+from ..base import WRITE_AND_READ, BaseCheck
 
 _POISONING_PATTERNS: list[re.Pattern[str]] = [
     re.compile(p, re.IGNORECASE)
@@ -39,6 +39,7 @@ class PoisoningCheck(BaseCheck):
     """Flag content that looks like an attempt to plant a false security fact."""
 
     name = "poisoning"
+    operations = WRITE_AND_READ
 
     def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
         matched: list[str] = []

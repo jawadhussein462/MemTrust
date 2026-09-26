@@ -61,6 +61,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Read-time security checks.** Secrets, injection, and poisoning checks now
+  also run on every retrieved record (`search`, `get`, `check_read`), so
+  content that entered the store outside MemTrust is withheld, with the
+  reason in `ReadResult.filtered`. Checks declare `operations`
+  (`("write",)` by default); custom checks opt in with
+  `@check(name, on=("write", "read"))`. `Config(read_checks=False)` disables
+  it; core status/expiry filtering always applies.
 - **RAG adapters**: `ChromaBackend`, `QdrantBackend`, `LlamaIndexBackend`, and
   `LangChainVectorStoreBackend`, plus extras `chroma`, `qdrant`, `llamaindex`,
   and `langchain`.

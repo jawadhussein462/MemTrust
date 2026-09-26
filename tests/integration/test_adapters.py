@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from memtrust import MemTrust
+from memtrust import MemoryStatus, MemTrust
 from memtrust.backends import InMemoryBackend
 from memtrust.exceptions import BackendError
 from memtrust.integrations.chroma import ChromaBackend
@@ -211,7 +211,7 @@ def test_mem0_calls_bind_to_installed_mem0_signatures(cls_name):
     mem = MemTrust().protect(backend)
     mem.add("Alice works at Stripe.")
     mem.search("Alice", limit=5)
-    backend.set_status("u1", "superseded")
+    backend.set_status("u1", MemoryStatus.SUPERSEDED)
 
     calls = dict(client.calls)
     if cls_name == "MemoryClient":

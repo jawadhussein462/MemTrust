@@ -186,7 +186,14 @@ memory = MemTrust().protect(memory_backend)
 
 Writes flow through: normalize → security → correctness → decision →
 `backend.add()`. Reads flow through: `backend.search()` →
-revocation / expiration / quarantine filters → safe results.
+revocation / expiration / quarantine filters → security checks → safe results.
+
+Read-time security checks mean documents that reached the store some other
+way (a separate ingestion pipeline, data written before MemTrust was added)
+are screened too: poisoned, injected, or secret-bearing records are withheld,
+and `check_read(...).filtered` says why. Custom checks opt in with
+`@check("name", on=("write", "read"))`; `Config(read_checks=False)` turns it
+off (core status and expiry filtering always applies).
 
 ---
 
