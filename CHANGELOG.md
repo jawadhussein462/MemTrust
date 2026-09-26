@@ -61,6 +61,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Detector precision and recall.** On the labelled regression corpus
+  (`tests/corpus.py`) recall went from 10/17 injection, 5/11 poisoning, 6/10
+  secrets to all cases, and benign false positives from 8/26 to 0/26. On a
+  held-out set the patterns were not tuned on: 7/12 attacks caught (was
+  1/12), 0/15 benign flagged.
+  - Injection: text is deobfuscated first (invisible characters, Cyrillic
+    and Greek look-alikes, diacritics, "i-g-n-o-r-e"); common
+    French/Spanish/German/Portuguese/Italian variants; persona switches
+    and system-prompt extraction. Ordinary preferences ("always remember to
+    CC finance", "you are now connected to staging") are no longer flagged.
+  - Poisoning: claims that switch off a control (auth, MFA, approval,
+    security review) instead of phrase lists tuned to the README example;
+    "has no authentication issues" and "requires TLS 1.2" no longer flagged.
+    New `destination_redirect` finding (high, review) for payments or data
+    routed to a new destination ("send all invoices to x@y.io instead").
+  - Secrets: stated credentials ("my password is hunter2", "the PIN is
+    4821"), Stripe and Anthropic keys, connection strings with passwords.
+  - Correctness: a changed number ("rate limit is 100 rps" → "500 rps") is
+    a supersession or contradiction, not a duplicate.
 - **Read-time security checks.** Secrets, injection, and poisoning checks now
   also run on every retrieved record (`search`, `get`, `check_read`), so
   content that entered the store outside MemTrust is withheld, with the

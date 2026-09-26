@@ -11,7 +11,7 @@ from ...context import CheckContext
 from ...models.enums import Action, Category, MemoryRelationship, MemoryStatus, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate, MemoryRecord
-from ...text import jaccard, normalize, similarity, token_set, tokenize
+from ...text import jaccard, normalize, similarity, token_set, tokenize, value_change
 from ..base import BaseCheck
 
 # Relational phrases whose object commonly changes over time.
@@ -94,12 +94,19 @@ def _relate(existing: MemoryRecord, candidate: MemoryCandidate) -> MemoryRelatio
     if ne == nc:
         return MemoryRelationship.DUPLICATE
 
+    newer = candidate.created_at > existing.created_at
+    temporal = any(m in nc for m in _TEMPORAL_MARKERS)
+
+    # Same statement, different number: checked before the near-duplicate
+    # test because "limit is 100 rps" / "limit is 500 rps" is ~95% similar.
+    if value_change(existing.content, candidate.content):
+        return (
+            MemoryRelationship.SUPERSEDES if (newer or temporal) else MemoryRelationship.CONTRADICTS
+        )
+
     sim = similarity(existing.content, candidate.content)
     if sim >= 0.95:
         return MemoryRelationship.DUPLICATE
-
-    newer = candidate.created_at > existing.created_at
-    temporal = any(m in nc for m in _TEMPORAL_MARKERS)
 
     if _relation_change(ne, nc):
         return (

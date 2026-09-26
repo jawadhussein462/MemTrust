@@ -10,7 +10,7 @@ from ...context import CheckContext
 from ...models.enums import Action, Category, MemoryStatus, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate, MemoryRecord
-from ...text import similarity
+from ...text import similarity, value_change
 from ..base import BaseCheck
 
 
@@ -28,7 +28,8 @@ class DuplicationCheck(BaseCheck):
         best_id: str | None = None
         best_score = 0.0
         for existing in context.existing:
-            if not _active(existing):
+            # A changed number is an update, not a duplicate (ContradictionCheck owns it).
+            if not _active(existing) or value_change(existing.content, candidate.content):
                 continue
             score = similarity(candidate.content, existing.content)
             if score > best_score:

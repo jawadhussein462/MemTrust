@@ -21,7 +21,13 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
     ("private_key", re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----")),
     ("jwt", re.compile(r"\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}")),
-    ("openai_api_key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    ("anthropic_api_key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}")),
+    ("openai_api_key", re.compile(r"\bsk-(?!ant-)(?:proj-)?[A-Za-z0-9_-]{20,}")),
+    ("stripe_key", re.compile(r"\b(?:sk|rk)_(?:live|test)_[0-9A-Za-z]{16,}\b")),
+    (
+        "connection_string",
+        re.compile(r"\b[a-z][a-z0-9+.-]{1,20}://[^\s/:@]+:[^\s/@]+@[^\s/]+", re.IGNORECASE),
+    ),
     ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b")),
     ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}")),
@@ -37,12 +43,29 @@ _CREDENTIAL = re.compile(
 )
 
 
+# Natural language: "my password is hunter2", "the PIN is 4821".
+_STATED_CREDENTIAL = re.compile(
+    r"(?i)\b(?:password|passwd|passcode|pwd|pin|secret|api[ _-]?key|access[ _-]?token"
+    r"|auth[ _-]?token|token)\s+(?:is|was)\s+[\"']?([^\s\"',;]{4,})"
+)
+_HAS_DIGIT_OR_SYMBOL = re.compile(r"[\d!#$%&*+/=?@^_~|-]")
+
+
+def _stated_credential(text: str) -> bool:
+    """A stated value that looks like a secret (has a digit/symbol), not a description."""
+    for match in _STATED_CREDENTIAL.finditer(text):
+        value = match.group(1).rstrip(".!?)")
+        if len(value) >= 4 and _HAS_DIGIT_OR_SYMBOL.search(value):
+            return True
+    return False
+
+
 def _secret_kinds(text: str) -> list[str]:
     kinds: set[str] = set()
     for kind, pattern in _PATTERNS:
         if pattern.search(text):
             kinds.add(kind)
-    if _CREDENTIAL.search(text):
+    if _CREDENTIAL.search(text) or _stated_credential(text):
         kinds.add("credential")
     return sorted(kinds)
 

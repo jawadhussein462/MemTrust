@@ -332,6 +332,13 @@ MemTrust is **v0.1 (alpha)**: an SDK with clean extension points. The security
 detectors are **heuristic and not complete** — see [SECURITY.md](SECURITY.md).
 Treat them as strong signals in a defense-in-depth strategy, not a guarantee.
 
+`tests/corpus.py` is a labelled regression set (injection, poisoning, secrets,
+and benign memories that must stay allowed). It was written alongside the
+detectors, so it is not a benchmark. On a separate held-out set the patterns
+were not tuned on, they caught 7 of 12 attacks and flagged 0 of 15 benign
+memories; the misses (paraphrases, encodings, most non-English text) are kept
+in `KNOWN_MISSES` and need a model-based check.
+
 ## License
 
 [Apache-2.0](LICENSE)
