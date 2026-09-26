@@ -75,7 +75,7 @@ def check(name: str) -> Callable[[CheckFunction], FunctionCheck]:
 def normalize_check(obj: MemoryCheck | CheckFunction) -> MemoryCheck:
     """Coerce user-supplied checks (callables or objects) into MemoryCheck."""
     if hasattr(obj, "check") and hasattr(obj, "name"):
-        return obj  # type: ignore[return-value]
+        return obj
     if callable(obj):
         name = getattr(obj, "__name__", None) or obj.__class__.__name__
         return FunctionCheck(name, obj)

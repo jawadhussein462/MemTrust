@@ -33,9 +33,7 @@ class Finding(BaseModel):
         default_factory=dict,
         description="Structured, non-sensitive supporting data. Never contains raw secrets.",
     )
-    check: str | None = Field(
-        default=None, description="Name of the check that raised this."
-    )
+    check: str | None = Field(default=None, description="Name of the check that raised this.")
     recommended_action: Action | None = Field(
         default=None,
         description="Action this finding argues for; the engine aggregates across findings.",
