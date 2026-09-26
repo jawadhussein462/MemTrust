@@ -61,6 +61,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Semantic (LLM-backed) checks** in `memtrust.checks.semantic`, grounded
+  in current research (`docs/research.md`):
+  - `LLMJudgeCheck`: PromptArmor-style LLM detector with spotlighting and
+    strict JSON verdicts; flags injection, control weakening, destination
+    redirects, and secrets.
+  - `LLMConflictCheck`: Mem0/Zep-style resolution against neighbours
+    (duplicate / supersedes / contradicts), plus
+    `unverified_security_change` (A-MemGuard-inspired) when a write would
+    overturn a security-relevant memory.
+  - `PromptGuardCheck`: local Llama Prompt Guard 2 / PIGuard classifier
+    (`memtrust[classifier]`).
+  - `KnownAnswerCheck`: known-answer probe (Liu et al.; DataSentinel).
+  - `recommended_checks(client)` / `semantic_checks(client)` presets.
+  - Content-hash caching, windowing for long text, and `on_error`
+    ("open" keeps the deterministic layer and adds `model_unavailable`;
+    "closed" blocks).
+- **LLM layer** `memtrust.llm`: provider-agnostic `LLMClient` protocol,
+  `spotlight()`, `ResultCache`, a stdlib `.env` loader, and
+  `OpenAIClient` (`memtrust[openai]`) with strict `json_schema` output and
+  `from_env()`. `.env.example` lists the variables.
+- `benchmarks/eval_detectors.py` compares the deterministic and LLM
+  pipelines on the regression corpus, known misses, a held-out set, and
+  conflict pairs. Example `09_llm_checks.py`.
 - **Store audit**: `MemTrust.scan(backend_or_records)` returns a
   `ScanReport` (served count, lifecycle breakdown, active records reads
   would withhold with their finding codes, duplicate groups) without

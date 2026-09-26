@@ -298,6 +298,44 @@ Protocol), **Chain of Responsibility** (checks pipeline).
 
 
 
+## Semantic checks (LLM-backed, optional)
+
+The deterministic layer misses paraphrases, translations, and facts whose
+danger only shows next to what is already remembered. The semantic layer
+builds on current research (details and sources in
+[docs/research.md](docs/research.md)):
+
+| Check | Technique it follows | Catches |
+|---|---|---|
+| `LLMJudgeCheck` | PromptArmor (LLM as detector) + Microsoft spotlighting + strict JSON verdicts | paraphrased/translated/encoded injection, control-weakening claims, redirects, secrets |
+| `LLMConflictCheck` | Mem0 update phase, Zep edge invalidation, A-MemGuard consensus | supersession and contradiction by meaning; holds security-relevant "updates" for review |
+| `PromptGuardCheck` | Llama Prompt Guard 2 / PIGuard, local classifier | injection/jailbreak without API calls; cheap enough for reads |
+| `KnownAnswerCheck` | Known-answer detection (Liu et al.; DataSentinel) | text that hijacks a model (opt-in) |
+
+```bash
+pip install "memtrust[openai]"
+cp .env.example .env        # add OPENAI_API_KEY; MEMTRUST_OPENAI_MODEL defaults to gpt-5-mini
+```
+
+```python
+from memtrust import MemTrust
+from memtrust.checks.semantic import recommended_checks
+from memtrust.llm.openai import OpenAIClient
+
+guard = MemTrust(checks=recommended_checks(OpenAIClient.from_env()), use_default_checks=False)
+```
+
+Model output is never trusted: memory text is spotlighted as untrusted
+data, verdicts are schema-constrained, and verdicts are cached by content.
+If the model is unreachable, the check degrades to the deterministic layer
+with a visible `model_unavailable` finding (`on_error="closed"` blocks
+instead). Any provider works through the small `memtrust.llm.LLMClient`
+protocol. Compare pipelines with `python benchmarks/eval_detectors.py`.
+
+---
+
+
+
 ## Audit an existing store
 
 Point MemTrust at the store you already have — including memories written
