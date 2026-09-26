@@ -61,6 +61,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Store audit**: `MemTrust.scan(backend_or_records)` returns a
+  `ScanReport` (served count, lifecycle breakdown, active records reads
+  would withhold with their finding codes, duplicate groups) without
+  modifying anything; `memtrust scan export.jsonl` does the same for a JSON
+  Lines export and exits 1 when something is flagged. Reports never include
+  content. Example `08_scan_store.py`.
 - **Detector precision and recall.** On the labelled regression corpus
   (`tests/corpus.py`) recall went from 10/17 injection, 5/11 poisoning, 6/10
   secrets to all cases, and benign false positives from 8/26 to 0/26. On a

@@ -45,6 +45,7 @@ from .models import (
     RevocationReport,
     Risk,
     SafeMemory,
+    ScanReport,
     Severity,
 )
 
@@ -72,6 +73,7 @@ __all__ = [
     "RevocationReport",
     "Risk",
     "SafeMemory",
+    "ScanReport",
     "Severity",
     "__version__",
     "check",

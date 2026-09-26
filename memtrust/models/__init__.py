@@ -19,6 +19,8 @@ from .results import (
     ReadResult,
     RevocationReport,
     SafeMemory,
+    ScanFinding,
+    ScanReport,
 )
 
 __all__ = [
@@ -36,5 +38,7 @@ __all__ = [
     "RevocationReport",
     "Risk",
     "SafeMemory",
+    "ScanFinding",
+    "ScanReport",
     "Severity",
 ]

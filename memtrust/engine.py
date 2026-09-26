@@ -13,6 +13,8 @@ Shared by both :class:`~memtrust.MemTrust` and
 
 from __future__ import annotations
 
+from collections import defaultdict
+from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from .checks.base import MemoryCheck, check_operations
@@ -28,18 +30,20 @@ from .models.enums import (
 )
 from .models.finding import Finding
 from .models.memory import MemoryCandidate, MemoryRecord
-from .models.results import FilteredMemory, ReadResult, SafeMemory
+from .models.results import FilteredMemory, ReadResult, SafeMemory, ScanFinding, ScanReport
 from .telemetry import (
     ATTR_ACTION,
     ATTR_FINDING_COUNT,
     ATTR_OPERATION,
     ATTR_RISK,
     SPAN_READ_CHECK,
+    SPAN_SCAN,
     SPAN_WRITE_CHECK,
     NullTracer,
     Tracer,
     get_logger,
 )
+from .text import normalize
 
 _logger = get_logger(__name__)
 
@@ -154,6 +158,36 @@ class Evaluator:
             span.set_attribute("memtrust.returned", len(result.results))
             span.set_attribute("memtrust.filtered", len(result.filtered))
             return result
+
+    def scan(self, records: Iterable[MemoryRecord]) -> ScanReport:
+        """Audit stored records without I/O: what reads would withhold, and why."""
+        now = datetime.now(UTC)
+        ctx = CheckContext(config=self.config, now=now, operation="read")
+        report = ScanReport()
+        by_text: dict[str, list[str]] = defaultdict(list)
+        with self.tracer.span(SPAN_SCAN, {ATTR_OPERATION: "scan"}) as span:
+            for record in records:
+                report.total += 1
+                status = MemoryStatus.EXPIRED if record.is_expired(now) else record.status
+                report.by_status[status.value] = report.by_status.get(status.value, 0) + 1
+                if self._core_read_finding(record, now) is not None:
+                    continue
+                findings = self._read_check_findings(record, ctx)
+                for f in findings:
+                    report.by_code[f.code] = report.by_code.get(f.code, 0) + 1
+                decision = aggregate(findings)
+                if not decision.allowed:
+                    codes = sorted({f.code for f in findings})
+                    report.flagged.append(
+                        ScanFinding(id=record.id, codes=codes, action=decision.action)
+                    )
+                    continue
+                report.served += 1
+                by_text[normalize(record.content)].append(record.id)
+            report.duplicate_groups = [ids for ids in by_text.values() if len(ids) > 1]
+            span.set_attribute("memtrust.scanned", report.total)
+            span.set_attribute("memtrust.flagged", len(report.flagged))
+        return report
 
     def _read_check_findings(self, record: MemoryRecord, ctx: CheckContext) -> list[Finding]:
         if not self.config.read_checks or not self.read_checks:

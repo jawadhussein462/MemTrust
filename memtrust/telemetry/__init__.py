@@ -18,6 +18,7 @@ from typing import Protocol, runtime_checkable
 # Span names.
 SPAN_WRITE_CHECK = "memtrust.write.check"
 SPAN_READ_CHECK = "memtrust.read.check"
+SPAN_SCAN = "memtrust.scan"
 SPAN_BACKEND_SEARCH = "memtrust.backend.search"
 SPAN_BACKEND_ADD = "memtrust.backend.add"
 
@@ -68,6 +69,7 @@ __all__ = [
     "SPAN_BACKEND_ADD",
     "SPAN_BACKEND_SEARCH",
     "SPAN_READ_CHECK",
+    "SPAN_SCAN",
     "SPAN_WRITE_CHECK",
     "NullTracer",
     "Span",

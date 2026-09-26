@@ -8,20 +8,20 @@ classes; a method is never sometimes-async.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any
 
-from ._coerce import coerce_candidate, coerce_records
-from .backends.base import AsyncMemoryBackend, MemoryBackend
+from ._coerce import coerce_candidate, coerce_record, coerce_records
+from .backends.base import AsyncMemoryBackend, MemoryBackend, SupportsListing
 from .checks import default_checks
 from .checks.base import MemoryCheck, normalize_check
 from .config import Config
 from .engine import Evaluator
-from .exceptions import BackendError
+from .exceptions import BackendError, ConfigurationError
 from .models.decision import Decision
 from .models.enums import Action, MemoryStatus
 from .models.memory import MemoryCandidate, MemoryRecord
-from .models.results import AddResult, ReadResult, RevocationReport, SafeMemory
+from .models.results import AddResult, ReadResult, RevocationReport, SafeMemory, ScanReport
 from .telemetry import Tracer
 
 
@@ -71,6 +71,24 @@ class _ClientBase:
 
     def _register(self, record: MemoryRecord) -> None:
         self._index[record.id] = record
+
+    def scan(self, source: SupportsListing | Iterable[Any]) -> ScanReport:
+        """Audit a memory store: which records reads would withhold, and why.
+
+        ``source`` is a backend that can list its records (every shipped
+        adapter implements ``all()``) or an iterable of records/dicts. Records
+        are streamed, never loaded all at once. Nothing is modified.
+        """
+        if isinstance(source, SupportsListing):
+            items: Iterable[Any] = source.all()
+        elif isinstance(source, Iterable) and not isinstance(source, str | bytes | dict):
+            items = source
+        else:
+            raise ConfigurationError(
+                f"Cannot scan {type(source).__name__}: pass a backend with .all() or an "
+                "iterable of records."
+            )
+        return self._evaluator.scan(coerce_record(item) for item in items)
 
     # -- revocation core (shared) ----------------------------------------------
 

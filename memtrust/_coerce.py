@@ -22,18 +22,19 @@ def coerce_candidate(content: str | MemoryCandidate | dict) -> MemoryCandidate:
     raise ConfigurationError(f"Cannot interpret content: {content!r}")
 
 
+def coerce_record(item: object) -> MemoryRecord:
+    """Return a :class:`MemoryRecord` from a record, a :class:`SafeMemory`, or a dict."""
+    if isinstance(item, MemoryRecord):
+        return item
+    if isinstance(item, SafeMemory):
+        return item.record
+    if isinstance(item, dict):
+        return MemoryRecord.model_validate(item)
+    raise ConfigurationError(f"Cannot interpret record: {item!r}")
+
+
 def coerce_records(records: list) -> list[MemoryRecord]:
-    out: list[MemoryRecord] = []
-    for item in records:
-        if isinstance(item, MemoryRecord):
-            out.append(item)
-        elif isinstance(item, SafeMemory):
-            out.append(item.record)
-        elif isinstance(item, dict):
-            out.append(MemoryRecord.model_validate(item))
-        else:
-            raise ConfigurationError(f"Cannot interpret record: {item!r}")
-    return out
+    return [coerce_record(item) for item in records]
 
 
-__all__ = ["coerce_candidate", "coerce_records"]
+__all__ = ["coerce_candidate", "coerce_record", "coerce_records"]
