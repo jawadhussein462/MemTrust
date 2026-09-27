@@ -8,13 +8,13 @@ when a candidate is already expired or its validity window is inverted.
 from __future__ import annotations
 
 from ...context import CheckContext
-from ...models.enums import Action, Category, Severity
+from ...models.enums import Action, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
-from ..base import BaseCheck
+from .base import CorrectnessCheck
 
 
-class FreshnessCheck(BaseCheck):
+class FreshnessCheck(CorrectnessCheck):
     """Flag candidates that are already stale or have an invalid time window."""
 
     name = "freshness"
@@ -25,17 +25,15 @@ class FreshnessCheck(BaseCheck):
 
         if candidate.expires_at is not None and candidate.expires_at <= now:
             findings.append(
-                Finding(
-                    code="expired_on_write",
-                    category=Category.CORRECTNESS,
+                self.finding(
+                    "expired_on_write",
                     severity=Severity.MEDIUM,
+                    action=Action.ALLOW_WITH_WARNING,
                     message="Candidate is already expired at write time.",
                     evidence={
                         "expires_at": candidate.expires_at.isoformat(),
                         "now": now.isoformat(),
                     },
-                    check=self.name,
-                    recommended_action=Action.ALLOW_WITH_WARNING,
                 )
             )
 
@@ -45,17 +43,15 @@ class FreshnessCheck(BaseCheck):
             and candidate.valid_from > candidate.valid_until
         ):
             findings.append(
-                Finding(
-                    code="invalid_validity_window",
-                    category=Category.CORRECTNESS,
+                self.finding(
+                    "invalid_validity_window",
                     severity=Severity.MEDIUM,
+                    action=Action.ALLOW_WITH_WARNING,
                     message="valid_from is after valid_until.",
                     evidence={
                         "valid_from": candidate.valid_from.isoformat(),
                         "valid_until": candidate.valid_until.isoformat(),
                     },
-                    check=self.name,
-                    recommended_action=Action.ALLOW_WITH_WARNING,
                 )
             )
         return findings

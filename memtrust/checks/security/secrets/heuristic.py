@@ -1,18 +1,15 @@
-"""Detect secrets in candidate content.
+"""Heuristic secret detection: well-known key formats and stated credentials.
 
-Findings never contain the raw secret — only the *kinds* detected.
-Secret-bearing writes are blocked.
+Evidence names the *kinds* detected ("aws_access_key_id", "credential"),
+never the values. Deterministic and offline; misses secrets in formats it
+has no pattern for, which is what the entropy and model detectors add.
 """
 
 from __future__ import annotations
 
 import re
 
-from ...context import CheckContext
-from ...models.enums import Action, Category, Severity
-from ...models.finding import Finding
-from ...models.memory import MemoryCandidate
-from ..base import WRITE_AND_READ, BaseCheck
+from ..base import BaseDetector, Detection
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
@@ -42,7 +39,6 @@ _CREDENTIAL = re.compile(
     r"([^\s\"']{6,})"
 )
 
-
 # Natural language: "my password is hunter2", "the PIN is 4821".
 _STATED_CREDENTIAL = re.compile(
     r"(?i)\b(?:password|passwd|passcode|pwd|pin|secret|api[ _-]?key|access[ _-]?token"
@@ -60,7 +56,8 @@ def _stated_credential(text: str) -> bool:
     return False
 
 
-def _secret_kinds(text: str) -> list[str]:
+def secret_kinds(text: str) -> list[str]:
+    """Kinds of secrets found in ``text`` (never the values)."""
     kinds: set[str] = set()
     for kind, pattern in _PATTERNS:
         if pattern.search(text):
@@ -70,28 +67,16 @@ def _secret_kinds(text: str) -> list[str]:
     return sorted(kinds)
 
 
-class SecretsCheck(BaseCheck):
-    """Flag credentials/keys/tokens and block the write."""
+class HeuristicSecretsDetector(BaseDetector):
+    """Known key formats plus ``key = value`` / "my password is ..." statements."""
 
-    name = "secrets"
-    operations = WRITE_AND_READ
+    name = "heuristic"
 
-    def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
-        kinds = _secret_kinds(candidate.content)
+    def detect_text(self, text: str) -> list[Detection]:
+        kinds = secret_kinds(text)
         if not kinds:
             return []
-
-        return [
-            Finding(
-                code="secret_detected",
-                category=Category.SECURITY,
-                severity=Severity.CRITICAL,
-                message="Secret-like content detected.",
-                evidence={"kinds": kinds},
-                check=self.name,
-                recommended_action=Action.BLOCK,
-            )
-        ]
+        return [self.hit(code="secret_detected", kinds=kinds)]
 
 
-__all__ = ["SecretsCheck"]
+__all__ = ["HeuristicSecretsDetector", "secret_kinds"]

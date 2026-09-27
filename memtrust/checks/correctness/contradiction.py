@@ -8,11 +8,11 @@ flagged for review.
 from __future__ import annotations
 
 from ...context import CheckContext
-from ...models.enums import Action, Category, MemoryRelationship, MemoryStatus, Severity
+from ...models.enums import Action, MemoryRelationship, MemoryStatus, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate, MemoryRecord
 from ...text import jaccard, normalize, similarity, token_set, tokenize, value_change
-from ..base import BaseCheck
+from .base import CorrectnessCheck
 
 # Relational phrases whose object commonly changes over time.
 _RELATIONS = [
@@ -123,7 +123,7 @@ def _relate(existing: MemoryRecord, candidate: MemoryCandidate) -> MemoryRelatio
     return MemoryRelationship.UNRELATED
 
 
-class ContradictionCheck(BaseCheck):
+class ContradictionCheck(CorrectnessCheck):
     """Classify candidate-vs-existing relationships and act accordingly."""
 
     name = "contradiction"
@@ -140,26 +140,22 @@ class ContradictionCheck(BaseCheck):
 
             if rel == MemoryRelationship.SUPERSEDES:
                 findings.append(
-                    Finding(
-                        code="supersedes_existing",
-                        category=Category.CORRECTNESS,
+                    self.finding(
+                        "supersedes_existing",
                         severity=Severity.LOW,
+                        action=Action.SUPERSEDE,
                         message=f"Candidate is a newer version of memory '{existing.id}'.",
                         evidence={"supersedes": [existing.id]},
-                        check=self.name,
-                        recommended_action=Action.SUPERSEDE,
                     )
                 )
             elif rel == MemoryRelationship.CONTRADICTS:
                 findings.append(
-                    Finding(
-                        code="contradiction",
-                        category=Category.CORRECTNESS,
+                    self.finding(
+                        "contradiction",
                         severity=Severity.MEDIUM,
+                        action=Action.REVIEW,
                         message=f"Candidate conflicts with existing memory '{existing.id}'.",
                         evidence={"conflicts_with": existing.id},
-                        check=self.name,
-                        recommended_action=Action.REVIEW,
                     )
                 )
         return findings

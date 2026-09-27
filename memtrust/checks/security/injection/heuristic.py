@@ -1,23 +1,20 @@
-"""Detect attempts to persist agent-directed instructions / prompt injection.
+"""Heuristic injection detection: deobfuscation plus curated phrase patterns.
 
 Pattern matching is treated as **one signal**, not proof. Text is
 deobfuscated first (invisible characters, look-alike letters, diacritics,
 letter-by-letter spelling). Phrases are chosen to target agent hijacking
 rather than ordinary preferences: "always remember to CC finance" is a
 legitimate memory, "ignore previous instructions" is not. Novel phrasings,
-encodings, and most non-English text will still be missed.
+encodings, and most non-English text will still be missed; pair this with a
+model-based detector for those.
 """
 
 from __future__ import annotations
 
 import re
 
-from ...context import CheckContext
-from ...models.enums import Action, Category, Severity
-from ...models.finding import Finding
-from ...models.memory import MemoryCandidate
-from ...text import deobfuscate
-from ..base import WRITE_AND_READ, BaseCheck
+from ....text import deobfuscate
+from ..base import BaseDetector, Detection
 
 _EARLIER = r"(?:previous|prior|above|earlier|preceding|original)"
 _RULES = r"(?:instructions?|rules|prompts?|directives|guidelines|guardrails|context)"
@@ -69,27 +66,16 @@ def injection_matches(text: str) -> list[str]:
     return sorted(matched)
 
 
-class InjectionCheck(BaseCheck):
-    """Flag persistent-instruction / injection phrases in candidate content."""
+class HeuristicInjectionDetector(BaseDetector):
+    """Regex phrase matching over deobfuscated text. Offline, deterministic, fast."""
 
-    name = "injection"
-    operations = WRITE_AND_READ
+    name = "heuristic"
 
-    def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
-        matched = injection_matches(candidate.content)
+    def detect_text(self, text: str) -> list[Detection]:
+        matched = injection_matches(text)
         if not matched:
             return []
-        return [
-            Finding(
-                code="persistent_instruction",
-                category=Category.SECURITY,
-                severity=Severity.HIGH,
-                message="Content contains agent-directed instruction/injection phrases.",
-                evidence={"matches": matched},
-                check=self.name,
-                recommended_action=Action.REVIEW,
-            )
-        ]
+        return [self.hit(matches=matched)]
 
 
-__all__ = ["InjectionCheck", "injection_matches"]
+__all__ = ["HeuristicInjectionDetector", "injection_matches"]

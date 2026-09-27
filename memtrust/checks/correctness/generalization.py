@@ -8,11 +8,11 @@ been wrongly generalized into a standing preference.
 from __future__ import annotations
 
 from ...context import CheckContext
-from ...models.enums import Action, Category, Severity
+from ...models.enums import Action, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
 from ...text import normalize
-from ..base import BaseCheck
+from .base import CorrectnessCheck
 
 _LIMITERS = (
     "for this",
@@ -42,7 +42,7 @@ def _is_over_generalized(candidate: MemoryCandidate) -> bool:
     return has_limiter and is_generalized
 
 
-class GeneralizationCheck(BaseCheck):
+class GeneralizationCheck(CorrectnessCheck):
     """Flag candidates that over-generalize a scoped source instruction."""
 
     name = "generalization"
@@ -51,17 +51,15 @@ class GeneralizationCheck(BaseCheck):
         if not _is_over_generalized(candidate):
             return []
         return [
-            Finding(
-                code="bad_generalization",
-                category=Category.CORRECTNESS,
+            self.finding(
+                "bad_generalization",
                 severity=Severity.MEDIUM,
+                action=Action.REVIEW,
                 message=(
                     "Candidate appears to generalize a narrowly-scoped, one-off instruction "
                     "into a standing fact/preference."
                 ),
                 evidence={"excerpt": (candidate.excerpt or "")[:200]},
-                check=self.name,
-                recommended_action=Action.REVIEW,
             )
         ]
 

@@ -22,6 +22,9 @@ class CheckContext:
     now: datetime
     operation: str = "write"  # "write" | "read"
     existing: list[MemoryRecord] = field(default_factory=list)
+    # The retrieval query, when known (``search(query)`` / ``check_read(records, query=...)``).
+    # Retrieval-aware poisoning detectors (FilterRAG) use it; most checks ignore it.
+    query: str | None = None
 
 
 __all__ = ["CheckContext"]

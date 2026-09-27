@@ -250,6 +250,79 @@ Custom checks compose with the built-ins; the pipeline never needs editing.
 
 
 
+## Detection methods
+
+Each security check is a **father class** (`SecurityCheck`) with one subclass
+per concern, and each concern runs one or more **detectors** — one class per
+method. The defaults are offline heuristics; model and hosted detectors are
+opt-in and stack:
+
+```python
+from memtrust import MemTrust
+from memtrust.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
+from memtrust.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
+from memtrust.checks.security.poisoning import HeuristicPoisoningDetector, FilterRAGDetector
+from memtrust.checks.security.secrets import HeuristicSecretsDetector, EntropyDetector, PiiranhaDetector
+
+guard = MemTrust(checks=[
+    InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()]),
+    PoisoningCheck(detectors=[HeuristicPoisoningDetector(), FilterRAGDetector()]),
+    SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector(), PiiranhaDetector()]),
+])
+```
+
+A configured check replaces the default of the same name, so the rest of the
+pipeline is untouched. Detectors that agree are merged into one finding
+(`evidence["detectors"]`, `evidence["scores"]`); `min_detectors=2` requires
+two methods to agree before a finding is raised.
+
+| Concern | Detector | Method | Install |
+|---|---|---|---|
+| **Injection** | `HeuristicInjectionDetector` | deobfuscation + phrase patterns (default) | — |
+| | `PromptGuardDetector` | `meta-llama/Llama-Prompt-Guard-2-86M` (or `-22M`) | `memtrust[hf]` |
+| | `ProtectAIDeBERTaDetector` | `protectai/deberta-v3-base-prompt-injection-v2` | `memtrust[hf]` |
+| | `DeepsetDeBERTaDetector` | `deepset/deberta-v3-base-injection` | `memtrust[hf]` |
+| | `SentinelDetector` | `qualifire/prompt-injection-sentinel` (ModernBERT) | `memtrust[hf]` |
+| | `PromptShieldDetector` | Azure AI Content Safety Prompt Shields (document attack) | API key |
+| | `LakeraGuardDetector` | Lakera Guard `/v2/guard` | API key |
+| **Poisoning** | `HeuristicPoisoningDetector` | control-bypass + redirect patterns (default) | — |
+| | `FilterRAGDetector` | Freq-Density of query/answer words ([FilterRAG](https://arxiv.org/abs/2508.02835)) | — (needs the query) |
+| | `TrustRAGDetector` | tight near-paraphrase cluster among retrieved neighbours ([TrustRAG](https://arxiv.org/abs/2501.00879)) | — (optional `embed`) |
+| | `PerplexityDetector` | causal-LM perplexity for adversarial suffixes | `memtrust[hf]` |
+| **Secrets** | `HeuristicSecretsDetector` | key formats + stated credentials (default) | — |
+| | `EntropyDetector` | high-entropy strings (detect-secrets approach) | — |
+| | `DetectSecretsDetector` | Yelp detect-secrets provider plugins | `memtrust[detect-secrets]` |
+| | `PiiranhaDetector` | `iiiorg/piiranha-v1-detect-personal-information` | `memtrust[hf]` |
+| | `StarPIIDetector` | `bigcode/starpii` (secrets in code) | `memtrust[hf]` |
+| | `GLiNER2PIIDetector` | `fastino/gliner2-privacy-filter-PII-multi` | `memtrust[gliner2]` |
+| | `GLiNERPIIDetector` | `urchade/gliner_multi_pii-v1` | `memtrust[gliner]` |
+| | `PresidioDetector` | Microsoft Presidio `AnalyzerEngine` | `memtrust[presidio]` |
+
+PII models default to credential-like labels (`secret_detected`, block). Pass
+their `*_ALL_LABELS` mapping to also flag personal data as `pii_detected`
+(review). Retrieval-aware poisoning detectors use the query from
+`search(query)` / `check_read(records, query=...)` and the other retrieved
+records as neighbours.
+
+Writing a detector is one class:
+
+```python
+from memtrust.checks.security import BaseDetector, InjectionCheck
+
+class MyDetector(BaseDetector):
+    name = "my_model"
+
+    def detect_text(self, text):
+        score = my_model(text)
+        return [self.hit(score=score, label="attack")] if score > 0.8 else []
+
+guard = MemTrust(checks=[InjectionCheck(detectors=[MyDetector()])])
+```
+
+---
+
+
+
 ## Integrations
 
 ```bash
@@ -274,25 +347,40 @@ no base class required (structural typing). See the examples above, or
 ```text
                  Agent
           read ↓     ↑ write
-      ┌─────────────────────────┐
-      │        MemTrust         │
-      │  Security               │
-      │    poisoning            │
-      │    injection            │
-      │    secrets              │
-      │  Correctness            │
-      │    contradictions       │
-      │    duplicates           │
-      │    freshness            │
-      └────────────┬────────────┘
-                   │
-         Long-term memory / RAG
-  Chroma / LlamaIndex / Mem0 / LangGraph
-              Qdrant / custom
+      ┌──────────────────────────────────────────────────────┐
+      │                       MemTrust                       │
+      │  SecurityCheck                                       │
+      │    InjectionCheck   heuristic · Prompt Guard · ...   │
+      │    PoisoningCheck   heuristic · FilterRAG · ...      │
+      │    SecretsCheck     heuristic · Piiranha · ...       │
+      │  CorrectnessCheck                                    │
+      │    contradiction · duplication · freshness           │
+      │    generalization                                    │
+      └──────────────────────────┬───────────────────────────┘
+                                 │
+                       Long-term memory / RAG
+                Chroma / LlamaIndex / Mem0 / LangGraph
+                            Qdrant / custom
+```
+
+```text
+memtrust/checks/
+  base.py                 MemoryCheck protocol, BaseCheck, @check
+  security/
+    base.py               SecurityCheck, Detector, Detection, FindingSpec
+    injection/            InjectionCheck + heuristic, prompt_guard, prompt_shield,
+                          protectai_deberta, deepset_deberta, sentinel, lakera_guard
+    poisoning/            PoisoningCheck + heuristic, filterrag, trustrag, perplexity
+    secrets/              SecretsCheck + heuristic, entropy, detect_secrets, piiranha,
+                          starpii, gliner2_pii, gliner_pii, presidio
+  correctness/
+    base.py               CorrectnessCheck
+    contradiction.py  duplication.py  freshness.py  generalization.py
 ```
 
 Design patterns: **Facade** (`MemTrust`), **Adapter** (`MemoryBackend`
-Protocol), **Chain of Responsibility** (checks pipeline).
+Protocol), **Chain of Responsibility** (checks pipeline), **Strategy**
+(detectors within a security check).
 
 ---
 
@@ -357,16 +445,18 @@ Raw memory content and secrets are never placed on spans by default.
 
 ## Status & limitations
 
-MemTrust is **v0.1 (alpha)**: an SDK with clean extension points. The security
-detectors are **heuristic and not complete** — see [SECURITY.md](SECURITY.md).
-Treat them as strong signals in a defense-in-depth strategy, not a guarantee.
+MemTrust is **v0.1 (alpha)**: an SDK with clean extension points. The default
+security detectors are **heuristic and not complete** — see
+[SECURITY.md](SECURITY.md). Treat them as strong signals in a defense-in-depth
+strategy, not a guarantee, and stack model detectors where recall matters.
 
 `tests/corpus.py` is a labelled regression set (injection, poisoning, secrets,
 and benign memories that must stay allowed). It was written alongside the
-detectors, so it is not a benchmark. On a separate held-out set the patterns
-were not tuned on, they caught 7 of 12 attacks and flagged 0 of 15 benign
-memories; the misses (paraphrases, encodings, most non-English text) are kept
-in `KNOWN_MISSES` and need a model-based check.
+heuristic detectors, so it is not a benchmark. On a separate held-out set the
+patterns were not tuned on, they caught 7 of 12 attacks and flagged 0 of 15
+benign memories; the misses (paraphrases, encodings, most non-English text)
+are kept in `KNOWN_MISSES` — they are what the model-based detectors above
+are for.
 
 ## License
 

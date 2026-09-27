@@ -43,13 +43,36 @@ All four must pass. CI runs them on Python 3.11–3.13.
 - **Sync is always sync; async is always async.** No method returns a coroutine
   conditionally.
 
+## Adding a detector (a new method for an existing security concern)
+
+Security checks are organised as one folder per concern, one module per
+method: `memtrust/checks/security/{injection,poisoning,secrets}/<method>.py`.
+
+1. Subclass `BaseDetector` (or `HFTextClassifierDetector` /
+   `HFTokenClassifierDetector` from `security/_hf.py` for Hugging Face
+   models) and set a unique `name`.
+2. Implement `detect_text(text)` — or `detect(candidate, context)` if you need
+   the query or neighbouring records — and return `Detection`s via
+   `self.hit(...)`. Use `code=` to pick one of the parent check's `specs`.
+3. **Never** put matched text or secret values in evidence: kinds, labels,
+   counts, and scores only.
+4. Import optional dependencies lazily inside `_load()`, raise
+   `ConfigurationError` with the install hint, and accept an injectable
+   inference callable (`classify=`, `tag=`, `transport=`, ...) so the detector
+   is testable offline. Add an extra to `pyproject.toml` and a mypy override.
+5. Export it from the folder's `__init__.py`, add a row to the README table,
+   and add fake-driven tests under `tests/unit/`.
+
 ## Adding a check
 
-1. Implement a class with `name: str` and `check(candidate, context)` in
-   `memtrust/checks/security/` or `memtrust/checks/correctness/`
-   (subclass `BaseCheck` for convenience).
+1. Security concern: subclass `SecurityCheck` in a new
+   `memtrust/checks/security/<concern>/` folder with `name`, `default_code`,
+   `specs` (code -> `FindingSpec`), `default_detectors()`, and at least a
+   heuristic detector. Correctness: subclass `CorrectnessCheck` in
+   `memtrust/checks/correctness/` and implement `check(candidate, context)`.
 2. Return a list of `Finding`s; set `recommended_action` where appropriate.
-3. Add it to `default_checks()` only if it should run by default.
+3. Add it to `default_checks()` only if it should run by default (defaults
+   must stay offline and dependency-free).
 4. Add unit tests under `tests/unit/` and, if security-relevant, an invariant
    test under `tests/security/`.
 

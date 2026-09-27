@@ -35,7 +35,7 @@ These are covered by explicit invariant tests.
 
 ## Important limitations — please read
 
-The following detectors are **heuristic** and are **not complete or
+The **default** detectors are **heuristic** and are **not complete or
 production-perfect**. They produce strong *signals*, not guarantees.
 
 - **Poisoning detection** is pattern-based. It looks for false
@@ -47,6 +47,22 @@ production-perfect**. They produce strong *signals*, not guarantees.
 - **Secret detection** matches common, high-signal credential formats (API
   keys, tokens, private keys, credential assignments). It will miss custom or
   unusual secret formats. Do not rely on it as your only secret scanner.
+
+Each security check accepts additional **detectors** (classifier models,
+hosted APIs, statistical filters; see `memtrust.checks.security`). Notes on
+those:
+
+- Model detectors are only as good as their training distribution; every
+  published injection classifier shows measurable false positives on
+  security-adjacent benign text. Calibrate `threshold` on your own data and
+  consider `min_detectors=2` when stacking noisy methods.
+- Hosted detectors (Azure Prompt Shields, Lakera Guard) send the candidate
+  text to a third party. Only the text is sent; nothing is logged locally.
+- A detector that raises (model not downloaded, network error) makes the
+  check fail closed under `fail_closed=True`, i.e. the write is blocked.
+- Detector evidence carries kinds, labels, and scores — never the matched
+  text or secret values. This is an invariant for built-in detectors and a
+  requirement for custom ones.
 - **Duplicate / contradiction / supersession** use normalization, token
   overlap, negation/polarity, and time — not deep understanding. They will
   miss paraphrases, implicit conflicts, and non-English text.

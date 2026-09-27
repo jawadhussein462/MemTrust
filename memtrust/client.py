@@ -43,9 +43,24 @@ class _ClientBase:
             updates["fail_closed"] = fail_closed
         self.config: Config = base_config.model_copy(update=updates) if updates else base_config
 
+        # A user check named like a default ("injection", "secrets", ...) replaces
+        # it, so a configured ``InjectionCheck(detectors=[...])`` slots into the
+        # default pipeline instead of running alongside the heuristic one.
         resolved_checks: list[MemoryCheck] = list(default_checks()) if use_default_checks else []
         for chk in checks or []:
-            resolved_checks.append(normalize_check(chk))
+            normalized = normalize_check(chk)
+            position = next(
+                (
+                    i
+                    for i, existing in enumerate(resolved_checks)
+                    if existing.name == normalized.name
+                ),
+                None,
+            )
+            if position is None:
+                resolved_checks.append(normalized)
+            else:
+                resolved_checks[position] = normalized
 
         self._evaluator = Evaluator(
             config=self.config,
@@ -66,8 +81,8 @@ class _ClientBase:
         decision = self._evaluator.evaluate_write(candidate, existing=existing)
         return candidate, decision
 
-    def _read_result(self, records: list) -> ReadResult:
-        return self._evaluator.evaluate_read(coerce_records(records))
+    def _read_result(self, records: list, query: str | None = None) -> ReadResult:
+        return self._evaluator.evaluate_read(coerce_records(records), query=query)
 
     def _register(self, record: MemoryRecord) -> None:
         self._index[record.id] = record
@@ -160,9 +175,13 @@ class MemTrust(_ClientBase):
         _, decision = self._write_decision(content, existing)
         return decision
 
-    def check_read(self, records: list) -> ReadResult:
-        """Filter records down to those safe to return."""
-        return self._read_result(records)
+    def check_read(self, records: list, *, query: str | None = None) -> ReadResult:
+        """Filter records down to those safe to return.
+
+        Pass the retrieval ``query`` when you have it: retrieval-aware
+        poisoning detectors (FilterRAG) need it and are inert without it.
+        """
+        return self._read_result(records, query)
 
     def protect(self, backend: MemoryBackend) -> ProtectedMemory:
         """Wrap a memory backend so reads/writes are checked automatically."""
@@ -196,8 +215,8 @@ class AsyncMemTrust(_ClientBase):
         _, decision = self._write_decision(content, existing)
         return decision
 
-    async def check_read(self, records: list) -> ReadResult:
-        return self._read_result(records)
+    async def check_read(self, records: list, *, query: str | None = None) -> ReadResult:
+        return self._read_result(records, query)
 
     def protect(self, backend: AsyncMemoryBackend) -> AsyncProtectedMemory:
         protected = AsyncProtectedMemory(self, backend)
@@ -233,7 +252,7 @@ class ProtectedMemory:
             raw = self._backend.search(query, limit=limit)
         except Exception as exc:
             raise BackendError(str(exc)) from exc
-        return self._evaluator.evaluate_read(raw).results
+        return self._evaluator.evaluate_read(raw, query=query).results
 
     def get(self, memory_id: str) -> SafeMemory | None:
         """Fetch a record by id, subject to read enforcement."""
@@ -318,7 +337,7 @@ class AsyncProtectedMemory:
             raw = await self._backend.search(query, limit=limit)
         except Exception as exc:
             raise BackendError(str(exc)) from exc
-        return self._evaluator.evaluate_read(raw).results
+        return self._evaluator.evaluate_read(raw, query=query).results
 
     async def get(self, memory_id: str) -> SafeMemory | None:
         """Fetch a record by id, subject to read enforcement."""

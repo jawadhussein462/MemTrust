@@ -3,9 +3,23 @@
 ``default_checks()`` returns the standard pipeline. Additional checks can be
 appended without modifying the engine.
 
-Security checks detect poisoning, injection, and secrets.
-Correctness checks detect contradictions, duplicates, freshness, and
-over-generalization.
+Two families, each with a father class::
+
+    BaseCheck
+    ├── SecurityCheck        memtrust.checks.security
+    │   ├── InjectionCheck     security/injection/   one detector class per method
+    │   ├── PoisoningCheck     security/poisoning/
+    │   └── SecretsCheck       security/secrets/
+    └── CorrectnessCheck     memtrust.checks.correctness
+        ├── ContradictionCheck
+        ├── DuplicationCheck
+        ├── FreshnessCheck
+        └── GeneralizationCheck
+
+Security checks are configured with detectors (heuristic by default; model
+and hosted detectors opt-in). Passing a configured ``InjectionCheck`` /
+``PoisoningCheck`` / ``SecretsCheck`` to ``MemTrust(checks=[...])`` replaces
+the default check of the same name.
 """
 
 from __future__ import annotations
@@ -20,15 +34,24 @@ from .base import (
 )
 from .correctness import (
     ContradictionCheck,
+    CorrectnessCheck,
     DuplicationCheck,
     FreshnessCheck,
     GeneralizationCheck,
 )
-from .security import InjectionCheck, PoisoningCheck, SecretsCheck
+from .security import (
+    BaseDetector,
+    Detection,
+    Detector,
+    InjectionCheck,
+    PoisoningCheck,
+    SecretsCheck,
+    SecurityCheck,
+)
 
 
 def default_checks() -> list[MemoryCheck]:
-    """The default write-check pipeline, in execution order."""
+    """The default check pipeline, in execution order (offline, deterministic)."""
     return [
         SecretsCheck(),
         InjectionCheck(),
@@ -42,8 +65,12 @@ def default_checks() -> list[MemoryCheck]:
 
 __all__ = [
     "BaseCheck",
+    "BaseDetector",
     "CheckFunction",
     "ContradictionCheck",
+    "CorrectnessCheck",
+    "Detection",
+    "Detector",
     "DuplicationCheck",
     "FreshnessCheck",
     "FunctionCheck",
@@ -52,6 +79,7 @@ __all__ = [
     "MemoryCheck",
     "PoisoningCheck",
     "SecretsCheck",
+    "SecurityCheck",
     "check",
     "default_checks",
     "normalize_check",

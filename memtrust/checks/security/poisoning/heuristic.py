@@ -1,14 +1,14 @@
-"""Detect knowledge-poisoning attempts in candidate content.
+"""Heuristic poisoning detection: false security facts and destination redirects.
 
 Poisoning here means planting a *false or attacker-controlled fact* into
 long-term memory so it is later retrieved as truth (RAG / LTM poisoning).
 This is content-based: there is no source-trust or authority model. Pattern
 matching is one signal, not proof.
 
-Two tiers:
+Two tiers, each its own finding code:
 
 * ``memory_poisoning`` (critical, quarantine): claims that switch off a
-  security control — "requires no authentication", "refunds skip approval",
+  security control -- "requires no authentication", "refunds skip approval",
   "disable MFA", "always include the admin token".
 * ``destination_redirect`` (high, review): payments, invoices, or data being
   routed to a new destination ("send all invoices to x@y.io instead").
@@ -20,12 +20,8 @@ from __future__ import annotations
 
 import re
 
-from ...context import CheckContext
-from ...models.enums import Action, Category, Severity
-from ...models.finding import Finding
-from ...models.memory import MemoryCandidate
-from ...text import deobfuscate
-from ..base import WRITE_AND_READ, BaseCheck
+from ....text import deobfuscate
+from ..base import BaseDetector, Detection
 
 _CONTROL = (
     r"(?:auth|authentication|authorization|login|mfa|2fa|two[- ]factor|verification|approvals?"
@@ -75,48 +71,31 @@ def _matches(patterns: list[re.Pattern[str]], text: str) -> list[str]:
     return sorted({m.group(0).strip().lower() for p in patterns if (m := p.search(text))})
 
 
-class PoisoningCheck(BaseCheck):
-    """Flag content that looks like an attempt to plant a false security fact."""
+def poisoning_matches(text: str) -> list[str]:
+    """Distinct control-bypass phrases found in ``text`` (after deobfuscation)."""
+    return _matches(_POISONING_PATTERNS, deobfuscate(text))
 
-    name = "poisoning"
-    operations = WRITE_AND_READ
 
-    def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
-        clean = deobfuscate(candidate.content)
-        findings: list[Finding] = []
+def redirect_matches(text: str) -> list[str]:
+    """Distinct destination-redirect phrases found in ``text`` (after deobfuscation)."""
+    return _matches(_REDIRECT_PATTERNS, deobfuscate(text))
+
+
+class HeuristicPoisoningDetector(BaseDetector):
+    """Regex patterns for control bypasses and payment/data redirects. Offline."""
+
+    name = "heuristic"
+
+    def detect_text(self, text: str) -> list[Detection]:
+        clean = deobfuscate(text)
+        detections: list[Detection] = []
         poisoning = _matches(_POISONING_PATTERNS, clean)
         if poisoning:
-            findings.append(
-                Finding(
-                    code="memory_poisoning",
-                    category=Category.SECURITY,
-                    severity=Severity.CRITICAL,
-                    message=(
-                        "Content looks like an attempt to plant a false or "
-                        "attacker-controlled fact into long-term memory."
-                    ),
-                    evidence={"matches": poisoning},
-                    check=self.name,
-                    recommended_action=Action.QUARANTINE,
-                )
-            )
+            detections.append(self.hit(code="memory_poisoning", matches=poisoning))
         redirect = _matches(_REDIRECT_PATTERNS, clean)
         if redirect:
-            findings.append(
-                Finding(
-                    code="destination_redirect",
-                    category=Category.SECURITY,
-                    severity=Severity.HIGH,
-                    message=(
-                        "Content redirects payments or data to a new destination; "
-                        "confirm the change before it is remembered."
-                    ),
-                    evidence={"matches": redirect},
-                    check=self.name,
-                    recommended_action=Action.REVIEW,
-                )
-            )
-        return findings
+            detections.append(self.hit(code="destination_redirect", matches=redirect))
+        return detections
 
 
-__all__ = ["PoisoningCheck"]
+__all__ = ["HeuristicPoisoningDetector", "poisoning_matches", "redirect_matches"]

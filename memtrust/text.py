@@ -111,6 +111,42 @@ def similarity(a: str, b: str) -> float:
     return max(jaccard(a, b), ratio(a, b))
 
 
+def _lcs_length(a: list[str], b: list[str]) -> int:
+    if not a or not b:
+        return 0
+    previous = [0] * (len(b) + 1)
+    for token in a:
+        current = [0]
+        for j, other in enumerate(b, start=1):
+            current.append(
+                previous[j - 1] + 1 if token == other else max(previous[j], current[j - 1])
+            )
+        previous = current
+    return previous[-1]
+
+
+def rouge_l(a: str, b: str) -> float:
+    """ROUGE-L F1 on normalized tokens: longest-common-subsequence overlap (0..1)."""
+    ta, tb = tokenize(a), tokenize(b)
+    lcs = _lcs_length(ta, tb)
+    if lcs == 0:
+        return 0.0
+    precision, recall = lcs / len(tb), lcs / len(ta)
+    return 2 * precision * recall / (precision + recall)
+
+
+def cosine(a: list[float], b: list[float]) -> float:
+    """Cosine similarity of two equal-length vectors (0 for a zero vector)."""
+    if len(a) != len(b):
+        raise ValueError("vectors must have the same dimension")
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(y * y for y in b) ** 0.5
+    if not norm_a or not norm_b:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
 # Words that introduce a value: "limit is 100", "costs 40", "meeting at 3pm".
 _VALUE_CUES = frozenset(
     {"is", "are", "was", "were", "equals", "costs", "cost", "at", "to", "of", "now", "by", "about"}
@@ -146,10 +182,12 @@ def value_change(a: str, b: str) -> bool:
 
 
 __all__ = [
+    "cosine",
     "deobfuscate",
     "jaccard",
     "normalize",
     "ratio",
+    "rouge_l",
     "similarity",
     "token_set",
     "tokenize",

@@ -8,6 +8,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Security checks are now check + detectors.** `memtrust.checks.security`
+  is organised as a father class, `SecurityCheck`, with one subclass per
+  concern in its own folder (`injection/`, `poisoning/`, `secrets/`), and one
+  `Detector` class per method inside each folder. A check runs its detectors,
+  merges agreeing detections into a single finding
+  (`evidence["detectors"]`, `evidence["scores"]`), and supports
+  `min_detectors=N` voting per finding code. The default pipeline is
+  unchanged: each check defaults to its heuristic detector, so
+  `MemTrust()` behaves as before. The correctness family gained a matching
+  `CorrectnessCheck` base. The flat modules
+  `checks/security/{injection,poisoning,secrets}.py` are gone;
+  `InjectionCheck`, `PoisoningCheck`, `SecretsCheck` keep their import paths.
+- `MemTrust(checks=[...])` **replaces** a default check when a supplied check
+  has the same `name`, so `InjectionCheck(detectors=[...])` slots into the
+  pipeline instead of running next to the default.
+- `check_read(records, query=...)` and `ProtectedMemory.search(query)` pass
+  the retrieval query to read checks (`CheckContext.query`), and the rest of
+  the read set is exposed as `context.existing`, for retrieval-aware
+  detectors.
 - **Security + correctness only**: MemTrust is now oriented around two check
   families. **Security** detects poisoning, injection, and secrets.
   **Correctness** detects contradictions, duplicates, freshness, and
@@ -61,6 +80,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Detection methods** (all opt-in; heuristics remain the default):
+  - Injection: `PromptGuardDetector` (`meta-llama/Llama-Prompt-Guard-2-86M`),
+    `ProtectAIDeBERTaDetector` (`protectai/deberta-v3-base-prompt-injection-v2`),
+    `DeepsetDeBERTaDetector` (`deepset/deberta-v3-base-injection`),
+    `SentinelDetector` (`qualifire/prompt-injection-sentinel`),
+    `PromptShieldDetector` (Azure AI Content Safety Prompt Shields),
+    `LakeraGuardDetector` (Lakera Guard `/v2/guard`).
+  - Poisoning: `FilterRAGDetector` (Freq-Density filtering, arXiv:2508.02835),
+    `TrustRAGDetector` (near-paraphrase cluster among retrieved neighbours,
+    arXiv:2501.00879; new `poisoning_cluster` finding), `PerplexityDetector`
+    (causal-LM perplexity; new `adversarial_text` finding).
+  - Secrets: `EntropyDetector` (detect-secrets-style high-entropy strings),
+    `DetectSecretsDetector` (Yelp detect-secrets plugins), `PiiranhaDetector`
+    (`iiiorg/piiranha-v1-detect-personal-information`), `StarPIIDetector`
+    (`bigcode/starpii`), `GLiNER2PIIDetector`
+    (`fastino/gliner2-privacy-filter-PII-multi`), `GLiNERPIIDetector`
+    (`urchade/gliner_multi_pii-v1`), `PresidioDetector` (Microsoft Presidio).
+    PII detectors default to credential labels (`secret_detected`, block);
+    `*_ALL_LABELS` mappings add the new `pii_detected` finding (high, review).
+  - Extras: `hf`, `gliner2`, `gliner`, `presidio`, `detect-secrets`.
+  - `memtrust.text.rouge_l` and `memtrust.text.cosine`.
+  - Example `09_model_detectors.py`.
 - **Store audit**: `MemTrust.scan(backend_or_records)` returns a
   `ScanReport` (served count, lifecycle breakdown, active records reads
   would withhold with their finding codes, duplicate groups) without

@@ -131,14 +131,26 @@ class Evaluator:
 
     # -- read -------------------------------------------------------------------
 
-    def evaluate_read(self, records: list[MemoryRecord]) -> ReadResult:
+    def evaluate_read(self, records: list[MemoryRecord], *, query: str | None = None) -> ReadResult:
+        """Filter ``records`` down to those safe to return.
+
+        ``query`` is the retrieval query when known; the rest of the read set
+        is exposed to read checks as ``context.existing`` so retrieval-aware
+        detectors (FilterRAG, TrustRAG) can reason about the batch.
+        """
         now = datetime.now(UTC)
         with self.tracer.span(
             SPAN_READ_CHECK,
             {ATTR_OPERATION: "read"},
         ) as span:
             result = ReadResult()
-            ctx = CheckContext(config=self.config, now=now, operation="read")
+            ctx = CheckContext(
+                config=self.config,
+                now=now,
+                operation="read",
+                existing=list(records),
+                query=query,
+            )
             for record in records:
                 finding = self._core_read_finding(record, now)
                 if finding is not None:
