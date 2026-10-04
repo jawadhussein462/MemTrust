@@ -74,12 +74,11 @@ persistent-instruction detection, secret detection.
 - ✓ **Correctness** — contradiction vs. **supersession** (a newer fact updates an
 old one; history is preserved), duplicate detection, freshness/expiry.
 
-Around that: composable custom checks and backend-independent
-`protect(...)`. Adapters for Chroma, LlamaIndex, Mem0, LangGraph, and Qdrant
-ship in the box.
+Advantages:
 
-No mandatory cloud account. No mandatory LLM API key. Checks are deterministic
-and run fully offline.
+- **Composable custom checks.** Add your own checks; they run with the built-ins, and the pipeline never needs editing.
+- **Adapters for memory frameworks.** Chroma, LlamaIndex, Mem0, LangGraph, and Qdrant ship in the box. Backend-independent `protect(...)` wraps any store with `add` / `search` / `get` / `delete`.
+- **No cloud account, no LLM API key.** Deterministic rules are the default and run fully offline.
 
 ---
 
