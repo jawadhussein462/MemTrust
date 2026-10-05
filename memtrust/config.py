@@ -28,9 +28,6 @@ class Config(BaseModel):
         ),
     )
 
-    # Correctness tuning
-    duplicate_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
-    contradiction_enabled: bool = Field(default=True)
     neighbor_limit: int = Field(
         default=20, ge=0, description="Max existing records fetched to compare a candidate against."
     )

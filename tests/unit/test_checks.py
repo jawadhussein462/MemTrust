@@ -2,17 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
-from memtrust.checks.correctness import (
-    ContradictionCheck,
-    DuplicationCheck,
-    FreshnessCheck,
-    GeneralizationCheck,
-)
 from memtrust.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
 from memtrust.models.enums import Action, Severity
-from tests.factories import make_candidate, make_context, make_record
+from tests.factories import make_candidate, make_context
 
 
 def _codes(findings):
@@ -54,56 +46,7 @@ def test_secrets_blocks_and_omits_values():
     cand = make_candidate("my key is sk-abcdefghijklmnop1234567890")
     findings = SecretsCheck().check(cand, ctx)
     assert findings and findings[0].code == "secret_detected"
-    assert findings[0].recommended_action == Action.BLOCK
+    assert findings[0].recommended_action == Action.DELETE
     assert findings[0].severity == Severity.CRITICAL
     blob = str(findings[0].evidence) + findings[0].message
     assert "sk-abcdefghijklmnop1234567890" not in blob
-
-
-def test_freshness_flags_expired_candidate():
-    now = datetime.now(UTC)
-    ctx = make_context(now_value=now)
-    cand = make_candidate("old", expires_at=now - timedelta(days=1))
-    findings = FreshnessCheck().check(cand, ctx)
-    assert "expired_on_write" in _codes(findings)
-    assert findings[0].category.value == "correctness"
-
-
-def test_duplication_flags_near_identical():
-    existing = [make_record("Alice prefers annual billing.", id="d1")]
-    ctx = make_context(existing=existing)
-    cand = make_candidate("Alice prefers annual billing.")
-    findings = DuplicationCheck().check(cand, ctx)
-    assert "duplicate_memory" in _codes(findings)
-    assert findings[0].evidence["duplicate_of"] == "d1"
-    assert findings[0].category.value == "correctness"
-
-
-def test_contradiction_supersedes_newer_fact():
-    old = make_record("Alice works at Stripe.", id="o1")
-    old.created_at = datetime.now(UTC) - timedelta(days=10)
-    ctx = make_context(existing=[old])
-    cand = make_candidate("Alice now works at Anthropic.")
-    findings = ContradictionCheck().check(cand, ctx)
-    assert "supersedes_existing" in _codes(findings)
-    assert findings[0].recommended_action == Action.SUPERSEDE
-
-
-def test_contradiction_flags_conflict():
-    existing = make_record("Refunds require manager approval.", id="p1")
-    ctx = make_context(existing=[existing])
-    cand = make_candidate("Refunds do not require manager approval.")
-    cand.created_at = existing.created_at
-    findings = ContradictionCheck().check(cand, ctx)
-    assert "contradiction" in _codes(findings)
-    assert findings[0].category.value == "correctness"
-
-
-def test_generalization_detects_over_broad_claim():
-    ctx = make_context()
-    cand = make_candidate(
-        "User prefers skipping staging.",
-        excerpt="For this migration, skip staging just this once.",
-    )
-    findings = GeneralizationCheck().check(cand, ctx)
-    assert "bad_generalization" in _codes(findings)

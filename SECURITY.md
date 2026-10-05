@@ -15,20 +15,21 @@ reports.
 MemTrust is a **trust boundary** between an AI agent and a long-term
 knowledge memory (RAG store, user memory, retrieved documents). It is
 designed to reduce the risk that persistent memory becomes poisoned, injected,
-secret-bearing, contradictory, stale, or duplicated. It is one layer in a
-defense-in-depth strategy — not a complete security solution.
+or secret-bearing — [OWASP ASI06: Memory & Context Poisoning](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications/).
+It is one layer in a defense-in-depth strategy — not a complete security solution.
 
-The product is oriented around two families of checks:
+The product is oriented around three security checks:
 
-- **Security** — poisoning, injection, secrets.
-- **Correctness** — contradictions, duplicates, freshness.
+- **Poisoning** — false or attacker-controlled facts.
+- **Injection** — hidden / persistent instructions.
+- **Secrets** — credentials and secret-bearing content.
 
 ### What MemTrust enforces reliably (deterministic)
 
 - **Filtering** of revoked, expired, quarantined, and superseded memories on
   read (core engine, non-bypassable by customizing the check list).
-- **Secret values** are never included in findings or telemetry; secret-bearing
-  writes are blocked.
+- **Secret values** are never included in findings, scan reports, or telemetry;
+  secret-bearing writes are blocked (recommended action: delete).
 - **Critical violations** (poisoning, injection) are blocked by default.
 
 These are covered by explicit invariant tests.
@@ -62,12 +63,7 @@ those:
   check fail closed under `fail_closed=True`, i.e. the write is blocked.
 - Detector evidence carries kinds, labels, and scores — never the matched
   text or secret values. This is an invariant for built-in detectors and a
-  requirement for custom ones.
-- **Duplicate / contradiction / supersession** use normalization, token
-  overlap, negation/polarity, and time — not deep understanding. They will
-  miss paraphrases, implicit conflicts, and non-English text.
-- **Generalization detection** is a basic heuristic over scoped source
-  excerpts versus standing-preference language.
+  requirement for custom ones. Scan reports include only masked snippets.
 
 ## Operational guidance
 

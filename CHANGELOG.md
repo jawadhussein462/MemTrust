@@ -8,16 +8,38 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Find, fix, prevent.** MemTrust is a scanner for agent memory: poisoned
+  facts, hidden instructions, and leaked secrets. The CLI is the front door
+  (`memtrust scan chroma|qdrant|pgvector|pinecone|jsonl`). The HTML report
+  explains the fix (review / quarantine / delete, OWASP ASI06). `protect()`
+  blocks new problems at write time.
+- **Scan report** lists each finding with record id, type, agreeing
+  detectors, a masked snippet, recommended action, and ASI06. Summary:
+  total records, percentage flagged, findings by severity.
+- Secret findings recommend **delete** (writes are still refused).
+- Default pipeline is security only: secrets, injection, poisoning.
+
+### Added
+
+- Read-only scan sources for **pgvector** and **Pinecone**, plus CLI
+  scanners for Chroma, Qdrant, and JSONL. Connections never write.
+  Records stream in batches; `--sample 10000` caps large stores.
+- `--report report.html`, `--json findings.json`, `--fail-on high`.
+
+### Removed
+
+- Correctness checks: contradiction, duplication, freshness, generalization.
+  `memtrust.checks.correctness` is gone. Scan no longer reports duplicate
+  groups or stale/superseded facts as findings.
+
 - **Security checks are now check + detectors.** `memtrust.checks.security`
   is organised as a father class, `SecurityCheck`, with one subclass per
   concern in its own folder (`injection/`, `poisoning/`, `secrets/`), and one
   `Detector` class per method inside each folder. A check runs its detectors,
   merges agreeing detections into a single finding
   (`evidence["detectors"]`, `evidence["scores"]`), and supports
-  `min_detectors=N` voting per finding code. The default pipeline is
-  unchanged: each check defaults to its heuristic detector, so
-  `MemTrust()` behaves as before. The correctness family gained a matching
-  `CorrectnessCheck` base. The flat modules
+  `min_detectors=N` voting per finding code. Each check defaults to its
+  heuristic detector. The flat modules
   `checks/security/{injection,poisoning,secrets}.py` are gone;
   `InjectionCheck`, `PoisoningCheck`, `SecretsCheck` keep their import paths.
 - `MemTrust(checks=[...])` **replaces** a default check when a supplied check
@@ -27,11 +49,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the retrieval query to read checks (`CheckContext.query`), and the rest of
   the read set is exposed as `context.existing`, for retrieval-aware
   detectors.
-- **Security + correctness only**: MemTrust is now oriented around two check
-  families. **Security** detects poisoning, injection, and secrets.
-  **Correctness** detects contradictions, duplicates, freshness, and
-  over-generalization. Built-in checks live under
-  `memtrust.checks.security` and `memtrust.checks.correctness`.
+- Detectors and the retrieval-aware read path are unchanged: `check_read`
+  and `ProtectedMemory.search` pass the query to read checks.
 - **Simplified API**: `check_write(content)`, `check_read(records)`,
   `protect(...).add(content)` / `.search(query)` — no `source`, `scope`,
   `tenant`, `trust`, or `authority` arguments.
@@ -97,17 +116,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     (`bigcode/starpii`), `GLiNER2PIIDetector`
     (`fastino/gliner2-privacy-filter-PII-multi`), `GLiNERPIIDetector`
     (`urchade/gliner_multi_pii-v1`), `PresidioDetector` (Microsoft Presidio).
-    PII detectors default to credential labels (`secret_detected`, block);
+    PII detectors default to credential labels (`secret_detected`, delete);
     `*_ALL_LABELS` mappings add the new `pii_detected` finding (high, review).
   - Extras: `hf`, `gliner2`, `gliner`, `presidio`, `detect-secrets`.
   - `memtrust.text.rouge_l` and `memtrust.text.cosine`.
   - Example `09_model_detectors.py`.
-- **Store audit**: `MemTrust.scan(backend_or_records)` returns a
-  `ScanReport` (served count, lifecycle breakdown, active records reads
-  would withhold with their finding codes, duplicate groups) without
-  modifying anything; `memtrust scan export.jsonl` does the same for a JSON
-  Lines export and exits 1 when something is flagged. Reports never include
-  content. Example `08_scan_store.py`.
+- **Store audit**: `MemTrust.scan(...)` and `memtrust scan` produce a
+  `ScanReport` (totals, percentage flagged, findings by severity). Each
+  finding has record id, type, agreeing detectors, a masked snippet,
+  recommended action, and OWASP ASI06. Example `08_scan_store.py`.
 - **Detector precision and recall.** On the labelled regression corpus
   (`tests/corpus.py`) recall went from 10/17 injection, 5/11 poisoning, 6/10
   secrets to all cases, and benign false positives from 8/26 to 0/26. On a
@@ -125,8 +142,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     routed to a new destination ("send all invoices to x@y.io instead").
   - Secrets: stated credentials ("my password is hunter2", "the PIN is
     4821"), Stripe and Anthropic keys, connection strings with passwords.
-  - Correctness: a changed number ("rate limit is 100 rps" → "500 rps") is
-    a supersession or contradiction, not a duplicate.
 - **Read-time security checks.** Secrets, injection, and poisoning checks now
   also run on every retrieved record (`search`, `get`, `check_read`), so
   content that entered the store outside MemTrust is withheld, with the

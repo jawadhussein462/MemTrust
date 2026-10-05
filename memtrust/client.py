@@ -88,20 +88,23 @@ class _ClientBase:
         self._index[record.id] = record
 
     def scan(self, source: SupportsListing | Iterable[Any]) -> ScanReport:
-        """Audit a memory store: which records reads would withhold, and why.
+        """Find poisoned facts, hidden instructions, and leaked secrets.
 
-        ``source`` is a backend that can list its records (every shipped
-        adapter implements ``all()``) or an iterable of records/dicts. Records
-        are streamed, never loaded all at once. Nothing is modified.
+        ``source`` is a backend that can list its records, a scan source, or
+        an iterable of records/dicts. Records are streamed, never loaded all
+        at once. Nothing is modified.
         """
-        if isinstance(source, SupportsListing):
-            items: Iterable[Any] = source.all()
+        records_fn = getattr(source, "records", None)
+        if callable(records_fn):
+            items: Iterable[Any] = records_fn()
+        elif isinstance(source, SupportsListing):
+            items = source.all()
         elif isinstance(source, Iterable) and not isinstance(source, str | bytes | dict):
             items = source
         else:
             raise ConfigurationError(
-                f"Cannot scan {type(source).__name__}: pass a backend with .all() or an "
-                "iterable of records."
+                f"Cannot scan {type(source).__name__}: pass a backend with .all(), "
+                "a scan source, or an iterable of records."
             )
         return self._evaluator.scan(coerce_record(item) for item in items)
 

@@ -21,9 +21,10 @@ from memtrust.exceptions import ConfigurationError
 
 def test_severity_and_action_ordering():
     assert Severity.CRITICAL.rank > Severity.HIGH.rank > Severity.INFO.rank
-    assert Action.BLOCK.precedence > Action.QUARANTINE.precedence > Action.SUPERSEDE.precedence
+    assert Action.BLOCK.precedence > Action.DELETE.precedence > Action.QUARANTINE.precedence
     assert Action.ALLOW.is_allowed
     assert not Action.BLOCK.is_allowed
+    assert not Action.DELETE.is_allowed
 
 
 def test_candidate_to_record_carries_lineage():

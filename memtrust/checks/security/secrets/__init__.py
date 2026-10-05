@@ -16,7 +16,7 @@ PresidioDetector           Microsoft Presidio AnalyzerEngine                 [pr
 =========================  ================================================  ================
 
 Detectors backed by PII models default to credential-like labels only
-(``secret_detected``, block). Each exposes ``*_ALL_LABELS`` to also report
+(``secret_detected``, delete). Each exposes ``*_ALL_LABELS`` to also report
 personal data as ``pii_detected`` (review).
 """
 

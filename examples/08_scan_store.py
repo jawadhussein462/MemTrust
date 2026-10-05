@@ -1,17 +1,20 @@
-"""Example 8 — Audit an existing memory store.
+"""Example 8 — Scan an existing store and write a report.
 
-Point MemTrust at a store you already have (written before MemTrust, or by
-another ingestion pipeline) and see what reads would withhold, and why.
-The report carries ids and finding codes only, never content.
+Find poisoned facts, hidden instructions, and leaked secrets. The HTML
+report is one file you can forward: totals, percentage flagged, findings
+by severity, masked snippets, recommended actions, OWASP ASI06.
 
 Run:  python examples/08_scan_store.py
-CLI:  memtrust scan export.jsonl   (one JSON object with "content" per line)
+CLI:  memtrust scan jsonl export.jsonl --report report.html --json findings.json --fail-on high
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from memtrust import MemoryRecord, MemTrust
 from memtrust.backends import InMemoryBackend
+from memtrust.scan import render_html
 
 
 def main() -> None:
@@ -29,6 +32,9 @@ def main() -> None:
 
     report = MemTrust().scan(store)
     print(report)
+    path = Path("report.html")
+    path.write_text(render_html(report), encoding="utf-8")
+    print(f"\nWrote {path.resolve()}")
 
 
 if __name__ == "__main__":

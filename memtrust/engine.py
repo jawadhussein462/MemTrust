@@ -13,7 +13,6 @@ Shared by both :class:`~memtrust.MemTrust` and
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
@@ -31,6 +30,8 @@ from .models.enums import (
 from .models.finding import Finding
 from .models.memory import MemoryCandidate, MemoryRecord
 from .models.results import FilteredMemory, ReadResult, SafeMemory, ScanFinding, ScanReport
+from .scan.mask import mask_snippet
+from .scan.owasp import ASI06_REF
 from .telemetry import (
     ATTR_ACTION,
     ATTR_FINDING_COUNT,
@@ -43,7 +44,6 @@ from .telemetry import (
     Tracer,
     get_logger,
 )
-from .text import normalize
 
 _logger = get_logger(__name__)
 
@@ -172,33 +172,42 @@ class Evaluator:
             return result
 
     def scan(self, records: Iterable[MemoryRecord]) -> ScanReport:
-        """Audit stored records without I/O: what reads would withhold, and why."""
+        """Audit stored records: poisoned facts, hidden instructions, leaked secrets."""
         now = datetime.now(UTC)
         ctx = CheckContext(config=self.config, now=now, operation="read")
-        report = ScanReport()
-        by_text: dict[str, list[str]] = defaultdict(list)
+        report = ScanReport(generated_at=now)
+        checks = self.read_checks or self.write_checks
         with self.tracer.span(SPAN_SCAN, {ATTR_OPERATION: "scan"}) as span:
             for record in records:
                 report.total += 1
-                status = MemoryStatus.EXPIRED if record.is_expired(now) else record.status
-                report.by_status[status.value] = report.by_status.get(status.value, 0) + 1
-                if self._core_read_finding(record, now) is not None:
-                    continue
-                findings = self._read_check_findings(record, ctx)
-                for f in findings:
-                    report.by_code[f.code] = report.by_code.get(f.code, 0) + 1
-                decision = aggregate(findings)
-                if not decision.allowed:
-                    codes = sorted({f.code for f in findings})
-                    report.flagged.append(
-                        ScanFinding(id=record.id, codes=codes, action=decision.action)
+                candidate = MemoryCandidate(
+                    content=record.content,
+                    metadata=dict(record.metadata),
+                    id=record.id,
+                    derived_from=list(record.derived_from),
+                    created_at=record.created_at,
+                    expires_at=record.expires_at,
+                    valid_from=record.valid_from,
+                    valid_until=record.valid_until,
+                )
+                findings = self._run_checks(checks, candidate, ctx)
+                snippet = mask_snippet(record.content)
+                for finding in findings:
+                    report.findings.append(
+                        ScanFinding(
+                            id=record.id,
+                            type=finding.code,
+                            severity=finding.severity,
+                            detectors=_detectors(finding),
+                            snippet=snippet,
+                            action=_report_action(finding.recommended_action, finding.severity),
+                            owasp=ASI06_REF,
+                            message=finding.message,
+                        )
                     )
-                    continue
-                report.served += 1
-                by_text[normalize(record.content)].append(record.id)
-            report.duplicate_groups = [ids for ids in by_text.values() if len(ids) > 1]
+            report.findings.sort(key=lambda item: item.severity.rank, reverse=True)
             span.set_attribute("memtrust.scanned", report.total)
-            span.set_attribute("memtrust.flagged", len(report.flagged))
+            span.set_attribute("memtrust.flagged", report.flagged)
         return report
 
     def _read_check_findings(self, record: MemoryRecord, ctx: CheckContext) -> list[Finding]:
@@ -259,6 +268,28 @@ class Evaluator:
                 check="core",
             )
         return None
+
+
+def _detectors(finding: Finding) -> list[str]:
+    raw = finding.evidence.get("detectors")
+    if isinstance(raw, list):
+        return [str(name) for name in raw]
+    if finding.check:
+        return [finding.check]
+    return []
+
+
+def _report_action(action: Action | None, severity: Severity) -> Action:
+    """Map a finding to the scan-report triad: review, quarantine, or delete."""
+    if action == Action.BLOCK:
+        return Action.DELETE
+    if action in {Action.REVIEW, Action.QUARANTINE, Action.DELETE}:
+        return action
+    if severity.is_at_least(Severity.CRITICAL):
+        return Action.DELETE
+    if severity.is_at_least(Severity.HIGH):
+        return Action.QUARANTINE
+    return Action.REVIEW
 
 
 def aggregate(findings: list[Finding]) -> Decision:

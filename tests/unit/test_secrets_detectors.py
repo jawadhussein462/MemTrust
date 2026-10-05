@@ -101,7 +101,7 @@ def test_piiranha_all_labels_add_pii_review():
     assert codes["pii_detected"].evidence["kinds"] == ["email", "givenname"]
     chk = SecretsCheck(detectors=[det])
     findings = {f.code: f for f in chk.check(make_candidate("x"), make_context())}
-    assert findings["secret_detected"].recommended_action == Action.BLOCK
+    assert findings["secret_detected"].recommended_action == Action.DELETE
     assert findings["pii_detected"].recommended_action == Action.REVIEW
     assert findings["pii_detected"].severity == Severity.HIGH
 
@@ -222,7 +222,7 @@ def test_stacked_secrets_check_blocks_and_never_leaks():
         checks=[SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector()])]
     )
     d = guard.check_write(f"Deploy with {KEY} and session {token}")
-    assert not d.allowed and d.action == Action.BLOCK
+    assert not d.allowed and d.action == Action.DELETE
     (finding,) = [f for f in d.findings if f.code == "secret_detected"]
     assert finding.evidence["detectors"] == ["entropy", "heuristic"]
     assert KEY not in _all_evidence(d.findings) and token not in _all_evidence(d.findings)

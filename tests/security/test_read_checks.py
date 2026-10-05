@@ -54,7 +54,7 @@ def test_read_checks_can_be_disabled_but_core_enforcement_stays():
     assert served == {"doc_0", "doc_1", "doc_2", "doc_3"}
 
 
-def test_correctness_and_custom_checks_are_write_only_by_default():
+def test_custom_checks_are_write_only_by_default():
     calls = []
 
     @check("spy")

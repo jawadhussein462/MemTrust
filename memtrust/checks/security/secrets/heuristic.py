@@ -67,6 +67,19 @@ def secret_kinds(text: str) -> list[str]:
     return sorted(kinds)
 
 
+def mask_secrets(text: str) -> str:
+    """Replace secret-like substrings with bullets so reports can be shared."""
+    masked = text
+    for _, pattern in _PATTERNS:
+        masked = pattern.sub("••••••••", masked)
+    masked = _CREDENTIAL.sub(lambda m: f"{m.group(1)}{m.group(2)}••••••••", masked)
+
+    def _stated(match: re.Match[str]) -> str:
+        return match.group(0)[: match.start(1) - match.start(0)] + "••••••••"
+
+    return _STATED_CREDENTIAL.sub(_stated, masked)
+
+
 class HeuristicSecretsDetector(BaseDetector):
     """Known key formats plus ``key = value`` / "my password is ..." statements."""
 
@@ -79,4 +92,4 @@ class HeuristicSecretsDetector(BaseDetector):
         return [self.hit(code="secret_detected", kinds=kinds)]
 
 
-__all__ = ["HeuristicSecretsDetector", "secret_kinds"]
+__all__ = ["HeuristicSecretsDetector", "mask_secrets", "secret_kinds"]

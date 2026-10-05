@@ -1,4 +1,4 @@
-"""Protected sync backend: add/search/get/delete, supersession, quarantine."""
+"""Protected sync backend: add/search/get/delete, quarantine."""
 
 from __future__ import annotations
 
@@ -20,14 +20,13 @@ def test_add_and_search_round_trip():
     assert any("annual billing" in s.memory for s in found)
 
 
-def test_supersede_marks_old_and_hides_it():
+def test_two_clean_facts_both_persist():
     mem = _protected()
     first = mem.add("Alice works at Stripe.")
     second = mem.add("Alice now works at Anthropic.")
-    assert second.decision.action.value == "supersede"
-    assert first.record.id in second.decision.supersedes
+    assert first.allowed and second.allowed
     contents = [s.memory for s in mem.search("where does alice work")]
-    assert "Alice works at Stripe." not in contents
+    assert "Alice works at Stripe." in contents
     assert "Alice now works at Anthropic." in contents
 
 
@@ -35,7 +34,7 @@ def test_secret_write_is_blocked():
     mem = _protected()
     result = mem.add("api key sk-abcdefghijklmnop1234567890")
     assert result.allowed is False
-    assert result.decision.recommended_action.value == "block"
+    assert result.decision.recommended_action.value == "delete"
     assert result.record is None
     found = mem.search("api key")
     assert all("sk-abcdefghijklmnop1234567890" not in s.memory for s in found)

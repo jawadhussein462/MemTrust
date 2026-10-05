@@ -159,8 +159,8 @@ def test_mem0_status_change_updates_in_place():
     fake = FakeMem0()
     mem = MemTrust().protect(Mem0Backend(fake))
     old = mem.add("Alice works at Stripe.")
-    mem.add("Alice now works at Anthropic.")
-    assert len(fake._d) == 2
+    mem.set_status(old.id, MemoryStatus.SUPERSEDED)
+    assert len(fake._d) == 1
     assert Mem0Backend(fake).get(old.id).status == "superseded"
 
 
@@ -170,9 +170,9 @@ def test_mem0_without_metadata_update_fails_loudly():
             raise AssertionError("must not be called")
 
     mem = MemTrust().protect(Mem0Backend(LegacyMem0()))
-    mem.add("Alice works at Stripe.")
+    added = mem.add("Alice works at Stripe.")
     with pytest.raises(BackendError, match="cannot update metadata in place"):
-        mem.add("Alice now works at Anthropic.")
+        mem.set_status(added.record.id, MemoryStatus.QUARANTINED)
 
 
 def _signature_bound_client(cls, responses):

@@ -70,10 +70,8 @@ _RISK_ORDER: dict[Risk, int] = {
 class Category(StrEnum):
     """The concern a finding relates to.
 
-    MemTrust is oriented around two families of checks:
-
-    * **security** — poisoning, injection, secrets
-    * **correctness** — contradictions, duplicates, freshness, generalization
+    Built-in checks are **security** (poisoning, injection, secrets). Custom
+    checks may still use ``correctness`` if they compare records to each other.
     """
 
     SECURITY = "security"
@@ -83,8 +81,9 @@ class Category(StrEnum):
 class Action(StrEnum):
     """What MemTrust recommends doing with a candidate or record.
 
-    Ordered by "blocking-ness" via :attr:`precedence` so that when several
-    checks disagree the most protective action wins.
+    Scan reports use ``review``, ``quarantine``, or ``delete``. Ordered by
+    "blocking-ness" via :attr:`precedence` so that when several checks
+    disagree the most protective action wins.
     """
 
     ALLOW = "allow"
@@ -92,6 +91,7 @@ class Action(StrEnum):
     SUPERSEDE = "supersede"
     REVIEW = "review"
     QUARANTINE = "quarantine"
+    DELETE = "delete"
     BLOCK = "block"
 
     @property
@@ -105,14 +105,15 @@ class Action(StrEnum):
         return self in _ALLOWED_ACTIONS
 
 
-# Precedence: block > quarantine > review > supersede > warn > allow
+# Precedence: block > delete > quarantine > review > supersede > warn > allow
 _ACTION_PRECEDENCE: dict[Action, int] = {
     Action.ALLOW: 0,
     Action.ALLOW_WITH_WARNING: 1,
     Action.SUPERSEDE: 2,
     Action.REVIEW: 3,
     Action.QUARANTINE: 4,
-    Action.BLOCK: 5,
+    Action.DELETE: 5,
+    Action.BLOCK: 6,
 }
 
 _ALLOWED_ACTIONS: frozenset[Action] = frozenset(
@@ -131,12 +132,7 @@ class MemoryStatus(StrEnum):
 
 
 class MemoryRelationship(StrEnum):
-    """How a candidate memory relates to an existing one.
-
-    Correctness is *not* reduced to embedding similarity: relationships are
-    modelled explicitly so that, for example, a newer fact can ``SUPERSEDE``
-    an older one instead of merely ``CONTRADICTS`` it.
-    """
+    """How a candidate memory relates to an existing one."""
 
     DUPLICATE = "duplicate"
     COMPATIBLE = "compatible"

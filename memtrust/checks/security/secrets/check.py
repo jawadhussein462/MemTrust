@@ -10,7 +10,7 @@ from .heuristic import HeuristicSecretsDetector
 
 
 class SecretsCheck(SecurityCheck):
-    """Block secret-bearing content; optionally flag personal data for review.
+    """Refuse secret-bearing content; optionally flag personal data for review.
 
     Findings never contain the raw value -- only the kinds detected.
     Defaults to the offline heuristic detector; stack entropy or model
@@ -28,7 +28,7 @@ class SecretsCheck(SecurityCheck):
     specs: ClassVar[dict[str, FindingSpec]] = {
         "secret_detected": FindingSpec(
             severity=Severity.CRITICAL,
-            action=Action.BLOCK,
+            action=Action.DELETE,
             message="Secret-like content detected.",
         ),
         "pii_detected": FindingSpec(

@@ -28,9 +28,9 @@ async def test_async_check_write_blocks_poison():
     assert not d.allowed
 
 
-async def test_async_supersede():
+async def test_async_two_clean_writes():
     guard = AsyncMemTrust()
     mem = guard.protect(AsyncInMemoryBackend())
-    await mem.add("Alice works at Stripe.")
+    first = await mem.add("Alice works at Stripe.")
     second = await mem.add("Alice now works at Anthropic.")
-    assert second.decision.action.value == "supersede"
+    assert first.allowed and second.allowed

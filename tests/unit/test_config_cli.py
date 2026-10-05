@@ -9,7 +9,7 @@ from memtrust.config import Config
 def test_config_defaults():
     cfg = Config()
     assert cfg.fail_closed is True
-    assert cfg.duplicate_threshold == 0.9
+    assert cfg.read_checks is True
 
 
 def test_cli_check_blocks_returns_nonzero(capsys):

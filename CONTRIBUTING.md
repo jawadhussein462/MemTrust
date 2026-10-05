@@ -1,7 +1,7 @@
 # Contributing to MemTrust
 
 Thanks for your interest in improving MemTrust. This project aims to be a
-familiar, well-typed, batteries-included SDK — contributions should preserve
+familiar, well-typed, batteries-included toolkit — contributions should preserve
 that feel.
 
 ## Development setup
@@ -28,18 +28,21 @@ All four must pass. CI runs them on Python 3.11–3.13.
 
 ## Design principles
 
-- **Simple API on top.** Most users should only import from the top-level
-  `memtrust` package. The product is two families of checks: **security**
-  (poisoning, injection, secrets) and **correctness** (contradictions,
-  duplicates, freshness).
+- **CLI is the front door.** Most users run `memtrust scan`. The Python API
+  (`protect()`, `check_write`) is how you prevent new problems.
+- **Find, fix, prevent.** Scan finds poisoned facts, hidden instructions, and
+  leaked secrets. The HTML report explains the fix. `protect()` blocks new ones
+  at write time.
 - **Deterministic first.** Checks are cheap, offline, and fully functional
   with zero external services.
 - **Extension via Protocols, not inheritance.** New checks and backends
   should satisfy the relevant `typing.Protocol`.
 - **Core enforcement stays in the engine.** Revoked/expired/quarantined/
   superseded filtering must not be relocatable into optional checks.
-- **Never log or store secrets.** Findings and telemetry must not include
-  secret values.
+- **Never log or store secrets.** Findings, reports, and telemetry must not
+  include secret values. Scan snippets are masked.
+- **Scan connections are read-only.** Scan sources list and fetch; they never
+  upsert or delete.
 - **Sync is always sync; async is always async.** No method returns a coroutine
   conditionally.
 
@@ -65,16 +68,24 @@ method: `memtrust/checks/security/{injection,poisoning,secrets}/<method>.py`.
 
 ## Adding a check
 
-1. Security concern: subclass `SecurityCheck` in a new
+1. Subclass `SecurityCheck` in a new
    `memtrust/checks/security/<concern>/` folder with `name`, `default_code`,
    `specs` (code -> `FindingSpec`), `default_detectors()`, and at least a
-   heuristic detector. Correctness: subclass `CorrectnessCheck` in
-   `memtrust/checks/correctness/` and implement `check(candidate, context)`.
-2. Return a list of `Finding`s; set `recommended_action` where appropriate.
+   heuristic detector.
+2. Return a list of `Finding`s; set `recommended_action` to `review`,
+   `quarantine`, or `delete`.
 3. Add it to `default_checks()` only if it should run by default (defaults
    must stay offline and dependency-free).
 4. Add unit tests under `tests/unit/` and, if security-relevant, an invariant
    test under `tests/security/`.
+
+## Adding a scan source
+
+1. Implement `records(batch_size=..., sample=...)` as a read-only iterator.
+2. Stream in batches. Honour `--sample`. Never write.
+3. Import the provider SDK lazily; add an optional extra in `pyproject.toml`.
+4. Wire it into `memtrust scan <name>` in `memtrust/cli.py`.
+5. Test against an in-process fake.
 
 ## Adding a backend adapter
 

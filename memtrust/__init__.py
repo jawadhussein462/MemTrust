@@ -1,24 +1,14 @@
-"""MemTrust — security and correctness for agent long-term memory.
+"""MemTrust — scan agent memory for poisoned facts, hidden instructions, and leaked secrets.
 
-A vendor-neutral trust boundary that sits between an agent and its knowledge
-memory (RAG corpora, user long-term facts, retrieved documents) and answers:
-should this be written? should this be returned? why?
+Find, fix, prevent: ``memtrust scan`` finds problems, the HTML report explains
+the fix, and ``protect()`` blocks new ones at write time.
 
-Simple API on top, two families of checks underneath::
+    memtrust scan chroma --path ./chroma_db --collection agent_memory
+    memtrust scan jsonl export.jsonl --report report.html --json findings.json --fail-on high
 
     from memtrust import MemTrust
-
     guard = MemTrust()
-    decision = guard.check_write("...")
-    if not decision.allowed:
-        print(decision.reason)
-
-**Security** detects poisoning, injection, and secrets.
-**Correctness** detects contradictions, duplicates, and stale facts.
-
-Advanced functionality lives under discoverable namespaces:
-``memtrust.checks``, ``memtrust.backends``, ``memtrust.integrations``,
-``memtrust.telemetry``.
+    memory = guard.protect(backend)
 """
 
 from __future__ import annotations

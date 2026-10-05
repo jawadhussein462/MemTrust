@@ -26,7 +26,7 @@ class MemoryCandidate(BaseModel):
     content: str
     excerpt: str | None = Field(
         default=None,
-        description="Optional raw text the memory was derived from (generalization checks).",
+        description="Optional raw text the memory was derived from.",
     )
     metadata: dict[str, object] = Field(default_factory=dict)
     id: str | None = Field(default=None, description="Optional caller-proposed id.")

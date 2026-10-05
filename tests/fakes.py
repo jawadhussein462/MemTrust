@@ -288,3 +288,68 @@ class FakeVectorStore:
     def delete(self, ids):
         for mid in ids or []:
             self._d.pop(mid, None)
+
+
+class FakePgCursor:
+    def __init__(self, rows):
+        self._all = list(rows)
+        self._rows = list(rows)
+        self._i = 0
+        self.sql = None
+        self.params = None
+
+    def execute(self, sql, params=None):
+        self.sql = sql
+        self.params = params
+        rows = list(self._all)
+        if params:
+            rows = rows[: int(params[0])]
+        self._rows = rows
+        self._i = 0
+
+    def fetchmany(self, n):
+        chunk = self._rows[self._i : self._i + n]
+        self._i += n
+        return chunk
+
+    def __iter__(self):
+        return iter(self._rows[self._i :])
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class FakePgConnection:
+    """psycopg-like connection used by PgVectorScanSource tests."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.statements = []
+
+    def execute(self, sql, params=None):
+        self.statements.append(sql)
+
+    def cursor(self, name=None):
+        return FakePgCursor(self.rows)
+
+
+class FakePineconeIndex:
+    """Pinecone Index shape: ``list`` pages of ids, ``fetch`` by id."""
+
+    def __init__(self, vectors):
+        self._d = dict(vectors)
+        self.list_calls = []
+        self.fetch_calls = []
+
+    def list(self, namespace="", limit=100):
+        self.list_calls.append({"namespace": namespace, "limit": limit})
+        ids = list(self._d)
+        for i in range(0, max(len(ids), 1) if ids else 0, limit):
+            yield ids[i : i + limit]
+
+    def fetch(self, ids, namespace=""):
+        self.fetch_calls.append(list(ids))
+        return {"vectors": {i: self._d[i] for i in ids if i in self._d}}

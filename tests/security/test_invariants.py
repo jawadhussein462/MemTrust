@@ -1,4 +1,4 @@
-"""Explicit tests for security and correctness invariants."""
+"""Explicit tests for security invariants."""
 
 from __future__ import annotations
 

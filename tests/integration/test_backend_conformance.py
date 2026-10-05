@@ -171,16 +171,15 @@ def test_quarantined_write_is_never_served(backend):
     assert stored is not None and stored.status == MemoryStatus.QUARANTINED
 
 
-def test_superseded_fact_is_hidden_without_duplicates(backend):
+def test_status_change_updates_in_place(backend):
     memory = MemTrust().protect(backend)
-    old = memory.add("Alice works at Stripe.")
-    new = memory.add("Alice now works at Anthropic.")
-    assert new.decision.supersedes == [old.id]
-
-    assert _served(memory, "Alice") == ["Alice now works at Anthropic."]
+    added = memory.add("Alice works at Stripe.")
+    assert added.record is not None
+    memory.set_status(added.record.id, MemoryStatus.SUPERSEDED)
     raw = [r for r in backend.search("Alice", limit=10) if r.content == "Alice works at Stripe."]
     assert len(raw) == 1, "a status change must update the record, not add a copy"
     assert raw[0].status == MemoryStatus.SUPERSEDED
+    assert memory.get(added.record.id) is None
 
 
 def test_revocation_hides_derived_memories(backend):
@@ -224,6 +223,8 @@ def test_scan_audits_the_whole_store(backend):
 
     report = MemTrust().scan(backend)
     assert report.total == 3
-    assert report.served == 1
-    assert [(f.id, f.codes) for f in report.flagged] == [(leaked.id, ["persistent_instruction"])]
-    assert report.by_status.get("quarantined") == 1, quarantined.id
+    types = {f.id: f.type for f in report.findings}
+    assert types[leaked.id] == "persistent_instruction"
+    assert types[quarantined.id] == "memory_poisoning"
+    assert report.flagged == 2
+    assert quarantined.id is not None

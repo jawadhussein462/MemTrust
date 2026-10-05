@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from .decision import Decision
-from .enums import Action, MemoryStatus
+from .enums import Action, Severity
 from .finding import Finding
 from .memory import MemoryRecord
 
@@ -118,63 +119,91 @@ class RevocationReport(BaseModel):
 
 
 class ScanFinding(BaseModel):
-    """A stored record that read enforcement would withhold, and why.
+    """One problem in a stored record, safe to forward.
 
-    Carries ids and finding codes only — never content — so a report can be
-    shared without leaking the secrets it found.
+    Snippets are secret-masked. Raw content is never included.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    codes: list[str]
+    type: str
+    severity: Severity
+    detectors: list[str] = Field(default_factory=list)
+    snippet: str = ""
     action: Action
+    owasp: str = "ASI06: Memory & Context Poisoning"
+    message: str = ""
 
 
 class ScanReport(BaseModel):
     """Audit of a memory store produced by :meth:`MemTrust.scan`.
 
-    ``flagged`` lists records still marked active that the checks would now
-    withhold (latent poisoning, injections, secrets). Records already
-    quarantined, superseded, revoked, or expired are counted in ``by_status``
-    but are not problems: read enforcement withholds them by design.
+    Counts every record examined and lists security findings (poisoned
+    facts, hidden instructions, leaked secrets) with a recommended action.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     total: int = 0
-    served: int = 0
-    by_status: dict[str, int] = Field(default_factory=dict)
-    by_code: dict[str, int] = Field(default_factory=dict)
-    flagged: list[ScanFinding] = Field(default_factory=list)
-    duplicate_groups: list[list[str]] = Field(
-        default_factory=list, description="Ids of served records with identical normalized text."
-    )
+    findings: list[ScanFinding] = Field(default_factory=list)
+    source: str = ""
+    sample: int | None = None
+    generated_at: datetime | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def flagged(self) -> int:
+        return len({item.id for item in self.findings})
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def flagged_pct(self) -> float:
+        if not self.total:
+            return 0.0
+        return round(100.0 * self.flagged / self.total, 1)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def by_severity(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for item in self.findings:
+            key = item.severity.value
+            counts[key] = counts.get(key, 0) + 1
+        return counts
 
     @property
     def clean(self) -> bool:
-        return not self.flagged and not self.duplicate_groups
+        return not self.findings
+
+    def worst_severity(self) -> Severity | None:
+        if not self.findings:
+            return None
+        return max((item.severity for item in self.findings), key=lambda s: s.rank)
 
     def __str__(self) -> str:
-        lines = [f"Scanned {_count(self.total, 'record')}: {self.served} served to agents."]
-        lifecycle = {k: v for k, v in sorted(self.by_status.items()) if k != MemoryStatus.ACTIVE}
-        if lifecycle:
-            parts = ", ".join(f"{k} {v}" for k, v in lifecycle.items())
-            lines.append(f"Withheld by lifecycle: {parts}.")
-        if self.flagged:
+        pct = f"{self.flagged_pct:g}%"
+        lines = [f"Scanned {_count(self.total, 'record')}: {self.flagged} flagged ({pct})."]
+        if self.by_severity:
+            parts = ", ".join(
+                f"{count} {name}"
+                for name, count in sorted(
+                    self.by_severity.items(),
+                    key=lambda kv: Severity(kv[0]).rank,
+                    reverse=True,
+                )
+            )
+            lines.append(f"By severity: {parts}.")
+        if self.findings:
             lines.append("")
-            lines.append(f"{_count(len(self.flagged), 'active record')} would be withheld:")
-            for item in self.flagged:
-                lines.append(f"  {item.id}  {', '.join(item.codes)}  -> {item.action.value}")
-        if self.duplicate_groups:
-            dupes = sum(len(g) for g in self.duplicate_groups)
-            lines.append("")
-            groups = _count(len(self.duplicate_groups), "duplicate group")
-            lines.append(f"{groups} ({_count(dupes, 'record')}):")
-            for group in self.duplicate_groups:
-                lines.append(f"  {', '.join(group)}")
+            for item in self.findings:
+                detectors = ", ".join(item.detectors) if item.detectors else "—"
+                lines.append(
+                    f"  {item.id}  {item.type}  {item.severity.value}  "
+                    f"{item.action.value}  [{detectors}]"
+                )
         if self.clean:
-            lines.append("No problems found.")
+            lines.append("No poisoned facts, hidden instructions, or leaked secrets found.")
         return "\n".join(lines)
 
 
