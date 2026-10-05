@@ -32,7 +32,7 @@ from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
 from ...telemetry import get_logger
-from ..base import WRITE_AND_READ, BaseCheck
+from ..base import BaseCheck
 
 _logger = get_logger(__name__)
 
@@ -104,8 +104,8 @@ class SecurityCheck(BaseCheck):
     """Base class for security checks: runs detectors and maps them to findings.
 
     Subclasses declare ``name``, ``default_code``, ``specs`` (code -> spec),
-    and :meth:`default_detectors`. Security checks run on writes *and* reads
-    so content that entered the store through another pipeline is screened.
+    and :meth:`default_detectors`. Security checks run during a scan, so
+    content that entered the store through another pipeline is still screened.
 
     ``min_detectors`` is a vote threshold counted per finding code: with
     ``min_detectors=2`` a code is reported only when two distinct detectors
@@ -113,7 +113,6 @@ class SecurityCheck(BaseCheck):
     """
 
     category: ClassVar[Category] = Category.SECURITY
-    operations = WRITE_AND_READ
     default_code: ClassVar[str] = ""
     specs: ClassVar[Mapping[str, FindingSpec]] = {}
 

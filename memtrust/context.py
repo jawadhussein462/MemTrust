@@ -16,14 +16,16 @@ from .models.memory import MemoryRecord
 
 @dataclass
 class CheckContext:
-    """Read-only context for a single write or read evaluation."""
+    """Read-only context for scanning one record."""
 
     config: Config
     now: datetime
-    operation: str = "write"  # "write" | "read"
+    operation: str = "scan"
+    # Other records in the scanned batch, when the caller passed a sequence.
+    # Retrieval-aware detectors (TrustRAG) use this; streaming scans leave it empty.
     existing: list[MemoryRecord] = field(default_factory=list)
-    # The retrieval query, when known (``search(query)`` / ``check_read(records, query=...)``).
-    # Retrieval-aware poisoning detectors (FilterRAG) use it; most checks ignore it.
+    # The retrieval query, when the caller passes ``MemTrust.scan(..., query=)``
+    # or the record metadata carries one. FilterRAG uses it; most checks ignore it.
     query: str | None = None
 
 

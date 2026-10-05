@@ -21,10 +21,14 @@ def no_passwords(candidate, context):
     return None
 
 
-def test_decorator_check_blocks():
+def _types(guard: MemTrust, text: str) -> set[str]:
+    report = guard.scan([{"id": "m", "content": text}])
+    return {f.type for f in report.findings}
+
+
+def test_decorator_check_flags_password():
     guard = MemTrust(checks=[no_passwords])
-    d = guard.check_write("the password is x")
-    assert not d.allowed and "production_password" in d.finding_codes()
+    assert "production_password" in _types(guard, "the password is x")
 
 
 def test_plain_callable_is_normalized():
@@ -34,8 +38,7 @@ def test_plain_callable_is_normalized():
     normalized = normalize_check(my_check)
     assert normalized.name == "my_check"
     guard = MemTrust(checks=[my_check])
-    d = guard.check_write("hi")
-    assert "c" in d.finding_codes()
+    assert "c" in _types(guard, "hi")
 
 
 def test_function_check_handles_list_and_none():
@@ -52,13 +55,12 @@ def test_normalize_check_rejects_non_check():
         normalize_check(42)  # type: ignore[arg-type]
 
 
-def test_fail_closed_blocks_on_check_error():
+def test_fail_closed_reports_check_error():
     def boom(candidate, context):
         raise RuntimeError("kaboom")
 
     guard = MemTrust(checks=[boom], fail_closed=True)
-    d = guard.check_write("hi")
-    assert not d.allowed and "check_error" in d.finding_codes()
+    assert "check_error" in _types(guard, "hi")
 
 
 def test_fail_open_ignores_check_error():
@@ -66,5 +68,4 @@ def test_fail_open_ignores_check_error():
         raise RuntimeError("kaboom")
 
     guard = MemTrust(checks=[boom], fail_closed=False)
-    d = guard.check_write("hi")
-    assert "check_error" not in d.finding_codes()
+    assert "check_error" not in _types(guard, "hi")

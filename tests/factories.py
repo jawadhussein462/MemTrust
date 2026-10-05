@@ -35,6 +35,6 @@ def make_context(
     return CheckContext(
         config=config or Config(),
         now=now_value or datetime.now(UTC),
-        operation="write",
+        operation="scan",
         existing=existing or [],
     )

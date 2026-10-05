@@ -16,17 +16,10 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Protocol, runtime_checkable
 
 # Span names.
-SPAN_WRITE_CHECK = "memtrust.write.check"
-SPAN_READ_CHECK = "memtrust.read.check"
 SPAN_SCAN = "memtrust.scan"
-SPAN_BACKEND_SEARCH = "memtrust.backend.search"
-SPAN_BACKEND_ADD = "memtrust.backend.add"
 
 # Attribute keys (safe metadata only).
-ATTR_ACTION = "memtrust.action"
-ATTR_RISK = "memtrust.risk"
 ATTR_FINDING_COUNT = "memtrust.finding_count"
-ATTR_BACKEND = "memtrust.backend"
 ATTR_OPERATION = "memtrust.operation"
 
 
@@ -61,16 +54,9 @@ class NullTracer:
 
 
 __all__ = [
-    "ATTR_ACTION",
-    "ATTR_BACKEND",
     "ATTR_FINDING_COUNT",
     "ATTR_OPERATION",
-    "ATTR_RISK",
-    "SPAN_BACKEND_ADD",
-    "SPAN_BACKEND_SEARCH",
-    "SPAN_READ_CHECK",
     "SPAN_SCAN",
-    "SPAN_WRITE_CHECK",
     "NullTracer",
     "Span",
     "Tracer",

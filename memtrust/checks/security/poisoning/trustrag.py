@@ -10,8 +10,8 @@ A single poisoned passage is dispersed among clean ones and is not caught
 here; that is what the content detectors are for.
 
 Applied to memory: a candidate is suspicious when at least ``min_cluster``
-of its neighbours -- the records the backend retrieved alongside it
-(``context.existing``: write-time neighbours, or the rest of the read set)
+of its neighbours -- the other records in the scanned batch
+(``context.existing``)
 -- are near-paraphrases of it. Pass ``embed`` (``list[str] -> list[vector]``)
 to use cosine similarity as in the paper; without it MemTrust's lexical
 similarity stands in for the embedding test, with the same threshold.

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from .exceptions import ConfigurationError
 from .models.memory import MemoryCandidate, MemoryRecord
-from .models.results import SafeMemory
 
 
 def coerce_candidate(content: str | MemoryCandidate | dict) -> MemoryCandidate:
@@ -23,11 +22,9 @@ def coerce_candidate(content: str | MemoryCandidate | dict) -> MemoryCandidate:
 
 
 def coerce_record(item: object) -> MemoryRecord:
-    """Return a :class:`MemoryRecord` from a record, a :class:`SafeMemory`, or a dict."""
+    """Return a :class:`MemoryRecord` from a record or a dict."""
     if isinstance(item, MemoryRecord):
         return item
-    if isinstance(item, SafeMemory):
-        return item.record
     if isinstance(item, dict):
         return MemoryRecord.model_validate(item)
     raise ConfigurationError(f"Cannot interpret record: {item!r}")

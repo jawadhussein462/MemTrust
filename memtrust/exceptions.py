@@ -1,9 +1,8 @@
 """Exception hierarchy for MemTrust.
 
-The common path (``check_write`` / ``check_read``) returns structured
-:class:`~memtrust.Decision` / :class:`~memtrust.ReadResult` objects rather
-than raising. Exceptions are reserved for programmer errors, backend
-failures, and fail-closed enforcement.
+A scan returns a :class:`~memtrust.ScanReport` rather than raising.
+Exceptions are reserved for programmer errors, backend failures, and
+misconfiguration.
 """
 
 from __future__ import annotations

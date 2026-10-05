@@ -11,21 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Config(BaseModel):
-    """Tunable behaviour for checks and enforcement."""
+    """Tunable behaviour for checks."""
 
     model_config = ConfigDict(extra="forbid")
 
     fail_closed: bool = Field(
         default=True,
-        description="On internal check errors, treat as a blocking violation rather than allowing.",
-    )
-
-    read_checks: bool = Field(
-        default=True,
-        description=(
-            "Run read-capable checks (secrets, injection, poisoning) on every retrieved "
-            "record and withhold flagged ones. Core status filtering always applies."
-        ),
+        description="On internal check errors, report a check_error finding rather than skipping it.",
     )
 
 

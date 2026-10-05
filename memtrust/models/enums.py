@@ -39,7 +39,7 @@ _SEVERITY_ORDER: dict[Severity, int] = {
 
 
 class Risk(StrEnum):
-    """Overall risk of a :class:`~memtrust.Decision` (worst finding)."""
+    """Overall risk, aligned with finding severity."""
 
     NONE = "none"
     INFO = "info"

@@ -10,8 +10,8 @@ from .enums import Action, Category, Severity
 class Finding(BaseModel):
     """One thing a check noticed about a memory.
 
-    A finding never decides the outcome on its own; the decision engine
-    aggregates all findings into a single :class:`~memtrust.Decision`.
+    A finding never decides the outcome on its own. A scan lists every
+    finding in the report.
 
     Example::
 

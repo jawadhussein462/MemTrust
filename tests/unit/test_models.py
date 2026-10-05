@@ -1,4 +1,4 @@
-"""Model behaviour: coercion, enums, serialization, Decision."""
+"""Model behaviour: coercion, enums, serialization."""
 
 from __future__ import annotations
 
@@ -6,11 +6,8 @@ import pytest
 
 from memtrust import (
     Action,
-    Decision,
-    Finding,
     MemoryCandidate,
     MemoryRecord,
-    Risk,
     Severity,
 )
 from memtrust._coerce import coerce_candidate
@@ -30,40 +27,6 @@ def test_candidate_to_record_carries_lineage():
     r = c.to_record(id="mem_b")
     assert r.id == "mem_b"
     assert "mem_a" in r.derived_from
-
-
-def test_decision_convenience_properties():
-    findings = [
-        Finding(code="a", severity="low", message="lo"),
-        Finding(code="b", severity="critical", message="hi"),
-    ]
-    d = Decision(
-        allowed=False,
-        action=Action.QUARANTINE,
-        recommended_action=Action.QUARANTINE,
-        risk=Risk.CRITICAL,
-        findings=findings,
-    )
-    assert d.blocked
-    assert len(d.errors) == 1 and d.errors[0].code == "b"
-    assert len(d.warnings) == 1 and d.warnings[0].code == "a"
-    assert d.reason == "hi"
-    assert set(d.finding_codes()) == {"a", "b"}
-
-
-def test_decision_str_is_readable():
-    d = Decision(
-        allowed=False,
-        action=Action.QUARANTINE,
-        recommended_action=Action.QUARANTINE,
-        risk=Risk.CRITICAL,
-        findings=[Finding(code="memory_poisoning", severity="critical", message="m")],
-    )
-    text = str(d)
-    assert "BLOCKED" in text
-    assert "critical" in text
-    assert "memory_poisoning" in text
-    assert "quarantine" in text
 
 
 def test_record_json_round_trip():
