@@ -5,8 +5,8 @@ from __future__ import annotations
 from memtrust import Finding, MemTrust, check
 
 
-def _types(text: str, **kwargs: object) -> set[str]:
-    report = MemTrust(**kwargs).scan([{"id": "m", "content": text}])  # type: ignore[arg-type]
+def _types(text: str) -> set[str]:
+    report = MemTrust().scan([{"id": "m", "content": text}])
     return {f.type for f in report.findings}
 
 

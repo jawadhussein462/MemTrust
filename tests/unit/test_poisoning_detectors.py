@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from memtrust import MemoryRecord, MemTrust
-from memtrust.backends import InMemoryBackend
 from memtrust.checks.security import PoisoningCheck
 from memtrust.checks.security.poisoning import (
     FilterRAGDetector,
@@ -104,15 +103,16 @@ def test_filterrag_skips_short_texts():
     )
 
 
-def test_filterrag_runs_on_search_with_the_query():
-    store = InMemoryBackend()
-    store.add(MemoryRecord(id="poison", content=POISON))
-    store.add(MemoryRecord(id="clean", content=CLEAN))
+def test_filterrag_runs_on_scan_with_the_query():
+    records = [
+        MemoryRecord(id="poison", content=POISON),
+        MemoryRecord(id="clean", content=CLEAN),
+    ]
     guard = MemTrust(checks=[PoisoningCheck(detectors=[FilterRAGDetector()])])
-    result = guard.check_read(store.all(), query="OpenAI CEO")
-    assert [f.record.id for f in result.filtered] == ["poison"]
-    # Without a query the detector cannot judge and everything is served.
-    assert len(guard.check_read(store.all()).results) == 2
+    report = guard.scan(records, query="OpenAI CEO")
+    assert [f.id for f in report.findings] == ["poison"]
+    # Without a query the detector cannot judge and the batch is clean.
+    assert guard.scan(records).clean
 
 
 @pytest.mark.parametrize("kwargs", [{"epsilon": 0}, {"similarity_threshold": 0}])
@@ -175,7 +175,7 @@ def test_trustrag_with_embeddings_uses_cosine():
     assert d.evidence["similarity_metric"] == "cosine" and "far" not in d.evidence["cluster"]
 
 
-def test_trustrag_skips_self_on_read_batches():
+def test_trustrag_skips_self_in_a_scan_batch():
     records = [make_record(t, id=f"p{i}") for i, t in enumerate(PARAPHRASES)]
     ctx = make_context(existing=records)
     candidate = make_candidate(PARAPHRASES[0], id="p0")
@@ -183,15 +183,13 @@ def test_trustrag_skips_self_on_read_batches():
     assert "p0" not in d.evidence["cluster"]
 
 
-def test_trustrag_flags_coordinated_records_on_read():
-    store = InMemoryBackend()
-    for i, text in enumerate(PARAPHRASES):
-        store.add(MemoryRecord(id=f"p{i}", content=text))
-    store.add(MemoryRecord(id="clean", content="Alice prefers annual billing."))
+def test_trustrag_flags_coordinated_records_on_scan():
+    records = [MemoryRecord(id=f"p{i}", content=text) for i, text in enumerate(PARAPHRASES)]
+    records.append(MemoryRecord(id="clean", content="Alice prefers annual billing."))
     guard = MemTrust(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
-    result = guard.check_read(store.all())
-    assert [s.id for s in result.results] == ["clean"]
-    assert {f.code for f in result.filtered} == {"poisoning_cluster"}
+    report = guard.scan(records)
+    assert {f.id for f in report.findings} == {"p0", "p1", "p2"}
+    assert {f.type for f in report.findings} == {"poisoning_cluster"}
 
 
 @pytest.mark.parametrize(

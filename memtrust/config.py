@@ -17,7 +17,9 @@ class Config(BaseModel):
 
     fail_closed: bool = Field(
         default=True,
-        description="On internal check errors, report a check_error finding rather than skipping it.",
+        description=(
+            "On internal check errors, report a check_error finding rather than skipping it."
+        ),
     )
 
 

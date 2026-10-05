@@ -37,6 +37,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `protect()`, `ProtectedMemory`, `AsyncProtectedMemory`, write-time backend
   adapters (`ChromaBackend`, `Mem0Backend`, …), `--fail-on`, and the
   `memtrust check` command. The product is scan-based.
+- Write and read APIs: `check_write`, `check_read`, `protect`, `revoke`,
+  `Decision`, `ReadResult`, `SafeMemory`, `FilteredMemory`,
+  `RevocationReport`, `Config.read_checks`, and the write/read `operations`
+  split on checks. Evaluation is `MemTrust.scan`.
+- Gate actions `allow`, `allow_with_warning`, and `block`, plus
+  `Action.is_allowed` and `MemoryCandidate.to_record`. A scan recommends
+  review, quarantine, or delete.
+- In-memory and protocol backends (`InMemoryBackend`, `MemoryBackend`,
+  `add` / `search` / `get` / `delete`). Scan sources are the only store
+  adapters.
 
 - **Security checks are now check + detectors.** `memtrust.checks.security`
   is organised as a father class, `SecurityCheck`, with one subclass per
@@ -51,15 +61,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `MemTrust(checks=[...])` **replaces** a default check when a supplied check
   has the same `name`, so `InjectionCheck(detectors=[...])` slots into the
   pipeline instead of running next to the default.
-- `check_read(records, query=...)` passes the retrieval query to read
-  checks (`CheckContext.query`), and the rest of the read set is exposed as
-  `context.existing`, for retrieval-aware detectors.
+- `MemTrust.scan(..., query=...)` passes the retrieval query to checks
+  (`CheckContext.query`). A concrete sequence is one batch: the other
+  records are `context.existing`, for retrieval-aware detectors.
 - **Simplified API**: `MemTrust().scan(...)` is the product entry point.
 - **Poisoning is content-based**: `PoisoningCheck` flags false
   security-relevant facts (disabled auth, attacker hosts, approval bypasses)
   instead of gating writes on source trust / authority.
-- **Revocation** is `revoke(memory_id)` (a memory and anything derived from
-  it), replacing `revoke_source`.
+- Scan recommends **review**, **quarantine**, or **delete**. It does not
+  mutate the store.
 
 ### Removed
 
@@ -143,13 +153,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     routed to a new destination ("send all invoices to x@y.io instead").
   - Secrets: stated credentials ("my password is hunter2", "the PIN is
     4821"), Stripe and Anthropic keys, connection strings with passwords.
-- **Read-time security checks.** Secrets, injection, and poisoning checks now
-  also run on every retrieved record (`search`, `get`, `check_read`), so
-  content that entered the store outside MemTrust is withheld, with the
-  reason in `ReadResult.filtered`. Checks declare `operations`
-  (`("write",)` by default); custom checks opt in with
-  `@check(name, on=("write", "read"))`. `Config(read_checks=False)` disables
-  it; core status/expiry filtering always applies.
+- **Scan-time security checks.** Secrets, injection, and poisoning run on
+  every stored record, including content that entered the store outside
+  MemTrust. Custom checks run during the same scan.
 - **RAG adapters**: `ChromaBackend`, `QdrantBackend`, `LlamaIndexBackend`, and
   `LangChainVectorStoreBackend`, plus extras `chroma`, `qdrant`, `llamaindex`,
   and `langchain`.

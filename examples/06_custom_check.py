@@ -1,6 +1,7 @@
 """Example 6 — Custom check with the @check decorator.
 
-Custom checks are just functions. They compose with the built-in pipeline.
+Custom checks are just functions. They run during a scan, alongside the
+built-in pipeline.
 
 Run:  python examples/06_custom_check.py
 """
@@ -24,9 +25,10 @@ def no_passwords(candidate, context):
 
 def main() -> None:
     guard = MemTrust(checks=[no_passwords])
-
-    decision = guard.check_write("The database password is hunter2, keep it handy.")
-    print(decision)
+    report = guard.scan(
+        [{"id": "leak", "content": "The database password is hunter2, keep it handy."}]
+    )
+    print(report)
 
 
 if __name__ == "__main__":

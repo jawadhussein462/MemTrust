@@ -75,6 +75,26 @@ class EntropyDetector(BaseDetector):
                 found["base64"] = max(found.get("base64", 0.0), entropy)
         return found
 
+    def mask(self, text: str) -> str:
+        """Replace high-entropy runs with bullets. Leaves ordinary words alone."""
+
+        def _hex(match: re.Match[str]) -> str:
+            token = match.group(0)
+            if len(token) >= self.min_length and shannon_entropy(token) > self.hex_limit:
+                return "••••••••"
+            return token
+
+        def _b64(match: re.Match[str]) -> str:
+            token = match.group(0)
+            body = token.rstrip("=")
+            if len(body) < self.min_length or _ALPHA_ONLY.match(body) or _HEX_RUN.fullmatch(body):
+                return token
+            if shannon_entropy(body) > self.base64_limit:
+                return "••••••••"
+            return token
+
+        return _BASE64_RUN.sub(_b64, _HEX_RUN.sub(_hex, text))
+
     def detect_text(self, text: str) -> list[Detection]:
         found = self.high_entropy_kinds(text)
         if not found:

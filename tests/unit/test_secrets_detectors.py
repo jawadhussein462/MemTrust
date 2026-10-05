@@ -32,10 +32,6 @@ KEY = "sk-abcdefghijklmnop1234567890"
 CLEAN = "Alice prefers annual billing."
 
 
-def _all_evidence(findings) -> str:
-    return " ".join(str(f.model_dump()) for f in findings)
-
-
 # -- heuristic ------------------------------------------------------------------------------
 
 
@@ -221,9 +217,10 @@ def test_stacked_secrets_check_blocks_and_never_leaks():
     guard = MemTrust(
         checks=[SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector()])]
     )
-    d = guard.check_write(f"Deploy with {KEY} and session {token}")
-    assert not d.allowed and d.action == Action.DELETE
-    (finding,) = [f for f in d.findings if f.code == "secret_detected"]
-    assert finding.evidence["detectors"] == ["entropy", "heuristic"]
-    assert KEY not in _all_evidence(d.findings) and token not in _all_evidence(d.findings)
-    assert guard.check_write(CLEAN).allowed
+    report = guard.scan([{"id": "s", "content": f"Deploy with {KEY} and session {token}"}])
+    secret = next(f for f in report.findings if f.type == "secret_detected")
+    assert secret.action == Action.DELETE
+    assert secret.detectors == ["entropy", "heuristic"]
+    blob = report.model_dump_json()
+    assert KEY not in blob and token not in blob
+    assert guard.scan([{"id": "c", "content": CLEAN}]).clean

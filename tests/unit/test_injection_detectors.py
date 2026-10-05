@@ -190,7 +190,8 @@ def test_transport_errors_fail_closed_through_the_engine():
 
     det = LakeraGuardDetector(api_key="k", transport=transport)
     guard = MemTrust(checks=[InjectionCheck(detectors=[det])])
-    assert not guard.check_write(CLEAN).allowed
+    report = guard.scan([{"id": "m", "content": CLEAN}])
+    assert any(f.type == "check_error" for f in report.findings)
 
 
 # -- stacking -------------------------------------------------------------------------------

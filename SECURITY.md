@@ -26,11 +26,10 @@ The product is oriented around three security checks:
 
 ### What MemTrust enforces reliably (deterministic)
 
-- **Filtering** of revoked and quarantined memories on read (core engine,
-  non-bypassable by customizing the check list).
-- **Secret values** are never included in findings, scan reports, or telemetry;
-  secret-bearing writes are blocked (recommended action: delete).
-- **Critical violations** (poisoning, injection) are blocked by default.
+- **Secret values** are never included in findings, scan reports, or telemetry.
+  Secret findings recommend **delete**.
+- **Critical findings** (poisoning, injection) are reported with a recommended
+  action of review, quarantine, or delete.
 
 These are covered by explicit invariant tests.
 
@@ -60,15 +59,16 @@ those:
 - Hosted detectors (Azure Prompt Shields, Lakera Guard) send the candidate
   text to a third party. Only the text is sent; nothing is logged locally.
 - A detector that raises (model not downloaded, network error) makes the
-  check fail closed under `fail_closed=True`, i.e. the write is blocked.
+  check fail closed under `fail_closed=True`, i.e. the record is reported as
+  a `check_error` finding.
 - Detector evidence carries kinds, labels, and scores — never the matched
   text or secret values. This is an invariant for built-in detectors and a
   requirement for custom ones. Scan reports include only masked snippets.
 
 ## Operational guidance
 
-- Keep `fail_closed=True` (default) in production so internal check errors block
-  rather than silently allow.
+- Keep `fail_closed=True` (default) in production so internal check errors are
+  reported rather than silently skipped.
 - Add domain-specific custom checks; the built-ins are a baseline.
 
 ## Supported versions

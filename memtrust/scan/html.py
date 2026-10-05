@@ -29,7 +29,6 @@ _ACTION_COPY: dict[Action, str] = {
     Action.REVIEW: "Review",
     Action.QUARANTINE: "Quarantine",
     Action.DELETE: "Delete",
-    Action.BLOCK: "Delete",
 }
 
 _CSS = """

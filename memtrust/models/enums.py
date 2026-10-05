@@ -74,41 +74,27 @@ class Category(StrEnum):
 
 
 class Action(StrEnum):
-    """What MemTrust recommends doing with a candidate or record.
+    """What a scan recommends doing with a stored record.
 
-    Scan reports use ``review``, ``quarantine``, or ``delete``. Ordered by
-    "blocking-ness" via :attr:`precedence` so that when several checks
-    disagree the most protective action wins.
+    Ordered by :attr:`precedence` so that when several checks disagree the
+    stronger recommendation wins.
     """
 
-    ALLOW = "allow"
-    ALLOW_WITH_WARNING = "allow_with_warning"
     REVIEW = "review"
     QUARANTINE = "quarantine"
     DELETE = "delete"
-    BLOCK = "block"
 
     @property
     def precedence(self) -> int:
         """Higher precedence wins when aggregating findings."""
         return _ACTION_PRECEDENCE[self]
 
-    @property
-    def is_allowed(self) -> bool:
-        """Whether this action lets the underlying operation proceed."""
-        return self in _ALLOWED_ACTIONS
-
 
 _ACTION_PRECEDENCE: dict[Action, int] = {
-    Action.ALLOW: 0,
-    Action.ALLOW_WITH_WARNING: 1,
-    Action.REVIEW: 2,
-    Action.QUARANTINE: 3,
-    Action.DELETE: 4,
-    Action.BLOCK: 5,
+    Action.REVIEW: 0,
+    Action.QUARANTINE: 1,
+    Action.DELETE: 2,
 }
-
-_ALLOWED_ACTIONS: frozenset[Action] = frozenset({Action.ALLOW, Action.ALLOW_WITH_WARNING})
 
 
 class MemoryStatus(StrEnum):

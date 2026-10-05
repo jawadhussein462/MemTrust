@@ -16,17 +16,7 @@ from memtrust.exceptions import ConfigurationError
 
 def test_severity_and_action_ordering():
     assert Severity.CRITICAL.rank > Severity.HIGH.rank > Severity.INFO.rank
-    assert Action.BLOCK.precedence > Action.DELETE.precedence > Action.QUARANTINE.precedence
-    assert Action.ALLOW.is_allowed
-    assert not Action.BLOCK.is_allowed
-    assert not Action.DELETE.is_allowed
-
-
-def test_candidate_to_record_carries_lineage():
-    c = MemoryCandidate(content="fact", derived_from=["mem_a"])
-    r = c.to_record(id="mem_b")
-    assert r.id == "mem_b"
-    assert "mem_a" in r.derived_from
+    assert Action.DELETE.precedence > Action.QUARANTINE.precedence > Action.REVIEW.precedence
 
 
 def test_record_json_round_trip():

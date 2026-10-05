@@ -103,8 +103,12 @@ class Evaluator:
     def _run_checks(self, candidate: MemoryCandidate, ctx: CheckContext) -> list[Finding]:
         findings: list[Finding] = []
         for chk in self.checks:
+            name = getattr(chk, "name", None)
             try:
-                findings.extend(chk.check(candidate, ctx))
+                for finding in chk.check(candidate, ctx):
+                    if finding.check is None and isinstance(name, str):
+                        finding = finding.model_copy(update={"check": name})
+                    findings.append(finding)
             except Exception as exc:
                 _logger.warning("check %r raised %s", getattr(chk, "name", chk), type(exc).__name__)
                 if self.config.fail_closed:
@@ -134,9 +138,7 @@ def _detectors(finding: Finding) -> list[str]:
 
 
 def _report_action(action: Action | None, severity: Severity) -> Action:
-    """Map a finding to the scan-report triad: review, quarantine, or delete."""
-    if action == Action.BLOCK:
-        return Action.DELETE
+    """Map a finding to review, quarantine, or delete."""
     if action in {Action.REVIEW, Action.QUARANTINE, Action.DELETE}:
         return action
     if severity.is_at_least(Severity.CRITICAL):
