@@ -49,12 +49,8 @@ Repository = "https://github.com/memtrust/memtrust"
 Changelog = "https://github.com/memtrust/memtrust/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-mem0 = ["mem0ai>=0.1.0"]
-langgraph = ["langgraph>=0.2.0"]
 chroma = ["chromadb>=0.5.0"]
-llamaindex = ["llama-index-core>=0.11.0"]
 qdrant = ["qdrant-client>=1.9.0"]
-langchain = ["langchain-core>=0.3.0"]
 pgvector = ["psycopg[binary]>=3.1"]
 pinecone = ["pinecone>=5.0"]
 otel = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
@@ -73,12 +69,8 @@ dev = [
     "pre-commit>=3.7",
 ]
 all = [
-    "mem0ai>=0.1.0",
-    "langgraph>=0.2.0",
     "chromadb>=0.5.0",
-    "llama-index-core>=0.11.0",
     "qdrant-client>=1.9.0",
-    "langchain-core>=0.3.0",
     "psycopg[binary]>=3.1",
     "pinecone>=5.0",
     "opentelemetry-api>=1.20.0",

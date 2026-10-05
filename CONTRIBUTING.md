@@ -28,17 +28,13 @@ All four must pass. CI runs them on Python 3.11–3.13.
 
 ## Design principles
 
-- **CLI is the front door.** Most users run `memtrust scan`. The Python API
-  (`protect()`, `check_write`) is how you prevent new problems.
-- **Find, fix, prevent.** Scan finds poisoned facts, hidden instructions, and
-  leaked secrets. The HTML report explains the fix. `protect()` blocks new ones
-  at write time.
+- **CLI is the front door.** Most users run `memtrust scan`.
+- **Find, then fix.** Scan finds poisoned facts, hidden instructions, and
+  leaked secrets. The HTML report explains the recommended action.
 - **Deterministic first.** Checks are cheap, offline, and fully functional
   with zero external services.
-- **Extension via Protocols, not inheritance.** New checks and backends
+- **Extension via Protocols, not inheritance.** New checks and scan sources
   should satisfy the relevant `typing.Protocol`.
-- **Core enforcement stays in the engine.** Revoked/expired/quarantined/
-  superseded filtering must not be relocatable into optional checks.
 - **Never log or store secrets.** Findings, reports, and telemetry must not
   include secret values. Scan snippets are masked.
 - **Scan connections are read-only.** Scan sources list and fetch; they never
@@ -86,14 +82,6 @@ method: `memtrust/checks/security/{injection,poisoning,secrets}/<method>.py`.
 3. Import the provider SDK lazily; add an optional extra in `pyproject.toml`.
 4. Wire it into `memtrust scan <name>` in `memtrust/cli.py`.
 5. Test against an in-process fake.
-
-## Adding a backend adapter
-
-1. Implement `add`/`search`/`get`/`delete` (and async variants if relevant).
-2. Import the provider SDK lazily; add an optional extra in `pyproject.toml`.
-3. Store the full record in provider metadata and reconstruct it on read so
-   status, expiry, and lineage survive the round-trip.
-4. Add it to the adapter conformance tests using a fake client.
 
 ## Commit / PR expectations
 

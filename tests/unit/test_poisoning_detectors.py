@@ -109,8 +109,6 @@ def test_filterrag_runs_on_search_with_the_query():
     store.add(MemoryRecord(id="poison", content=POISON))
     store.add(MemoryRecord(id="clean", content=CLEAN))
     guard = MemTrust(checks=[PoisoningCheck(detectors=[FilterRAGDetector()])])
-    memory = guard.protect(store)
-    assert [s.id for s in memory.search("OpenAI CEO", limit=10)] == ["clean"]
     result = guard.check_read(store.all(), query="OpenAI CEO")
     assert [f.record.id for f in result.filtered] == ["poison"]
     # Without a query the detector cannot judge and everything is served.

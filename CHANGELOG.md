@@ -8,15 +8,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Find, fix, prevent.** MemTrust is a scanner for agent memory: poisoned
-  facts, hidden instructions, and leaked secrets. The CLI is the front door
+- **Scan-only.** MemTrust is a scanner for agent memory: poisoned facts,
+  hidden instructions, and leaked secrets. The CLI is the front door
   (`memtrust scan chroma|qdrant|pgvector|pinecone|jsonl`). The HTML report
-  explains the fix (review / quarantine / delete, OWASP ASI06). `protect()`
-  blocks new problems at write time.
+  explains the fix (review / quarantine / delete, OWASP ASI06).
 - **Scan report** lists each finding with record id, type, agreeing
   detectors, a masked snippet, recommended action, and ASI06. Summary:
   total records, percentage flagged, findings by severity.
-- Secret findings recommend **delete** (writes are still refused).
+- Secret findings recommend **delete**.
 - Default pipeline is security only: secrets, injection, poisoning.
 
 ### Added
@@ -24,13 +23,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Read-only scan sources for **pgvector** and **Pinecone**, plus CLI
   scanners for Chroma, Qdrant, and JSONL. Connections never write.
   Records stream in batches; `--sample 10000` caps large stores.
-- `--report report.html`, `--json findings.json`, `--fail-on high`.
+- `--report report.html`, `--json findings.json`.
 
 ### Removed
 
 - Correctness checks: contradiction, duplication, freshness, generalization.
   `memtrust.checks.correctness` is gone. Scan no longer reports duplicate
   groups or stale/superseded facts as findings.
+- `protect()`, `ProtectedMemory`, `AsyncProtectedMemory`, write-time backend
+  adapters (`ChromaBackend`, `Mem0Backend`, …), `--fail-on`, and the
+  `memtrust check` command. The product is scan-based.
 
 - **Security checks are now check + detectors.** `memtrust.checks.security`
   is organised as a father class, `SecurityCheck`, with one subclass per
@@ -45,15 +47,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `MemTrust(checks=[...])` **replaces** a default check when a supplied check
   has the same `name`, so `InjectionCheck(detectors=[...])` slots into the
   pipeline instead of running next to the default.
-- `check_read(records, query=...)` and `ProtectedMemory.search(query)` pass
-  the retrieval query to read checks (`CheckContext.query`), and the rest of
-  the read set is exposed as `context.existing`, for retrieval-aware
-  detectors.
-- Detectors and the retrieval-aware read path are unchanged: `check_read`
-  and `ProtectedMemory.search` pass the query to read checks.
-- **Simplified API**: `check_write(content)`, `check_read(records)`,
-  `protect(...).add(content)` / `.search(query)` — no `source`, `scope`,
-  `tenant`, `trust`, or `authority` arguments.
+- `check_read(records, query=...)` passes the retrieval query to read
+  checks (`CheckContext.query`), and the rest of the read set is exposed as
+  `context.existing`, for retrieval-aware detectors.
+- **Simplified API**: `MemTrust().scan(...)` is the product entry point.
 - **Poisoning is content-based**: `PoisoningCheck` flags false
   security-relevant facts (disabled auth, attacker hosts, approval bypasses)
   instead of gating writes on source trust / authority.

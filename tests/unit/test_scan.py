@@ -122,12 +122,10 @@ def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys):
             str(html),
             "--json",
             str(findings),
-            "--fail-on",
-            "high",
         ]
     )
     out = capsys.readouterr().out
-    assert rc == 1
+    assert rc == 0
     assert "doc_9" in out and "persistent_instruction" in out
     assert "admin token" not in out
     payload = json.loads(findings.read_text(encoding="utf-8"))
@@ -140,25 +138,17 @@ def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys):
 
 def test_cli_scan_jsonl_clean_exit(tmp_path, capsys):
     path = _write_jsonl(tmp_path, [{"content": "Alice likes tea."}])
-    rc = main(["scan", "jsonl", path, "--fail-on", "high"])
+    rc = main(["scan", "jsonl", path])
     out = capsys.readouterr().out
     assert rc == 0
     assert "0 flagged" in out
-
-
-def test_cli_scan_fail_on_none(tmp_path):
-    path = _write_jsonl(
-        tmp_path,
-        [{"id": "s", "content": f"Deploy key {AWS_KEY}"}],
-    )
-    assert main(["scan", "jsonl", path, "--fail-on", "none"]) == 0
 
 
 def test_cli_scan_sample(tmp_path, capsys):
     rows = [{"id": f"r{i}", "content": "Alice likes tea."} for i in range(5)]
     rows.append({"id": "late", "content": f"Deploy key {AWS_KEY}"})
     path = _write_jsonl(tmp_path, rows)
-    rc = main(["scan", "jsonl", path, "--sample", "3", "--fail-on", "low"])
+    rc = main(["scan", "jsonl", path, "--sample", "3"])
     out = capsys.readouterr().out
     assert rc == 0
     assert "Scanned 3 records" in out

@@ -14,7 +14,6 @@ from .enums import (
 from .finding import Finding
 from .memory import MemoryCandidate, MemoryRecord
 from .results import (
-    AddResult,
     FilteredMemory,
     ReadResult,
     RevocationReport,
@@ -25,7 +24,6 @@ from .results import (
 
 __all__ = [
     "Action",
-    "AddResult",
     "Category",
     "Decision",
     "FilteredMemory",

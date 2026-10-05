@@ -5,7 +5,7 @@ report is one file you can forward: totals, percentage flagged, findings
 by severity, masked snippets, recommended actions, OWASP ASI06.
 
 Run:  python examples/08_scan_store.py
-CLI:  memtrust scan jsonl export.jsonl --report report.html --json findings.json --fail-on high
+CLI:  memtrust scan jsonl export.jsonl --report report.html --json findings.json
 """
 
 from __future__ import annotations

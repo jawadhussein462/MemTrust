@@ -23,9 +23,15 @@ def _store_written_elsewhere() -> InMemoryBackend:
     return store
 
 
-def test_search_withholds_flagged_records_written_elsewhere():
-    memory = MemTrust().protect(_store_written_elsewhere())
-    assert [s.memory for s in memory.search("", limit=10)] == [CLEAN]
+def test_scan_flags_records_written_elsewhere():
+    report = MemTrust().scan(_store_written_elsewhere())
+    types = {f.id: f.type for f in report.findings}
+    assert types == {
+        "doc_0": "persistent_instruction",
+        "doc_1": "memory_poisoning",
+        "doc_2": "secret_detected",
+    }
+    assert "AKIAABCDEFGHIJKLMNOP" not in report.model_dump_json()
 
 
 def test_check_read_reports_why_each_record_was_withheld():
@@ -38,12 +44,6 @@ def test_check_read_reports_why_each_record_was_withheld():
         "doc_2": "secret_detected",
     }
     assert "AKIAABCDEFGHIJKLMNOP" not in str([f.model_dump() for f in result.findings])
-
-
-def test_get_withholds_flagged_record():
-    memory = MemTrust().protect(_store_written_elsewhere())
-    assert memory.get("doc_1") is None
-    assert memory.get("doc_3") is not None
 
 
 def test_read_checks_can_be_disabled_but_core_enforcement_stays():

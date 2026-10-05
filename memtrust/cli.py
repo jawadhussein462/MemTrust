@@ -1,8 +1,8 @@
-"""CLI front door: ``memtrust scan`` and ``memtrust check``.
+"""CLI: ``memtrust scan``.
 
 Scan finds poisoned facts, hidden instructions, and leaked secrets in an
-existing store. The HTML report explains the fix. ``protect()`` (and
-``memtrust check``) blocks new ones at write time.
+existing store. The HTML report explains the recommended fix. Connections
+are read-only.
 """
 
 from __future__ import annotations
@@ -16,9 +16,7 @@ from pathlib import Path
 from . import __version__
 from .client import MemTrust
 from .exceptions import ConfigurationError
-from .models.enums import Severity
 from .models.memory import MemoryRecord
-from .models.results import ScanReport
 from .scan import render_html
 from .scan.chroma import ChromaScanSource
 from .scan.jsonl import JsonlScanSource
@@ -27,7 +25,6 @@ from .scan.pinecone import PineconeScanSource
 from .scan.qdrant import QdrantScanSource
 from .scan.source import DEFAULT_BATCH_SIZE, ScanSource
 
-_FAIL_ON = ("none", "info", "low", "medium", "high", "critical")
 _DESCRIPTION = (
     "Scan your AI agent's memory for poisoned facts, hidden instructions "
     "and leaked secrets, locally, in minutes."
@@ -85,10 +82,6 @@ def _build_parser() -> argparse.ArgumentParser:
     jsonl = sources.add_parser("jsonl", help="Scan a JSON Lines export.")
     jsonl.add_argument("path", help="JSON Lines file, or '-' for stdin.")
     _add_scan_output_flags(jsonl)
-
-    check = sub.add_parser("check", help="Evaluate whether a memory should be written.")
-    check.add_argument("content", help="The candidate memory text.")
-    check.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
     return parser
 
 
@@ -105,12 +98,6 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         help="Write findings as JSON.",
     )
     parser.add_argument(
-        "--fail-on",
-        choices=_FAIL_ON,
-        default="high",
-        help="Exit 1 if any finding is at least this severity (default: high).",
-    )
-    parser.add_argument(
         "--sample",
         type=int,
         metavar="N",
@@ -123,16 +110,6 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_BATCH_SIZE,
         help=f"Records fetched per round-trip (default: {DEFAULT_BATCH_SIZE}).",
     )
-
-
-def _cmd_check(args: argparse.Namespace) -> int:
-    guard = MemTrust()
-    decision = guard.check_write(args.content)
-    if args.json:
-        print(decision.model_dump_json(indent=2))
-    else:
-        print(str(decision))
-    return 0 if decision.allowed else 1
 
 
 def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]:
@@ -200,21 +177,12 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"memtrust scan: {exc}", file=sys.stderr)
         return 2
-    return 1 if _should_fail(report, args.fail_on) else 0
-
-
-def _should_fail(report: ScanReport, threshold: str) -> bool:
-    if threshold == "none" or not report.findings:
-        return False
-    minimum = Severity(threshold)
-    return any(item.severity.is_at_least(minimum) for item in report.findings)
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    if args.command == "check":
-        return _cmd_check(args)
     if args.command == "scan":
         return _cmd_scan(args)
     parser.error("unknown command")  # pragma: no cover

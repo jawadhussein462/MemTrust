@@ -8,7 +8,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
-from .decision import Decision
 from .enums import Action, Severity
 from .finding import Finding
 from .memory import MemoryRecord
@@ -81,22 +80,6 @@ class ReadResult:
 
     def __getitem__(self, index: int) -> SafeMemory:
         return self.results[index]
-
-
-@dataclass
-class AddResult:
-    """Outcome of a protected write."""
-
-    allowed: bool
-    decision: Decision
-    record: MemoryRecord | None = None
-
-    def __bool__(self) -> bool:
-        return self.allowed
-
-    @property
-    def id(self) -> str | None:
-        return self.record.id if self.record is not None else None
 
 
 class RevocationReport(BaseModel):
@@ -212,7 +195,6 @@ def _count(n: int, noun: str) -> str:
 
 
 __all__ = [
-    "AddResult",
     "FilteredMemory",
     "ReadResult",
     "RevocationReport",

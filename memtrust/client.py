@@ -1,9 +1,8 @@
 """The public facade: :class:`MemTrust` and :class:`AsyncMemTrust`.
 
-``MemTrust`` is the one object most users import. It wires together the
-standard check pipeline so that ``MemTrust()`` just works, while every
-collaborator can be injected for advanced use. Sync and async are separate
-classes; a method is never sometimes-async.
+``MemTrust`` is the one object most users import. It wires the check
+pipeline so ``MemTrust().scan(...)`` just works. Sync and async are
+separate classes; a method is never sometimes-async.
 """
 
 from __future__ import annotations
@@ -12,16 +11,16 @@ from collections.abc import Iterable, Sequence
 from typing import Any
 
 from ._coerce import coerce_candidate, coerce_record, coerce_records
-from .backends.base import AsyncMemoryBackend, MemoryBackend, SupportsListing
+from .backends.base import SupportsListing
 from .checks import default_checks
 from .checks.base import MemoryCheck, normalize_check
 from .config import Config
 from .engine import Evaluator
-from .exceptions import BackendError, ConfigurationError
+from .exceptions import ConfigurationError
 from .models.decision import Decision
-from .models.enums import Action, MemoryStatus
+from .models.enums import MemoryStatus
 from .models.memory import MemoryCandidate, MemoryRecord
-from .models.results import AddResult, ReadResult, RevocationReport, SafeMemory, ScanReport
+from .models.results import ReadResult, RevocationReport, ScanReport
 from .telemetry import Tracer
 
 
@@ -67,10 +66,7 @@ class _ClientBase:
             checks=resolved_checks,
             tracer=tracer,
         )
-        # Lightweight index of records this guard has written (for revocation).
         self._index: dict[str, MemoryRecord] = {}
-
-    # -- pure evaluation (no backend I/O) --------------------------------------
 
     def _write_decision(
         self,
@@ -83,9 +79,6 @@ class _ClientBase:
 
     def _read_result(self, records: list, query: str | None = None) -> ReadResult:
         return self._evaluator.evaluate_read(coerce_records(records), query=query)
-
-    def _register(self, record: MemoryRecord) -> None:
-        self._index[record.id] = record
 
     def scan(self, source: SupportsListing | Iterable[Any]) -> ScanReport:
         """Find poisoned facts, hidden instructions, and leaked secrets.
@@ -107,8 +100,6 @@ class _ClientBase:
                 "a scan source, or an iterable of records."
             )
         return self._evaluator.scan(coerce_record(item) for item in items)
-
-    # -- revocation core (shared) ----------------------------------------------
 
     def _revoke_core(
         self, memory_id: str, pool: dict[str, MemoryRecord]
@@ -146,11 +137,7 @@ class _ClientBase:
     def _revocation_pool(self, records: list | None) -> dict[str, MemoryRecord]:
         if records is not None:
             return {r.id: r for r in coerce_records(records)}
-        pool = dict(self._index)
-        for protected in getattr(self, "_protected", []):
-            for rec in protected._all_records():
-                pool.setdefault(rec.id, rec)
-        return pool
+        return dict(self._index)
 
 
 class MemTrust(_ClientBase):
@@ -158,15 +145,9 @@ class MemTrust(_ClientBase):
 
     Example::
 
-        guard = MemTrust()
-        decision = guard.check_write("...")
-        if not decision.allowed:
-            print(decision.reason)
+        report = MemTrust().scan(records)
+        print(report)
     """
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self._protected: list[ProtectedMemory] = []
 
     def check_write(
         self,
@@ -174,40 +155,23 @@ class MemTrust(_ClientBase):
         *,
         existing: list[MemoryRecord] | None = None,
     ) -> Decision:
-        """Evaluate whether a memory should be written."""
+        """Evaluate a candidate memory (used by tests and custom check wiring)."""
         _, decision = self._write_decision(content, existing)
         return decision
 
     def check_read(self, records: list, *, query: str | None = None) -> ReadResult:
-        """Filter records down to those safe to return.
-
-        Pass the retrieval ``query`` when you have it: retrieval-aware
-        poisoning detectors (FilterRAG) need it and are inert without it.
-        """
+        """Filter records down to those the checks would not flag."""
         return self._read_result(records, query)
-
-    def protect(self, backend: MemoryBackend) -> ProtectedMemory:
-        """Wrap a memory backend so reads/writes are checked automatically."""
-        protected = ProtectedMemory(self, backend)
-        self._protected.append(protected)
-        return protected
 
     def revoke(self, memory_id: str, *, records: list | None = None) -> RevocationReport:
         """Revoke a memory and anything derived from it; return an impact report."""
         pool = self._revocation_pool(records)
-        report, revoked = self._revoke_core(memory_id, pool)
-        for protected in self._protected:
-            for rid in revoked:
-                protected.set_status(rid, MemoryStatus.REVOKED)
+        report, _revoked = self._revoke_core(memory_id, pool)
         return report
 
 
 class AsyncMemTrust(_ClientBase):
     """Asynchronous entry point. Mirrors :class:`MemTrust`."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self._protected: list[AsyncProtectedMemory] = []
 
     async def check_write(
         self,
@@ -221,191 +185,16 @@ class AsyncMemTrust(_ClientBase):
     async def check_read(self, records: list, *, query: str | None = None) -> ReadResult:
         return self._read_result(records, query)
 
-    def protect(self, backend: AsyncMemoryBackend) -> AsyncProtectedMemory:
-        protected = AsyncProtectedMemory(self, backend)
-        self._protected.append(protected)
-        return protected
+    async def scan(self, source: SupportsListing | Iterable[Any]) -> ScanReport:
+        return super().scan(source)
 
     async def revoke(self, memory_id: str, *, records: list | None = None) -> RevocationReport:
         pool = self._revocation_pool(records)
-        report, revoked = self._revoke_core(memory_id, pool)
-        for protected in self._protected:
-            for rid in revoked:
-                await protected.set_status(rid, MemoryStatus.REVOKED)
+        report, _revoked = self._revoke_core(memory_id, pool)
         return report
-
-
-class ProtectedMemory:
-    """A memory backend with MemTrust checks applied to every read and write."""
-
-    def __init__(self, guard: MemTrust, backend: MemoryBackend) -> None:
-        self._guard = guard
-        self._backend = backend
-        self._evaluator = guard._evaluator
-        self._config = guard.config
-
-    def add(self, content: str | MemoryCandidate | dict) -> AddResult:
-        candidate = coerce_candidate(content)
-        neighbors = self._neighbors(candidate)
-        decision = self._evaluator.evaluate_write(candidate, existing=neighbors)
-        return self._apply_write(candidate, decision)
-
-    def search(self, query: str, *, limit: int = 10) -> list[SafeMemory]:
-        try:
-            raw = self._backend.search(query, limit=limit)
-        except Exception as exc:
-            raise BackendError(str(exc)) from exc
-        return self._evaluator.evaluate_read(raw, query=query).results
-
-    def get(self, memory_id: str) -> SafeMemory | None:
-        """Fetch a record by id, subject to read enforcement."""
-        record = self._backend.get(memory_id)
-        if record is None:
-            return None
-        result = self._evaluator.evaluate_read([record])
-        return result.results[0] if result.results else None
-
-    def delete(self, memory_id: str) -> None:
-        self._backend.delete(memory_id)
-
-    def set_status(self, memory_id: str, status: MemoryStatus) -> None:
-        setter = getattr(self._backend, "set_status", None)
-        if callable(setter):
-            setter(memory_id, status)
-            return
-        record = self._backend.get(memory_id)
-        if record is None:
-            return
-        stored = self._backend.add(record.model_copy(update={"status": status}))
-        if stored.id != memory_id:
-            # The backend assigned a new id instead of upserting: drop the old
-            # copy so it cannot keep surfacing with its previous status.
-            self._backend.delete(memory_id)
-
-    def _all_records(self) -> list[MemoryRecord]:
-        """Internal: raw records for the revocation index (not a read API)."""
-        lister = getattr(self._backend, "all", None)
-        return list(lister()) if callable(lister) else []
-
-    # -- internals --------------------------------------------------------------
-
-    def _neighbors(self, candidate: MemoryCandidate) -> list[MemoryRecord]:
-        if self._config.neighbor_limit <= 0:
-            return []
-        try:
-            return self._backend.search(
-                candidate.content,
-                limit=self._config.neighbor_limit,
-            )
-        except Exception:
-            return []
-
-    def _apply_write(self, candidate: MemoryCandidate, decision: Decision) -> AddResult:
-        if decision.allowed:
-            for old_id in decision.supersedes:
-                self.set_status(old_id, MemoryStatus.SUPERSEDED)
-            record = candidate.to_record(status=MemoryStatus.ACTIVE, supersedes=decision.supersedes)
-            stored = self._backend.add(record)
-            self._guard._register(stored)
-            return AddResult(allowed=True, decision=decision, record=stored)
-
-        if decision.action == Action.QUARANTINE and self._config.store_quarantined:
-            record = candidate.to_record(status=MemoryStatus.QUARANTINED)
-            stored = self._backend.add(record)
-            self._guard._register(stored)
-            return AddResult(allowed=False, decision=decision, record=stored)
-
-        if self._config.raise_on_blocked_add:
-            raise BackendError(f"Write blocked: {decision.reason}")
-        return AddResult(allowed=False, decision=decision, record=None)
-
-
-class AsyncProtectedMemory:
-    """Async counterpart of :class:`ProtectedMemory`."""
-
-    def __init__(self, guard: AsyncMemTrust, backend: AsyncMemoryBackend) -> None:
-        self._guard = guard
-        self._backend = backend
-        self._evaluator = guard._evaluator
-        self._config = guard.config
-
-    async def add(self, content: str | MemoryCandidate | dict) -> AddResult:
-        candidate = coerce_candidate(content)
-        neighbors = await self._neighbors(candidate)
-        decision = self._evaluator.evaluate_write(candidate, existing=neighbors)
-        return await self._apply_write(candidate, decision)
-
-    async def search(self, query: str, *, limit: int = 10) -> list[SafeMemory]:
-        try:
-            raw = await self._backend.search(query, limit=limit)
-        except Exception as exc:
-            raise BackendError(str(exc)) from exc
-        return self._evaluator.evaluate_read(raw, query=query).results
-
-    async def get(self, memory_id: str) -> SafeMemory | None:
-        """Fetch a record by id, subject to read enforcement."""
-        record = await self._backend.get(memory_id)
-        if record is None:
-            return None
-        result = self._evaluator.evaluate_read([record])
-        return result.results[0] if result.results else None
-
-    async def delete(self, memory_id: str) -> None:
-        await self._backend.delete(memory_id)
-
-    async def set_status(self, memory_id: str, status: MemoryStatus) -> None:
-        setter = getattr(self._backend, "set_status", None)
-        if callable(setter):
-            await setter(memory_id, status)
-            return
-        record = await self._backend.get(memory_id)
-        if record is None:
-            return
-        stored = await self._backend.add(record.model_copy(update={"status": status}))
-        if stored.id != memory_id:
-            # The backend assigned a new id instead of upserting: drop the old
-            # copy so it cannot keep surfacing with its previous status.
-            await self._backend.delete(memory_id)
-
-    def _all_records(self) -> list[MemoryRecord]:
-        """Internal: raw records for the revocation index (not a read API)."""
-        lister = getattr(self._backend, "all", None)
-        return list(lister()) if callable(lister) else []
-
-    async def _neighbors(self, candidate: MemoryCandidate) -> list[MemoryRecord]:
-        if self._config.neighbor_limit <= 0:
-            return []
-        try:
-            return await self._backend.search(
-                candidate.content,
-                limit=self._config.neighbor_limit,
-            )
-        except Exception:
-            return []
-
-    async def _apply_write(self, candidate: MemoryCandidate, decision: Decision) -> AddResult:
-        if decision.allowed:
-            for old_id in decision.supersedes:
-                await self.set_status(old_id, MemoryStatus.SUPERSEDED)
-            record = candidate.to_record(status=MemoryStatus.ACTIVE, supersedes=decision.supersedes)
-            stored = await self._backend.add(record)
-            self._guard._register(stored)
-            return AddResult(allowed=True, decision=decision, record=stored)
-
-        if decision.action == Action.QUARANTINE and self._config.store_quarantined:
-            record = candidate.to_record(status=MemoryStatus.QUARANTINED)
-            stored = await self._backend.add(record)
-            self._guard._register(stored)
-            return AddResult(allowed=False, decision=decision, record=stored)
-
-        if self._config.raise_on_blocked_add:
-            raise BackendError(f"Write blocked: {decision.reason}")
-        return AddResult(allowed=False, decision=decision, record=None)
 
 
 __all__ = [
     "AsyncMemTrust",
-    "AsyncProtectedMemory",
     "MemTrust",
-    "ProtectedMemory",
 ]

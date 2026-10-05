@@ -1,20 +1,13 @@
 """MemTrust — scan agent memory for poisoned facts, hidden instructions, and leaked secrets.
 
-Find, fix, prevent: ``memtrust scan`` finds problems, the HTML report explains
-the fix, and ``protect()`` blocks new ones at write time.
-
-    memtrust scan chroma --path ./chroma_db --collection agent_memory
-    memtrust scan jsonl export.jsonl --report report.html --json findings.json --fail-on high
-
-    from memtrust import MemTrust
-    guard = MemTrust()
-    memory = guard.protect(backend)
+memtrust scan chroma --path ./chroma_db --collection agent_memory
+memtrust scan jsonl export.jsonl --report report.html --json findings.json
 """
 
 from __future__ import annotations
 
 from .checks.base import check
-from .client import AsyncMemTrust, AsyncProtectedMemory, MemTrust, ProtectedMemory
+from .client import AsyncMemTrust, MemTrust
 from .config import Config
 from .exceptions import (
     BackendError,
@@ -23,7 +16,6 @@ from .exceptions import (
 )
 from .models import (
     Action,
-    AddResult,
     Category,
     Decision,
     Finding,
@@ -43,9 +35,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "Action",
-    "AddResult",
     "AsyncMemTrust",
-    "AsyncProtectedMemory",
     "BackendError",
     "Category",
     "Config",
@@ -58,7 +48,6 @@ __all__ = [
     "MemoryRecord",
     "MemoryRelationship",
     "MemoryStatus",
-    "ProtectedMemory",
     "ReadResult",
     "RevocationReport",
     "Risk",

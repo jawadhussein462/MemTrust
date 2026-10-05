@@ -32,14 +32,5 @@ class Config(BaseModel):
         default=20, ge=0, description="Max existing records fetched to compare a candidate against."
     )
 
-    # Protected-backend behaviour
-    store_quarantined: bool = Field(
-        default=True,
-        description="Persist quarantined writes with QUARANTINED status instead of dropping.",
-    )
-    raise_on_blocked_add: bool = Field(
-        default=False, description="If True, protected .add raises when a write is blocked."
-    )
-
 
 __all__ = ["Config"]
