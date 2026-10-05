@@ -24,17 +24,10 @@ class MemoryCandidate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     content: str
-    excerpt: str | None = Field(
-        default=None,
-        description="Optional raw text the memory was derived from.",
-    )
     metadata: dict[str, object] = Field(default_factory=dict)
     id: str | None = Field(default=None, description="Optional caller-proposed id.")
     derived_from: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_utcnow)
-    expires_at: datetime | None = None
-    valid_from: datetime | None = None
-    valid_until: datetime | None = None
 
     def to_record(
         self,
@@ -42,7 +35,6 @@ class MemoryCandidate(BaseModel):
         id: str | None = None,
         content: str | None = None,
         status: MemoryStatus = MemoryStatus.ACTIVE,
-        supersedes: list[str] | None = None,
     ) -> MemoryRecord:
         """Materialize this candidate into a persisted record."""
         record_id = id or self.id or _new_id("mem")
@@ -52,10 +44,6 @@ class MemoryCandidate(BaseModel):
             status=status,
             created_at=self.created_at,
             updated_at=_utcnow(),
-            expires_at=self.expires_at,
-            valid_from=self.valid_from,
-            valid_until=self.valid_until,
-            supersedes=list(supersedes or []),
             derived_from=list(self.derived_from),
             metadata=dict(self.metadata),
         )
@@ -71,28 +59,8 @@ class MemoryRecord(BaseModel):
     status: MemoryStatus = MemoryStatus.ACTIVE
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
-    expires_at: datetime | None = None
-    valid_from: datetime | None = None
-    valid_until: datetime | None = None
-    supersedes: list[str] = Field(default_factory=list)
     derived_from: list[str] = Field(default_factory=list)
     metadata: dict[str, object] = Field(default_factory=dict)
-
-    def is_expired(self, now: datetime) -> bool:
-        if self.expires_at is not None and now >= self.expires_at:
-            return True
-        return self.valid_until is not None and now > self.valid_until
-
-    def is_not_yet_valid(self, now: datetime) -> bool:
-        return self.valid_from is not None and now < self.valid_from
-
-    def is_live(self, now: datetime) -> bool:
-        """Active, not expired, and within any validity window."""
-        return (
-            self.status == MemoryStatus.ACTIVE
-            and not self.is_expired(now)
-            and not self.is_not_yet_valid(now)
-        )
 
 
 __all__ = ["MemoryCandidate", "MemoryRecord"]

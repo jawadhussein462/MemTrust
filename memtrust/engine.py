@@ -1,7 +1,7 @@
 """The evaluation engine.
 
 Holds decision aggregation *and* the non-bypassable core enforcement
-(revoked/expired/quarantined/superseded filtering on read).
+(revoked/quarantined filtering on read).
 Pluggable checks run on top; they can add findings but cannot remove core
 protections. Checks declaring the ``read`` operation also run on every
 retrieved record that passes core enforcement, so poisoned or injected
@@ -152,7 +152,7 @@ class Evaluator:
                 query=query,
             )
             for record in records:
-                finding = self._core_read_finding(record, now)
+                finding = self._core_read_finding(record)
                 if finding is not None:
                     result.filtered.append(FilteredMemory(record=record, finding=finding))
                     result.findings.append(finding)
@@ -186,9 +186,6 @@ class Evaluator:
                     id=record.id,
                     derived_from=list(record.derived_from),
                     created_at=record.created_at,
-                    expires_at=record.expires_at,
-                    valid_from=record.valid_from,
-                    valid_until=record.valid_until,
                 )
                 findings = self._run_checks(checks, candidate, ctx)
                 snippet = mask_snippet(record.content)
@@ -219,13 +216,10 @@ class Evaluator:
             id=record.id,
             derived_from=list(record.derived_from),
             created_at=record.created_at,
-            expires_at=record.expires_at,
-            valid_from=record.valid_from,
-            valid_until=record.valid_until,
         )
         return self._run_checks(self.read_checks, candidate, ctx)
 
-    def _core_read_finding(self, record: MemoryRecord, now: datetime) -> Finding | None:
+    def _core_read_finding(self, record: MemoryRecord) -> Finding | None:
         """Non-bypassable read enforcement; returns a Finding if withheld."""
         if record.status == MemoryStatus.REVOKED:
             return Finding(
@@ -241,30 +235,6 @@ class Evaluator:
                 category=Category.SECURITY,
                 severity=Severity.HIGH,
                 message="Memory is quarantined.",
-                check="core",
-            )
-        if record.status == MemoryStatus.SUPERSEDED:
-            return Finding(
-                code="memory_superseded",
-                category=Category.CORRECTNESS,
-                severity=Severity.LOW,
-                message="Memory has been superseded by a newer version.",
-                check="core",
-            )
-        if record.is_expired(now):
-            return Finding(
-                code="memory_expired",
-                category=Category.CORRECTNESS,
-                severity=Severity.LOW,
-                message="Memory has expired.",
-                check="core",
-            )
-        if record.is_not_yet_valid(now):
-            return Finding(
-                code="memory_not_yet_valid",
-                category=Category.CORRECTNESS,
-                severity=Severity.LOW,
-                message="Memory is not yet valid.",
                 check="core",
             )
         return None
@@ -318,21 +288,12 @@ def aggregate(findings: list[Finding]) -> Decision:
 
     action = max((_finding_action(f) for f in findings), key=lambda a: a.precedence)
 
-    supersedes: list[str] = []
-    if action.is_allowed:
-        for f in findings:
-            if f.recommended_action == Action.SUPERSEDE:
-                ids = f.evidence.get("supersedes", [])
-                if isinstance(ids, list):
-                    supersedes.extend(str(i) for i in ids)
-
     return Decision(
         allowed=action.is_allowed,
         action=action,
         recommended_action=action,
         risk=risk,
         findings=findings,
-        supersedes=sorted(set(supersedes)),
     )
 
 

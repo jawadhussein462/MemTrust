@@ -26,8 +26,8 @@ The product is oriented around three security checks:
 
 ### What MemTrust enforces reliably (deterministic)
 
-- **Filtering** of revoked, expired, quarantined, and superseded memories on
-  read (core engine, non-bypassable by customizing the check list).
+- **Filtering** of revoked and quarantined memories on read (core engine,
+  non-bypassable by customizing the check list).
 - **Secret values** are never included in findings, scan reports, or telemetry;
   secret-bearing writes are blocked (recommended action: delete).
 - **Critical violations** (poisoning, injection) are blocked by default.

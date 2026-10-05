@@ -27,9 +27,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- Correctness checks: contradiction, duplication, freshness, generalization.
-  `memtrust.checks.correctness` is gone. Scan no longer reports duplicate
-  groups or stale/superseded facts as findings.
+- Correctness, end to end: contradiction, duplication, freshness,
+  generalization (`memtrust.checks.correctness`), `Category.CORRECTNESS`,
+  `MemoryRelationship`, `Action.SUPERSEDE`, `MemoryStatus.SUPERSEDED` /
+  `EXPIRED`, expiry/validity/`supersedes` fields, core findings for
+  superseded/expired/not-yet-valid records, `Config.neighbor_limit`,
+  `excerpt`, and `value_change`. Scan no longer reports duplicate groups or
+  stale/superseded facts.
 - `protect()`, `ProtectedMemory`, `AsyncProtectedMemory`, write-time backend
   adapters (`ChromaBackend`, `Mem0Backend`, …), `--fail-on`, and the
   `memtrust check` command. The product is scan-based.

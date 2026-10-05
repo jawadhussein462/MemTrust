@@ -6,7 +6,6 @@ from .decision import Decision
 from .enums import (
     Action,
     Category,
-    MemoryRelationship,
     MemoryStatus,
     Risk,
     Severity,
@@ -30,7 +29,6 @@ __all__ = [
     "Finding",
     "MemoryCandidate",
     "MemoryRecord",
-    "MemoryRelationship",
     "MemoryStatus",
     "ReadResult",
     "RevocationReport",

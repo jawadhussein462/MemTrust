@@ -24,12 +24,8 @@ class Config(BaseModel):
         default=True,
         description=(
             "Run read-capable checks (secrets, injection, poisoning) on every retrieved "
-            "record and withhold flagged ones. Core status/expiry filtering always applies."
+            "record and withhold flagged ones. Core status filtering always applies."
         ),
-    )
-
-    neighbor_limit: int = Field(
-        default=20, ge=0, description="Max existing records fetched to compare a candidate against."
     )
 
 

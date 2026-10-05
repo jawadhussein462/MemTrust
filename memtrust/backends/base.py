@@ -5,12 +5,12 @@ Protocol can be protected. Sync and async variants are both first-class; a
 method never sometimes-returns-a-coroutine.
 
 Read enforcement depends on the backend returning each record's MemTrust
-state (``status``, validity window, ``derived_from``) exactly as it was
-written. A backend that stores only the text makes every record come back
-``ACTIVE``, so quarantined, superseded, and revoked memories would surface
-again. Backends should also implement :class:`SupportsSetStatus` to update
-status in place, and :class:`SupportsListing` to enable revocation and
-scanning across the whole store.
+state (``status``, ``derived_from``) exactly as it was written. A backend
+that stores only the text makes every record come back ``ACTIVE``, so
+quarantined and revoked memories would surface again. Backends should also
+implement :class:`SupportsSetStatus` to update status in place, and
+:class:`SupportsListing` to enable revocation and scanning across the whole
+store.
 """
 
 from __future__ import annotations

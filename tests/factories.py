@@ -11,11 +11,9 @@ from memtrust.context import CheckContext
 
 def make_candidate(
     content: str = "hello",
-    *,
-    excerpt: str | None = None,
     **fields: object,
 ) -> MemoryCandidate:
-    return MemoryCandidate(content=content, excerpt=excerpt, **fields)
+    return MemoryCandidate(content=content, **fields)
 
 
 def make_record(

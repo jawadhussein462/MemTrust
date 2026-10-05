@@ -30,9 +30,6 @@ class Decision(BaseModel):
     )
     risk: Risk = Field(default=Risk.NONE, description="Worst severity across findings.")
     findings: list[Finding] = Field(default_factory=list)
-    supersedes: list[str] = Field(
-        default_factory=list, description="Record IDs this write should supersede, if any."
-    )
     metadata: dict[str, object] = Field(default_factory=dict)
 
     # -- convenience properties -------------------------------------------------

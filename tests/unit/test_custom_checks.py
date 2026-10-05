@@ -29,7 +29,7 @@ def test_decorator_check_blocks():
 
 def test_plain_callable_is_normalized():
     def my_check(candidate, context):
-        return Finding(code="c", severity="low", category="correctness", message="m")
+        return Finding(code="c", severity="low", category="security", message="m")
 
     normalized = normalize_check(my_check)
     assert normalized.name == "my_check"

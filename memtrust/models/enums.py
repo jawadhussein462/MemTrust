@@ -68,14 +68,9 @@ _RISK_ORDER: dict[Risk, int] = {
 
 
 class Category(StrEnum):
-    """The concern a finding relates to.
-
-    Built-in checks are **security** (poisoning, injection, secrets). Custom
-    checks may still use ``correctness`` if they compare records to each other.
-    """
+    """The concern a finding relates to. Built-in checks are security only."""
 
     SECURITY = "security"
-    CORRECTNESS = "correctness"
 
 
 class Action(StrEnum):
@@ -88,7 +83,6 @@ class Action(StrEnum):
 
     ALLOW = "allow"
     ALLOW_WITH_WARNING = "allow_with_warning"
-    SUPERSEDE = "supersede"
     REVIEW = "review"
     QUARANTINE = "quarantine"
     DELETE = "delete"
@@ -105,47 +99,29 @@ class Action(StrEnum):
         return self in _ALLOWED_ACTIONS
 
 
-# Precedence: block > delete > quarantine > review > supersede > warn > allow
 _ACTION_PRECEDENCE: dict[Action, int] = {
     Action.ALLOW: 0,
     Action.ALLOW_WITH_WARNING: 1,
-    Action.SUPERSEDE: 2,
-    Action.REVIEW: 3,
-    Action.QUARANTINE: 4,
-    Action.DELETE: 5,
-    Action.BLOCK: 6,
+    Action.REVIEW: 2,
+    Action.QUARANTINE: 3,
+    Action.DELETE: 4,
+    Action.BLOCK: 5,
 }
 
-_ALLOWED_ACTIONS: frozenset[Action] = frozenset(
-    {Action.ALLOW, Action.ALLOW_WITH_WARNING, Action.SUPERSEDE}
-)
+_ALLOWED_ACTIONS: frozenset[Action] = frozenset({Action.ALLOW, Action.ALLOW_WITH_WARNING})
 
 
 class MemoryStatus(StrEnum):
     """Lifecycle state of a persisted :class:`~memtrust.MemoryRecord`."""
 
     ACTIVE = "active"
-    SUPERSEDED = "superseded"
     REVOKED = "revoked"
     QUARANTINED = "quarantined"
-    EXPIRED = "expired"
-
-
-class MemoryRelationship(StrEnum):
-    """How a candidate memory relates to an existing one."""
-
-    DUPLICATE = "duplicate"
-    COMPATIBLE = "compatible"
-    CONTRADICTS = "contradicts"
-    SUPERSEDES = "supersedes"
-    SPECIALIZES = "specializes"
-    UNRELATED = "unrelated"
 
 
 __all__ = [
     "Action",
     "Category",
-    "MemoryRelationship",
     "MemoryStatus",
     "Risk",
     "Severity",

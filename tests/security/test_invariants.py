@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
 from memtrust import Finding, MemoryRecord, MemTrust, check
 
 
@@ -28,16 +26,15 @@ def test_invariant_injection_is_blocked():
     assert "memory_poisoning" in codes
 
 
-def test_invariant_revoked_and_expired_not_returned():
+def test_invariant_revoked_and_quarantined_not_returned():
     guard = MemTrust()
-    now = datetime.now(UTC)
     revoked = MemoryRecord(id="r", content="x", status="revoked")
-    expired = MemoryRecord(id="e", content="y", expires_at=now - timedelta(days=1))
-    result = guard.check_read([revoked, expired])
+    quarantined = MemoryRecord(id="q", content="y", status="quarantined")
+    result = guard.check_read([revoked, quarantined])
     assert result.results == []
     codes = {fm.code for fm in result.filtered}
     assert "memory_revoked" in codes
-    assert "memory_expired" in codes
+    assert "memory_quarantined" in codes
 
 
 def test_invariant_secrets_not_in_findings():

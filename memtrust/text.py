@@ -147,40 +147,6 @@ def cosine(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-# Words that introduce a value: "limit is 100", "costs 40", "meeting at 3pm".
-_VALUE_CUES = frozenset(
-    {"is", "are", "was", "were", "equals", "costs", "cost", "at", "to", "of", "now", "by", "about"}
-)
-
-
-def _has_digit(token: str) -> bool:
-    return any(ch.isdigit() for ch in token)
-
-
-def value_change(a: str, b: str) -> bool:
-    """True if ``a`` and ``b`` state the same attribute with a different number.
-
-    "The API rate limit is 100 rps" vs "... is 500 rps" is a value change,
-    not a duplicate. The number must follow a value cue so that identifiers
-    ("order 123 shipped" vs "order 456 shipped") are not treated as values.
-    """
-    ta, tb = tokenize(a), tokenize(b)
-    nums_a = [t for t in ta if _has_digit(t)]
-    nums_b = [t for t in tb if _has_digit(t)]
-    if not nums_a or not nums_b or nums_a == nums_b:
-        return False
-    words_a = {t for t in ta if not _has_digit(t)} - _STOPWORDS
-    words_b = {t for t in tb if not _has_digit(t)} - _STOPWORDS
-    union = words_a | words_b
-    if not union or len(words_a & words_b) / len(union) < 0.8:
-        return False
-    first_a = next(i for i, t in enumerate(ta) if _has_digit(t))
-    first_b = next(i for i, t in enumerate(tb) if _has_digit(t))
-    return bool(set(ta[max(0, first_a - 3) : first_a]) & _VALUE_CUES) and bool(
-        set(tb[max(0, first_b - 3) : first_b]) & _VALUE_CUES
-    )
-
-
 __all__ = [
     "cosine",
     "deobfuscate",
@@ -191,5 +157,4 @@ __all__ = [
     "similarity",
     "token_set",
     "tokenize",
-    "value_change",
 ]

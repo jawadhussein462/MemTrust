@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
 import pytest
 
 from memtrust import (
@@ -32,15 +30,6 @@ def test_candidate_to_record_carries_lineage():
     r = c.to_record(id="mem_b")
     assert r.id == "mem_b"
     assert "mem_a" in r.derived_from
-
-
-def test_record_expiry_and_liveness():
-    now = datetime.now(UTC)
-    r = MemoryRecord(id="m", content="c", expires_at=now - timedelta(hours=1))
-    assert r.is_expired(now)
-    assert not r.is_live(now)
-    r2 = MemoryRecord(id="m2", content="c")
-    assert r2.is_live(now)
 
 
 def test_decision_convenience_properties():
