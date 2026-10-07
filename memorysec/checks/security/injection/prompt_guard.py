@@ -2,12 +2,12 @@
 
 A BERT-style classifier that labels text ``BENIGN`` or ``MALICIOUS``, where
 malicious means an explicit attempt to override prior instructions -- exactly
-the persistent-instruction pattern MemTrust screens memories for. The 86M
+the persistent-instruction pattern MemorySec screens memories for. The 86M
 model (mDeBERTa-base) handles non-English text; ``Llama-Prompt-Guard-2-22M``
 (DeBERTa-xsmall) is faster and English-focused. Both are gated on the Hub
 and have a 512-token window, so long content is scanned in chunks.
 
-    pip install "memtrust[hf]"
+    pip install "memorysec[hf]"
     InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()])
 """
 

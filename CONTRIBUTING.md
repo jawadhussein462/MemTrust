@@ -1,12 +1,12 @@
-# Contributing to MemTrust
+# Contributing to MemorySec
 
-Thanks for your interest in improving MemTrust. This project aims to be a
+Thanks for your interest in improving MemorySec. This project aims to be a
 familiar, well-typed, batteries-included toolkit — contributions should preserve
 that feel.
 
 ## Development setup
 
-MemTrust requires Python 3.11+. We recommend [uv](https://docs.astral.sh/uv/).
+MemorySec requires Python 3.11+. We recommend [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv venv
@@ -18,9 +18,9 @@ pre-commit install
 ## The toolchain
 
 ```bash
-ruff check memtrust tests examples      # lint
-ruff format memtrust tests examples     # format
-mypy memtrust                           # type-check
+ruff check memorysec tests examples      # lint
+ruff format memorysec tests examples     # format
+mypy memorysec                           # type-check
 pytest                                  # tests
 ```
 
@@ -28,7 +28,7 @@ All four must pass. CI runs them on Python 3.11–3.13.
 
 ## Design principles
 
-- **CLI is the front door.** Most users run `memtrust scan`.
+- **CLI is the front door.** Most users run `memorysec scan`.
 - **Find, then fix.** Scan finds poisoned facts, hidden instructions, and
   leaked secrets. The HTML report explains the recommended action.
 - **Deterministic first.** Checks are cheap, offline, and fully functional
@@ -45,7 +45,7 @@ All four must pass. CI runs them on Python 3.11–3.13.
 ## Adding a detector (a new method for an existing security concern)
 
 Security checks are organised as one folder per concern, one module per
-method: `memtrust/checks/security/{injection,poisoning,secrets}/<method>.py`.
+method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
 
 1. Subclass `BaseDetector` (or `HFTextClassifierDetector` /
    `HFTokenClassifierDetector` from `security/_hf.py` for Hugging Face
@@ -65,7 +65,7 @@ method: `memtrust/checks/security/{injection,poisoning,secrets}/<method>.py`.
 ## Adding a check
 
 1. Subclass `SecurityCheck` in a new
-   `memtrust/checks/security/<concern>/` folder with `name`, `default_code`,
+   `memorysec/checks/security/<concern>/` folder with `name`, `default_code`,
    `specs` (code -> `FindingSpec`), `default_detectors()`, and at least a
    heuristic detector.
 2. Return a list of `Finding`s; set `recommended_action` to `review`,
@@ -80,7 +80,7 @@ method: `memtrust/checks/security/{injection,poisoning,secrets}/<method>.py`.
 1. Implement `records(batch_size=..., sample=...)` as a read-only iterator.
 2. Stream in batches. Honour `--sample`. Never write.
 3. Import the provider SDK lazily; add an optional extra in `pyproject.toml`.
-4. Wire it into `memtrust scan <name>` in `memtrust/cli.py`.
+4. Wire it into `memorysec scan <name>` in `memorysec/cli.py`.
 5. Test against an in-process fake.
 
 ## Commit / PR expectations

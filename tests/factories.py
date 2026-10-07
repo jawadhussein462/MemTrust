@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from memtrust import MemoryCandidate, MemoryRecord
-from memtrust.config import Config
-from memtrust.context import CheckContext
+from memorysec import MemoryCandidate, MemoryRecord
+from memorysec.config import Config
+from memorysec.context import CheckContext
 
 
 def make_candidate(

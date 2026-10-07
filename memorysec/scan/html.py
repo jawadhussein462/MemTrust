@@ -180,12 +180,12 @@ def render_html(report: ScanReport) -> str:
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>MemTrust scan report</title>
+<title>MemorySec scan report</title>
 <style>{_CSS}</style>
 </head>
 <body>
 <main class="wrap">
-  <div class="kicker">MemTrust · local scan</div>
+  <div class="kicker">MemorySec · local scan</div>
   <h1>Memory security report</h1>
   <p class="lede">
     Poisoned facts, hidden instructions, and leaked secrets in {source}.

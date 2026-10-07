@@ -1,18 +1,18 @@
-"""MemTrust — scan agent memory for poisoned facts, hidden instructions, and leaked secrets.
+"""MemorySec — scan agent memory for poisoned facts, hidden instructions, and leaked secrets.
 
-memtrust scan chroma --path ./chroma_db --collection agent_memory
-memtrust scan jsonl export.jsonl --report report.html --json findings.json
+memorysec scan chroma --path ./chroma_db --collection agent_memory
+memorysec scan jsonl export.jsonl --report report.html --json findings.json
 """
 
 from __future__ import annotations
 
 from .checks.base import check
-from .client import AsyncMemTrust, MemTrust
+from .client import AsyncMemorySec, MemorySec
 from .config import Config
 from .exceptions import (
     BackendError,
     ConfigurationError,
-    MemTrustError,
+    MemorySecError,
 )
 from .models import (
     Action,
@@ -30,14 +30,14 @@ __version__ = "0.1.0"
 
 __all__ = [
     "Action",
-    "AsyncMemTrust",
+    "AsyncMemorySec",
     "BackendError",
     "Category",
     "Config",
     "ConfigurationError",
     "Finding",
-    "MemTrust",
-    "MemTrustError",
+    "MemorySec",
+    "MemorySecError",
     "MemoryCandidate",
     "MemoryRecord",
     "MemoryStatus",

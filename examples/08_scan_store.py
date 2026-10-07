@@ -5,15 +5,15 @@ report is one file you can forward: totals, percentage flagged, findings
 by severity, masked snippets, recommended actions, OWASP ASI06.
 
 Run:  python examples/08_scan_store.py
-CLI:  memtrust scan jsonl export.jsonl --report report.html --json findings.json
+CLI:  memorysec scan jsonl export.jsonl --report report.html --json findings.json
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from memtrust import MemoryRecord, MemTrust
-from memtrust.scan import render_html
+from memorysec import MemoryRecord, MemorySec
+from memorysec.scan import render_html
 
 
 def main() -> None:
@@ -30,7 +30,7 @@ def main() -> None:
         )
     ]
 
-    report = MemTrust().scan(records)
+    report = MemorySec().scan(records)
     print(report)
     path = Path("report.html")
     path.write_text(render_html(report), encoding="utf-8")

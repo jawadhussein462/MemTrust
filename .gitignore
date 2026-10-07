@@ -37,6 +37,6 @@ coverage.xml
 *.swp
 .DS_Store
 
-# MemTrust local artifacts
+# MemorySec local artifacts
 *.jsonl
 !examples/**/*.jsonl

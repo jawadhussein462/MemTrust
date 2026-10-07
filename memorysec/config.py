@@ -1,8 +1,8 @@
-"""Runtime configuration for a MemTrust instance.
+"""Runtime configuration for a MemorySec instance.
 
 Configuration is passed by dependency injection (constructor argument), never
 read from module-level globals. Every field has a safe default so that
-``MemTrust()`` works out of the box.
+``MemorySec()`` works out of the box.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""MemTrust domain models (Pydantic v2)."""
+"""MemorySec domain models (Pydantic v2)."""
 
 from __future__ import annotations
 

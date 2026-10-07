@@ -6,7 +6,7 @@ rather than jailbreak role-play, which suits memory screening; it does not
 cover non-English text. The same model powers LLM Guard's PromptInjection
 scanner.
 
-    pip install "memtrust[hf]"
+    pip install "memorysec[hf]"
 """
 
 from __future__ import annotations

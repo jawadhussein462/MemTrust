@@ -1,4 +1,4 @@
-"""Store audit: MemTrust.scan, HTML/JSON reports, and ``memtrust scan``."""
+"""Store audit: MemorySec.scan, HTML/JSON reports, and ``memorysec scan``."""
 
 from __future__ import annotations
 
@@ -6,12 +6,12 @@ import json
 
 import pytest
 
-from memtrust import MemoryRecord, MemTrust
-from memtrust.cli import main
-from memtrust.exceptions import ConfigurationError
-from memtrust.scan import render_html
-from memtrust.scan.jsonl import JsonlScanSource
-from memtrust.scan.mask import mask_snippet
+from memorysec import MemoryRecord, MemorySec
+from memorysec.cli import main
+from memorysec.exceptions import ConfigurationError
+from memorysec.scan import render_html
+from memorysec.scan.jsonl import JsonlScanSource
+from memorysec.scan.mask import mask_snippet
 
 AWS_KEY = "AKIAABCDEFGHIJKLMNOP"
 
@@ -33,7 +33,7 @@ def _store() -> list[MemoryRecord]:
 
 
 def test_scan_reports_security_findings_not_duplicates():
-    report = MemTrust().scan(_store())
+    report = MemorySec().scan(_store())
     assert report.total == 8
     types_by_id = {f.id: f.type for f in report.findings}
     assert types_by_id["poison"] == "memory_poisoning"
@@ -53,23 +53,23 @@ def test_scan_reports_security_findings_not_duplicates():
 
 
 def test_scan_never_includes_raw_secrets():
-    report = MemTrust().scan(_store())
+    report = MemorySec().scan(_store())
     blob = report.model_dump_json() + str(report) + render_html(report)
     assert AWS_KEY not in blob
 
 
 def test_scan_accepts_records_and_dicts():
-    report = MemTrust().scan([{"id": "a", "content": "Alice likes tea."}])
+    report = MemorySec().scan([{"id": "a", "content": "Alice likes tea."}])
     assert report.total == 1 and report.clean
 
 
 def test_scan_rejects_non_iterables():
     with pytest.raises(ConfigurationError):
-        MemTrust().scan("not a store")
+        MemorySec().scan("not a store")
 
 
 def test_html_report_has_summary_and_asi06(tmp_path):
-    report = MemTrust().scan(_store())
+    report = MemorySec().scan(_store())
     html = render_html(report)
     assert "Records scanned" in html
     assert "Percentage flagged" in html
@@ -159,5 +159,5 @@ def test_scan_source_object():
     source = JsonlScanSource(
         __import__("io").StringIO('{"id": "a", "content": "Alice likes tea."}\n')
     )
-    report = MemTrust().scan(source)
+    report = MemorySec().scan(source)
     assert report.total == 1 and report.clean

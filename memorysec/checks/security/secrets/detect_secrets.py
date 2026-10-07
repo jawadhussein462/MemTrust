@@ -8,7 +8,7 @@ maintained against real provider formats. This detector runs
 over each line of the candidate and reports the plugin *types* that fired,
 e.g. ``"AWS Access Key"``; secret values never leave the plugin objects.
 
-    pip install "memtrust[detect-secrets]"
+    pip install "memorysec[detect-secrets]"
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class DetectSecretsDetector(BaseDetector):
         except ImportError as exc:  # pragma: no cover - exercised only without the extra
             raise ConfigurationError(
                 "DetectSecretsDetector needs 'detect-secrets': "
-                "pip install 'memtrust[detect-secrets]'"
+                "pip install 'memorysec[detect-secrets]'"
             ) from exc
 
         def passes_entropy_limit(secret: object) -> bool:

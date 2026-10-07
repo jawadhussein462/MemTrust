@@ -1,6 +1,6 @@
-"""Exception hierarchy for MemTrust.
+"""Exception hierarchy for MemorySec.
 
-A scan returns a :class:`~memtrust.ScanReport` rather than raising.
+A scan returns a :class:`~memorysec.ScanReport` rather than raising.
 Exceptions are reserved for programmer errors, backend failures, and
 misconfiguration.
 """
@@ -8,23 +8,23 @@ misconfiguration.
 from __future__ import annotations
 
 
-class MemTrustError(Exception):
-    """Base class for all MemTrust errors."""
+class MemorySecError(Exception):
+    """Base class for all MemorySec errors."""
 
 
-class ConfigurationError(MemTrustError):
+class ConfigurationError(MemorySecError):
     """Invalid or contradictory configuration."""
 
 
-class BackendError(MemTrustError):
+class BackendError(MemorySecError):
     """A wrapped memory backend raised or misbehaved."""
 
 
-class IntegrationError(MemTrustError):
+class IntegrationError(MemorySecError):
     """An optional integration is unavailable or misconfigured."""
 
 
-class CheckError(MemTrustError):
+class CheckError(MemorySecError):
     """A check raised unexpectedly (surfaced when fail_closed is disabled)."""
 
 
@@ -33,5 +33,5 @@ __all__ = [
     "CheckError",
     "ConfigurationError",
     "IntegrationError",
-    "MemTrustError",
+    "MemorySecError",
 ]

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from memtrust import Finding, MemTrust, check
-from memtrust.checks.base import FunctionCheck, normalize_check
-from memtrust.exceptions import ConfigurationError
+from memorysec import Finding, MemorySec, check
+from memorysec.checks.base import FunctionCheck, normalize_check
+from memorysec.exceptions import ConfigurationError
 
 
 @check("no-passwords")
@@ -21,13 +21,13 @@ def no_passwords(candidate, context):
     return None
 
 
-def _types(guard: MemTrust, text: str) -> set[str]:
+def _types(guard: MemorySec, text: str) -> set[str]:
     report = guard.scan([{"id": "m", "content": text}])
     return {f.type for f in report.findings}
 
 
 def test_decorator_check_flags_password():
-    guard = MemTrust(checks=[no_passwords])
+    guard = MemorySec(checks=[no_passwords])
     assert "production_password" in _types(guard, "the password is x")
 
 
@@ -37,7 +37,7 @@ def test_plain_callable_is_normalized():
 
     normalized = normalize_check(my_check)
     assert normalized.name == "my_check"
-    guard = MemTrust(checks=[my_check])
+    guard = MemorySec(checks=[my_check])
     assert "c" in _types(guard, "hi")
 
 
@@ -59,7 +59,7 @@ def test_fail_closed_reports_check_error():
     def boom(candidate, context):
         raise RuntimeError("kaboom")
 
-    guard = MemTrust(checks=[boom], fail_closed=True)
+    guard = MemorySec(checks=[boom], fail_closed=True)
     assert "check_error" in _types(guard, "hi")
 
 
@@ -67,5 +67,5 @@ def test_fail_open_ignores_check_error():
     def boom(candidate, context):
         raise RuntimeError("kaboom")
 
-    guard = MemTrust(checks=[boom], fail_closed=False)
+    guard = MemorySec(checks=[boom], fail_closed=False)
     assert "check_error" not in _types(guard, "hi")

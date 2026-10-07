@@ -12,13 +12,13 @@ Each check runs a list of detectors and turns their detections into
 findings. The defaults are the offline heuristics; model and hosted
 detectors are opt-in::
 
-    from memtrust import MemTrust
-    from memtrust.checks.security import InjectionCheck
-    from memtrust.checks.security.injection import (
+    from memorysec import MemorySec
+    from memorysec.checks.security import InjectionCheck
+    from memorysec.checks.security.injection import (
         HeuristicInjectionDetector, PromptGuardDetector,
     )
 
-    guard = MemTrust(checks=[
+    guard = MemorySec(checks=[
         InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()]),
     ])
 """

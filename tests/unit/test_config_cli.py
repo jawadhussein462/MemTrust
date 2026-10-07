@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memtrust.config import Config
+from memorysec.config import Config
 
 
 def test_config_defaults():

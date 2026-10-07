@@ -21,11 +21,11 @@ jobs:
       - name: Install
         run: uv pip install --system -e ".[dev]"
       - name: Ruff (lint)
-        run: ruff check memtrust tests examples
+        run: ruff check memorysec tests examples
       - name: Ruff (format check)
-        run: ruff format --check memtrust tests examples
+        run: ruff format --check memorysec tests examples
       - name: mypy
-        run: mypy memtrust
+        run: mypy memorysec
 
   test:
     runs-on: ${{ matrix.os }}
@@ -79,4 +79,4 @@ jobs:
         run: |
           uv venv /tmp/clean
           uv pip install --python /tmp/clean/bin/python dist/*.whl
-          /tmp/clean/bin/python -c "import memtrust; print(memtrust.__version__)"
+          /tmp/clean/bin/python -c "import memorysec; print(memorysec.__version__)"

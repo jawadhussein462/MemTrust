@@ -1,7 +1,7 @@
-"""The public facade: :class:`MemTrust` and :class:`AsyncMemTrust`.
+"""The public facade: :class:`MemorySec` and :class:`AsyncMemorySec`.
 
-``MemTrust`` is the one object most users import. It wires the check
-pipeline so ``MemTrust().scan(...)`` just works. Sync and async are
+``MemorySec`` is the one object most users import. It wires the check
+pipeline so ``MemorySec().scan(...)`` just works. Sync and async are
 separate classes; a method is never sometimes-async.
 """
 
@@ -92,24 +92,24 @@ class _ClientBase:
         return self._evaluator.scan(records, query=query)
 
 
-class MemTrust(_ClientBase):
+class MemorySec(_ClientBase):
     """Synchronous entry point.
 
     Example::
 
-        report = MemTrust().scan(records)
+        report = MemorySec().scan(records)
         print(report)
     """
 
 
-class AsyncMemTrust(_ClientBase):
-    """Asynchronous entry point. Mirrors :class:`MemTrust`."""
+class AsyncMemorySec(_ClientBase):
+    """Asynchronous entry point. Mirrors :class:`MemorySec`."""
 
     async def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
         return super().scan(source, query=query)
 
 
 __all__ = [
-    "AsyncMemTrust",
-    "MemTrust",
+    "AsyncMemorySec",
+    "MemorySec",
 ]

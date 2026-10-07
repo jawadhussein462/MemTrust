@@ -1,6 +1,6 @@
 """Read-only scan sources: stream records in batches, never write.
 
-A scan source yields :class:`~memtrust.MemoryRecord` objects. Connections
+A scan source yields :class:`~memorysec.MemoryRecord` objects. Connections
 are used for listing and fetching only; ``--sample`` caps how many records
 are pulled from a large store.
 """
@@ -72,7 +72,7 @@ def quote_ident(name: str) -> str:
 
 
 def missing_extra(name: str, extra: str) -> ConfigurationError:
-    return ConfigurationError(f'{name} support requires `pip install "memtrust[{extra}]"`.')
+    return ConfigurationError(f'{name} support requires `pip install "memorysec[{extra}]"`.')
 
 
 def to_record(memory_id: Any, content: str) -> MemoryRecord:

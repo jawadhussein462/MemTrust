@@ -1,6 +1,6 @@
 """OWASP Agentic Top 10 — ASI06 Memory & Context Poisoning.
 
-Every MemTrust finding is a stored-memory issue under ASI06: poisoned facts,
+Every MemorySec finding is a stored-memory issue under ASI06: poisoned facts,
 hidden instructions, and leaked secrets that persist across agent turns.
 """
 

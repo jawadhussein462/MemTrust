@@ -3,13 +3,13 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "memtrust"
+name = "memorysec"
 version = "0.1.0"
 description = "Scan agent memory for poisoned facts, hidden instructions, and leaked secrets."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "MemTrust contributors" }]
+authors = [{ name = "MemorySec contributors" }]
 keywords = [
     "ai",
     "agents",
@@ -43,10 +43,10 @@ classifiers = [
 dependencies = ["pydantic>=2.7"]
 
 [project.urls]
-Homepage = "https://github.com/memtrust/memtrust"
-Documentation = "https://github.com/memtrust/memtrust#readme"
-Repository = "https://github.com/memtrust/memtrust"
-Changelog = "https://github.com/memtrust/memtrust/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/memorysec/memorysec"
+Documentation = "https://github.com/memorysec/memorysec#readme"
+Repository = "https://github.com/memorysec/memorysec"
+Changelog = "https://github.com/memorysec/memorysec/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 chroma = ["chromadb>=0.5.0"]
@@ -78,18 +78,18 @@ all = [
 ]
 
 [project.scripts]
-memtrust = "memtrust.cli:main"
+memorysec = "memorysec.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["memtrust"]
+packages = ["memorysec"]
 
 [tool.hatch.build.targets.sdist]
-include = ["memtrust", "README.md", "LICENSE", "CHANGELOG.md"]
+include = ["memorysec", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["memtrust", "tests"]
+src = ["memorysec", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -113,7 +113,7 @@ ignore = [
 "examples/**" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["memtrust"]
+known-first-party = ["memorysec"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -153,8 +153,8 @@ minversion = "8.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-filterwarnings = ["error::DeprecationWarning:memtrust.*"]
+filterwarnings = ["error::DeprecationWarning:memorysec.*"]
 
 [tool.coverage.run]
-source = ["memtrust"]
+source = ["memorysec"]
 branch = true

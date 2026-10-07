@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import pytest
 
-from memtrust import MemoryRecord, MemTrust
-from memtrust.checks.security import PoisoningCheck
-from memtrust.checks.security.poisoning import (
+from memorysec import MemoryRecord, MemorySec
+from memorysec.checks.security import PoisoningCheck
+from memorysec.checks.security.poisoning import (
     FilterRAGDetector,
     HeuristicPoisoningDetector,
     PerplexityDetector,
     TrustRAGDetector,
     freq_density,
 )
-from memtrust.exceptions import ConfigurationError
-from memtrust.text import cosine, rouge_l
+from memorysec.exceptions import ConfigurationError
+from memorysec.text import cosine, rouge_l
 from tests.factories import make_candidate, make_context, make_record
 
 # -- heuristic ------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ def test_filterrag_runs_on_scan_with_the_query():
         MemoryRecord(id="poison", content=POISON),
         MemoryRecord(id="clean", content=CLEAN),
     ]
-    guard = MemTrust(checks=[PoisoningCheck(detectors=[FilterRAGDetector()])])
+    guard = MemorySec(checks=[PoisoningCheck(detectors=[FilterRAGDetector()])])
     report = guard.scan(records, query="OpenAI CEO")
     assert [f.id for f in report.findings] == ["poison"]
     # Without a query the detector cannot judge and the batch is clean.
@@ -186,7 +186,7 @@ def test_trustrag_skips_self_in_a_scan_batch():
 def test_trustrag_flags_coordinated_records_on_scan():
     records = [MemoryRecord(id=f"p{i}", content=text) for i, text in enumerate(PARAPHRASES)]
     records.append(MemoryRecord(id="clean", content="Alice prefers annual billing."))
-    guard = MemTrust(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
+    guard = MemorySec(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
     report = guard.scan(records)
     assert {f.id for f in report.findings} == {"p0", "p1", "p2"}
     assert {f.type for f in report.findings} == {"poisoning_cluster"}

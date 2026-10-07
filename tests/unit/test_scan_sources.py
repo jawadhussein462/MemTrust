@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from memtrust.exceptions import ConfigurationError
-from memtrust.scan.chroma import ChromaScanSource
-from memtrust.scan.pgvector import PgVectorScanSource
-from memtrust.scan.pinecone import PineconeScanSource
-from memtrust.scan.qdrant import QdrantScanSource
-from memtrust.scan.source import quote_ident
+from memorysec.exceptions import ConfigurationError
+from memorysec.scan.chroma import ChromaScanSource
+from memorysec.scan.pgvector import PgVectorScanSource
+from memorysec.scan.pinecone import PineconeScanSource
+from memorysec.scan.qdrant import QdrantScanSource
+from memorysec.scan.source import quote_ident
 from tests.fakes import FakeChroma, FakePgConnection, FakePineconeIndex, FakeQdrant
 
 

@@ -8,11 +8,11 @@ Run:  python examples/02_injection.py
 
 from __future__ import annotations
 
-from memtrust import MemTrust
+from memorysec import MemorySec
 
 
 def main() -> None:
-    report = MemTrust().scan(
+    report = MemorySec().scan(
         [
             {
                 "id": "inject",

@@ -7,18 +7,18 @@ turns that into a vote.
 
 This example runs without downloading anything: the model detector is fed a
 stand-in classifier. Replace ``classify=`` with nothing (and
-``pip install "memtrust[hf]"``) to use the real Llama Prompt Guard 2 weights.
+``pip install "memorysec[hf]"``) to use the real Llama Prompt Guard 2 weights.
 
 Run:  python examples/09_model_detectors.py
 """
 
 from __future__ import annotations
 
-from memtrust import MemTrust
-from memtrust.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
-from memtrust.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
-from memtrust.checks.security.poisoning import FilterRAGDetector, HeuristicPoisoningDetector
-from memtrust.checks.security.secrets import EntropyDetector, HeuristicSecretsDetector
+from memorysec import MemorySec
+from memorysec.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
+from memorysec.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
+from memorysec.checks.security.poisoning import FilterRAGDetector, HeuristicPoisoningDetector
+from memorysec.checks.security.secrets import EntropyDetector, HeuristicSecretsDetector
 
 
 def stand_in_classifier(text: str) -> list[dict[str, object]]:
@@ -28,7 +28,7 @@ def stand_in_classifier(text: str) -> list[dict[str, object]]:
 
 
 def main() -> None:
-    guard = MemTrust(
+    guard = MemorySec(
         checks=[
             # Configured checks replace the defaults of the same name.
             InjectionCheck(

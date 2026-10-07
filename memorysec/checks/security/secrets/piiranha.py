@@ -11,7 +11,7 @@ By default only credential-like labels map to ``secret_detected`` (block).
 Pass ``labels=PIIRANHA_ALL_LABELS`` (or your own mapping) to also report
 personal data as ``pii_detected`` (review).
 
-    pip install "memtrust[hf]"
+    pip install "memorysec[hf]"
 """
 
 from __future__ import annotations

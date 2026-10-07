@@ -36,7 +36,7 @@ def _load_perplexity(model_id: str, device: str | None, max_length: int) -> Perp
         import torch
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise ConfigurationError(
-            "PerplexityDetector needs 'torch': pip install 'memtrust[hf]'"
+            "PerplexityDetector needs 'torch': pip install 'memorysec[hf]'"
         ) from exc
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_id)
     model = transformers.AutoModelForCausalLM.from_pretrained(model_id)

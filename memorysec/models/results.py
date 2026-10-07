@@ -28,7 +28,7 @@ class ScanFinding(BaseModel):
 
 
 class ScanReport(BaseModel):
-    """Audit of a memory store produced by :meth:`MemTrust.scan`.
+    """Audit of a memory store produced by :meth:`MemorySec.scan`.
 
     Counts every record examined and lists security findings (poisoned
     facts, hidden instructions, leaked secrets) with a recommended action.

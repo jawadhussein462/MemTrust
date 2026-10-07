@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from memtrust import MemTrust
-from memtrust.checks.security import SecretsCheck
-from memtrust.checks.security.secrets import (
+from memorysec import MemorySec
+from memorysec.checks.security import SecretsCheck
+from memorysec.checks.security.secrets import (
     GLINER2_ALL_LABELS,
     PIIRANHA_ALL_LABELS,
     PRESIDIO_ALL_LABELS,
@@ -24,8 +24,8 @@ from memtrust.checks.security.secrets import (
     secret_kinds,
     shannon_entropy,
 )
-from memtrust.exceptions import ConfigurationError
-from memtrust.models.enums import Action, Severity
+from memorysec.exceptions import ConfigurationError
+from memorysec.models.enums import Action, Severity
 from tests.factories import make_candidate, make_context
 
 KEY = "sk-abcdefghijklmnop1234567890"
@@ -214,7 +214,7 @@ def test_detect_secrets_reports_plugin_types_as_kinds():
 
 def test_stacked_secrets_check_blocks_and_never_leaks():
     token = "8fK2mQ9xLp4vRn7tWc1yZb6hJd3sGa0eUi5oPk"
-    guard = MemTrust(
+    guard = MemorySec(
         checks=[SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector()])]
     )
     report = guard.scan([{"id": "s", "content": f"Deploy with {KEY} and session {token}"}])

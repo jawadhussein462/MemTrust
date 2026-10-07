@@ -15,7 +15,7 @@ density at or above ``epsilon`` (paper default 0.2) are dropped.
 
 This implementation:
 
-* takes the query from ``context.query`` (``MemTrust.scan(records, query=...)``)
+* takes the query from ``context.query`` (``MemorySec.scan(records, query=...)``)
   or ``candidate.metadata["query"]``,
   and does nothing when neither is available;
 * optionally calls ``answer(query, text)`` -- any callable, e.g. a small

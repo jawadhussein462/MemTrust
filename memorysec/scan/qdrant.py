@@ -71,7 +71,7 @@ class QdrantScanSource:
             payload = getattr(point, "payload", None) or {}
             raw_id = getattr(point, "id", None)
         payload = payload if isinstance(payload, dict) else {}
-        memory_id = payload.get("memtrust_id") or payload.get("id") or raw_id or "qdrant_unknown"
+        memory_id = payload.get("memorysec_id") or payload.get("id") or raw_id or "qdrant_unknown"
         content = text_from_payload(payload.get("content"), payload, field=self._text_field)
         return to_record(memory_id, content)
 

@@ -13,7 +13,7 @@ Applied to memory: a candidate is suspicious when at least ``min_cluster``
 of its neighbours -- the other records in the scanned batch
 (``context.existing``)
 -- are near-paraphrases of it. Pass ``embed`` (``list[str] -> list[vector]``)
-to use cosine similarity as in the paper; without it MemTrust's lexical
+to use cosine similarity as in the paper; without it MemorySec's lexical
 similarity stands in for the embedding test, with the same threshold.
 Legitimate copies of the same fact trigger this too, which is why the
 finding asks for review rather than quarantine.

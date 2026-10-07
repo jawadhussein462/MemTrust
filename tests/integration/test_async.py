@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from memtrust import AsyncMemTrust
+from memorysec import AsyncMemorySec
 
 
 async def test_async_scan_flags_injection():
-    guard = AsyncMemTrust()
+    guard = AsyncMemorySec()
     report = await guard.scan(
         [
             {"id": "clean", "content": "Bob prefers dark mode."},
@@ -21,7 +21,7 @@ async def test_async_scan_flags_injection():
 
 
 async def test_async_scan_passes_query():
-    report = await AsyncMemTrust().scan(
+    report = await AsyncMemorySec().scan(
         [{"id": "m", "content": "Alice prefers annual billing."}],
         query="billing",
     )

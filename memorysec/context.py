@@ -24,7 +24,7 @@ class CheckContext:
     # Other records in the scanned batch, when the caller passed a sequence.
     # Retrieval-aware detectors (TrustRAG) use this; streaming scans leave it empty.
     existing: list[MemoryRecord] = field(default_factory=list)
-    # The retrieval query, when the caller passes ``MemTrust.scan(..., query=)``
+    # The retrieval query, when the caller passes ``MemorySec.scan(..., query=)``
     # or the record metadata carries one. FilterRAG uses it; most checks ignore it.
     query: str | None = None
 

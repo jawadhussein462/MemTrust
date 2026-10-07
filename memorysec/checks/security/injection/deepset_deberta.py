@@ -5,7 +5,7 @@ dataset, labelling text ``LEGIT`` or ``INJECTION``. Weaker than the Protect
 AI v2 model on public benchmarks but cheap and permissively licensed; useful
 as a second voter with ``InjectionCheck(min_detectors=2)``.
 
-    pip install "memtrust[hf]"
+    pip install "memorysec[hf]"
 """
 
 from __future__ import annotations

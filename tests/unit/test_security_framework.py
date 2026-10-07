@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from memtrust import MemTrust, check
-from memtrust.checks import default_checks
-from memtrust.checks.security import (
+from memorysec import MemorySec, check
+from memorysec.checks import default_checks
+from memorysec.checks.security import (
     BaseDetector,
     Detection,
     Detector,
@@ -16,10 +16,10 @@ from memtrust.checks.security import (
     SecretsCheck,
     SecurityCheck,
 )
-from memtrust.checks.security.base import merge_evidence
-from memtrust.checks.security.injection import HeuristicInjectionDetector
-from memtrust.exceptions import ConfigurationError
-from memtrust.models.enums import Action, Severity
+from memorysec.checks.security.base import merge_evidence
+from memorysec.checks.security.injection import HeuristicInjectionDetector
+from memorysec.exceptions import ConfigurationError
+from memorysec.models.enums import Action, Severity
 from tests.factories import make_candidate, make_context
 
 
@@ -141,13 +141,13 @@ def test_failing_detector_fails_closed_by_default():
     with pytest.raises(RuntimeError):
         chk.check(make_candidate("x"), make_context())
     # Through the engine this becomes a check_error finding.
-    guard = MemTrust(checks=[chk])
+    guard = MemorySec(checks=[chk])
     report = guard.scan([{"id": "m", "content": "hello"}])
     assert any(f.type == "check_error" for f in report.findings)
 
 
 def test_failing_detector_is_skipped_when_fail_open():
-    from memtrust.config import Config
+    from memorysec.config import Config
 
     chk = InjectionCheck(detectors=[Boom(), Always("ok")])
     findings = chk.check(make_candidate("x"), make_context(config=Config(fail_closed=False)))
@@ -155,7 +155,7 @@ def test_failing_detector_is_skipped_when_fail_open():
 
 
 def test_configured_check_replaces_default_of_same_name():
-    guard = MemTrust(checks=[InjectionCheck(detectors=[Never()])])
+    guard = MemorySec(checks=[InjectionCheck(detectors=[Never()])])
     names = [c.name for c in guard._evaluator.checks]
     assert names == [c.name for c in default_checks()]  # same pipeline shape
     # The heuristic would have flagged this; the replacement does not.
@@ -170,7 +170,7 @@ def test_other_checks_still_append():
     def extra(candidate, context):
         return None
 
-    guard = MemTrust(checks=[InjectionCheck(detectors=[Never()]), extra])
+    guard = MemorySec(checks=[InjectionCheck(detectors=[Never()]), extra])
     names = [c.name for c in guard._evaluator.checks]
     assert names.count("injection") == 1 and names[-1] == "extra"
 

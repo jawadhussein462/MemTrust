@@ -1,12 +1,12 @@
 """The evaluation engine.
 
 Runs the check pipeline over stored records and produces a
-:class:`~memtrust.ScanReport`. Checks can add findings; they cannot hide
+:class:`~memorysec.ScanReport`. Checks can add findings; they cannot hide
 ones another check raised. A check that raises becomes a ``check_error``
 finding when ``fail_closed`` is set.
 
-Shared by both :class:`~memtrust.MemTrust` and
-:class:`~memtrust.AsyncMemTrust`.
+Shared by both :class:`~memorysec.MemorySec` and
+:class:`~memorysec.AsyncMemorySec`.
 """
 
 from __future__ import annotations
@@ -95,8 +95,8 @@ class Evaluator:
                         )
                     )
             report.findings.sort(key=lambda item: item.severity.rank, reverse=True)
-            span.set_attribute("memtrust.scanned", report.total)
-            span.set_attribute("memtrust.flagged", report.flagged)
+            span.set_attribute("memorysec.scanned", report.total)
+            span.set_attribute("memorysec.flagged", report.flagged)
             span.set_attribute(ATTR_FINDING_COUNT, finding_count)
         return report
 

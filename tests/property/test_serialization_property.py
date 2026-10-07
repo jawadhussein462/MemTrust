@@ -5,8 +5,8 @@ from __future__ import annotations
 from hypothesis import given
 from hypothesis import strategies as st
 
-from memtrust import MemoryRecord
-from memtrust.models.enums import MemoryStatus
+from memorysec import MemoryRecord
+from memorysec.models.enums import MemoryStatus
 
 _STATUS = st.sampled_from([s.value for s in MemoryStatus])
 

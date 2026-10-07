@@ -7,7 +7,7 @@ versus 0.709 for the Protect AI DeBERTa baseline (Sentinel paper,
 arXiv:2506.05446). ModernBERT's long context (8k tokens) means fewer chunks
 for long documents.
 
-    pip install "memtrust[hf]"
+    pip install "memorysec[hf]"
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Enumerations used across MemTrust.
+"""Enumerations used across MemorySec.
 
 All enums subclass ``StrEnum`` so they serialize cleanly to JSON and compare
 equal to their string values (``Severity.HIGH == "high"``). Where an
@@ -13,7 +13,7 @@ from enum import StrEnum
 
 
 class Severity(StrEnum):
-    """Severity of an individual :class:`~memtrust.Finding`."""
+    """Severity of an individual :class:`~memorysec.Finding`."""
 
     INFO = "info"
     LOW = "low"
@@ -98,7 +98,7 @@ _ACTION_PRECEDENCE: dict[Action, int] = {
 
 
 class MemoryStatus(StrEnum):
-    """Lifecycle state of a persisted :class:`~memtrust.MemoryRecord`."""
+    """Lifecycle state of a persisted :class:`~memorysec.MemoryRecord`."""
 
     ACTIVE = "active"
     REVOKED = "revoked"

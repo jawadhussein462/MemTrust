@@ -7,7 +7,7 @@ requested at inference time, and it recognises 50+ types out of the box
 built on this model. Credential-like labels map to ``secret_detected`` by
 default; ``GLINER_ALL_LABELS`` adds contact/name labels as ``pii_detected``.
 
-    pip install "memtrust[gliner]"      # the ``gliner`` package
+    pip install "memorysec[gliner]"      # the ``gliner`` package
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ class GLiNERPIIDetector(BaseDetector):
             from gliner import GLiNER
         except ImportError as exc:  # pragma: no cover - exercised only without the extra
             raise ConfigurationError(
-                "GLiNERPIIDetector needs the 'gliner' package: pip install 'memtrust[gliner]'"
+                "GLiNERPIIDetector needs the 'gliner' package: pip install 'memorysec[gliner]'"
             ) from exc
         model = GLiNER.from_pretrained(self.model_id)
         return lambda text, labels: list(

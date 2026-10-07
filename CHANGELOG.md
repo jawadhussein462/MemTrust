@@ -8,9 +8,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Scan-only.** MemTrust is a scanner for agent memory: poisoned facts,
+- **Scan-only.** MemorySec is a scanner for agent memory: poisoned facts,
   hidden instructions, and leaked secrets. The CLI is the front door
-  (`memtrust scan chroma|qdrant|pgvector|pinecone|jsonl`). The HTML report
+  (`memorysec scan chroma|qdrant|pgvector|pinecone|jsonl`). The HTML report
   explains the fix (review / quarantine / delete, OWASP ASI06).
 - **Scan report** lists each finding with record id, type, agreeing
   detectors, a masked snippet, recommended action, and ASI06. Summary:
@@ -28,7 +28,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Removed
 
 - Correctness, end to end: contradiction, duplication, freshness,
-  generalization (`memtrust.checks.correctness`), `Category.CORRECTNESS`,
+  generalization (`memorysec.checks.correctness`), `Category.CORRECTNESS`,
   `MemoryRelationship`, `Action.SUPERSEDE`, `MemoryStatus.SUPERSEDED` /
   `EXPIRED`, expiry/validity/`supersedes` fields, core findings for
   superseded/expired/not-yet-valid records, `Config.neighbor_limit`,
@@ -36,11 +36,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stale/superseded facts.
 - `protect()`, `ProtectedMemory`, `AsyncProtectedMemory`, write-time backend
   adapters (`ChromaBackend`, `Mem0Backend`, …), `--fail-on`, and the
-  `memtrust check` command. The product is scan-based.
+  `memorysec check` command. The product is scan-based.
 - Write and read APIs: `check_write`, `check_read`, `protect`, `revoke`,
   `Decision`, `ReadResult`, `SafeMemory`, `FilteredMemory`,
   `RevocationReport`, `Config.read_checks`, and the write/read `operations`
-  split on checks. Evaluation is `MemTrust.scan`.
+  split on checks. Evaluation is `MemorySec.scan`.
 - Gate actions `allow`, `allow_with_warning`, and `block`, plus
   `Action.is_allowed` and `MemoryCandidate.to_record`. A scan recommends
   review, quarantine, or delete.
@@ -48,7 +48,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `add` / `search` / `get` / `delete`). Scan sources are the only store
   adapters.
 
-- **Security checks are now check + detectors.** `memtrust.checks.security`
+- **Security checks are now check + detectors.** `memorysec.checks.security`
   is organised as a father class, `SecurityCheck`, with one subclass per
   concern in its own folder (`injection/`, `poisoning/`, `secrets/`), and one
   `Detector` class per method inside each folder. A check runs its detectors,
@@ -58,13 +58,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   heuristic detector. The flat modules
   `checks/security/{injection,poisoning,secrets}.py` are gone;
   `InjectionCheck`, `PoisoningCheck`, `SecretsCheck` keep their import paths.
-- `MemTrust(checks=[...])` **replaces** a default check when a supplied check
+- `MemorySec(checks=[...])` **replaces** a default check when a supplied check
   has the same `name`, so `InjectionCheck(detectors=[...])` slots into the
   pipeline instead of running next to the default.
-- `MemTrust.scan(..., query=...)` passes the retrieval query to checks
+- `MemorySec.scan(..., query=...)` passes the retrieval query to checks
   (`CheckContext.query`). A concrete sequence is one batch: the other
   records are `context.existing`, for retrieval-aware detectors.
-- **Simplified API**: `MemTrust().scan(...)` is the product entry point.
+- **Simplified API**: `MemorySec().scan(...)` is the product entry point.
 - **Poisoning is content-based**: `PoisoningCheck` flags false
   security-relevant facts (disabled auth, attacker hosts, approval bypasses)
   instead of gating writes on source trust / authority.
@@ -83,29 +83,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Experimental `ZepBackend` and the `zep` extra.
 - Audit trail: `AuditEvent`, `AuditStore`, `InMemoryAuditStore`,
   `JSONLAuditStore`, `AuditEventType`, `audit_store`, `audit_content` config,
-  and the `memtrust audit` CLI.
+  and the `memorysec audit` CLI.
 - Policies: `Policy`, `PolicyEngine`, `PolicyCallable`, `PolicyError`,
-  `policy_matches`, `MemTrust(policies=...)`, and the `memtrust.policies`
+  `policy_matches`, `MemorySec(policies=...)`, and the `memorysec.policies`
   package. Domain rules belong in custom checks.
 - Injectable clock: `Clock`, `SystemClock`, `FixedClock`, and the
   `clock=` constructor argument. Evaluation uses wall-clock UTC.
-- Secret redaction: `memtrust.redaction`, `redact_secrets`, `Action.REWRITE`,
+- Secret redaction: `memorysec.redaction`, `redact_secrets`, `Action.REWRITE`,
   `Decision.rewritten_content`, and example `07_secret_redaction.py`.
   Secret-bearing writes are blocked; findings report kinds only.
 - Enforcement modes: `Mode`, `observe` / `warn` / `enforce`, `Config.mode`,
-  `MemTrust(mode=...)`, `Decision.mode`, and `Decision.enforced`. Decisions
+  `MemorySec(mode=...)`, `Decision.mode`, and `Decision.enforced`. Decisions
   always apply the recommended action.
-- Semantic analyzer: `memtrust.semantic`, `SemanticAnalyzer`,
+- Semantic analyzer: `memorysec.semantic`, `SemanticAnalyzer`,
   `HeuristicSemanticAnalyzer`, `LLMSemanticAnalyzer`, `openai_completer`,
-  `MemTrust(semantic_analyzer=...)`, `Config.llm_timeout`,
+  `MemorySec(semantic_analyzer=...)`, `Config.llm_timeout`,
   `Config.semantic_fail_open`, `Config.semantic_neighbor_limit` (renamed
   `neighbor_limit`), the `openai` extra, and `SPAN_SEMANTIC_COMPARE`.
   Contradiction, supersession, and generalization checks now use local
   heuristics directly.
 - Provenance model: `Provenance`, `Retrieval`, `MemoryRecord.provenance`,
   and `SafeMemory.provenance`. Lineage is `derived_from` on the record.
-- Time helper module `memtrust._time` (`utcnow`, `ensure_aware`).
-- Shared adapter codec `memtrust.integrations._codec` (`encode_record`,
+- Time helper module `memorysec._time` (`utcnow`, `ensure_aware`).
+- Shared adapter codec `memorysec.integrations._codec` (`encode_record`,
   `decode_record`). RAG adapters store document text by id.
 
 ### Added
@@ -130,9 +130,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     PII detectors default to credential labels (`secret_detected`, delete);
     `*_ALL_LABELS` mappings add the new `pii_detected` finding (high, review).
   - Extras: `hf`, `gliner2`, `gliner`, `presidio`, `detect-secrets`.
-  - `memtrust.text.rouge_l` and `memtrust.text.cosine`.
+  - `memorysec.text.rouge_l` and `memorysec.text.cosine`.
   - Example `09_model_detectors.py`.
-- **Store audit**: `MemTrust.scan(...)` and `memtrust scan` produce a
+- **Store audit**: `MemorySec.scan(...)` and `memorysec scan` produce a
   `ScanReport` (totals, percentage flagged, findings by severity). Each
   finding has record id, type, agreeing detectors, a masked snippet,
   recommended action, and OWASP ASI06. Example `08_scan_store.py`.
@@ -155,7 +155,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     4821"), Stripe and Anthropic keys, connection strings with passwords.
 - **Scan-time security checks.** Secrets, injection, and poisoning run on
   every stored record, including content that entered the store outside
-  MemTrust. Custom checks run during the same scan.
+  MemorySec. Custom checks run during the same scan.
 - **RAG adapters**: `ChromaBackend`, `QdrantBackend`, `LlamaIndexBackend`, and
   `LangChainVectorStoreBackend`, plus extras `chroma`, `qdrant`, `llamaindex`,
   and `langchain`.
@@ -169,7 +169,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   back `ACTIVE`: a quarantined poisoning attempt was returned by `search()`,
   and superseded facts kept surfacing. Record state (status, validity window,
   lineage, metadata) now round-trips through store metadata/payload via the
-  shared `memtrust.integrations._codec`; unreadable state fails closed as
+  shared `memorysec.integrations._codec`; unreadable state fails closed as
   `QUARANTINED`.
 - **Status changes duplicated records.** Every shipped adapter now implements
   `set_status` in place (Chroma `update`, Qdrant `set_payload`, Mem0
@@ -177,10 +177,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   id). The generic fallback deletes the stale copy when a backend assigns a
   new id instead of upserting.
 - **Qdrant adapter crashed against the real client** (plain-dict points,
-  non-UUID ids). It now sends `PointStruct`s and maps MemTrust ids to stable
+  non-UUID ids). It now sends `PointStruct`s and maps MemorySec ids to stable
   UUIDv5 point ids. Keyword-only mode ranks by similarity instead of
   substring match, so write-time neighbour lookup finds related facts.
-- **LlamaIndex adapter** returned node UUIDs instead of MemTrust ids, so
+- **LlamaIndex adapter** returned node UUIDs instead of MemorySec ids, so
   `get()` and supersession targeted the wrong records. The state JSON is
   excluded from embedding and LLM text.
 - **Mem0 2.x**: identity (`user_id` / `agent_id` / `run_id`) is now passed
@@ -200,12 +200,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.0] - 2026-09-12
 
-Initial public release. MemTrust v0.1 is an SDK/MVP: a vendor-neutral trust
+Initial public release. MemorySec v0.1 is an SDK/MVP: a vendor-neutral trust
 boundary between an AI agent and its memory backend.
 
 ### Added
 
-- **Facade**: `MemTrust` and `AsyncMemTrust` with `check_write`, `check_read`,
+- **Facade**: `MemorySec` and `AsyncMemorySec` with `check_write`, `check_read`,
   `protect`, and `revoke_source`.
 - **Domain models** (Pydantic v2): `Source`, `Scope`, `MemoryCandidate`,
   `MemoryRecord`, `Finding`, `Decision`, `Provenance`, `Policy`, plus enums for
@@ -232,9 +232,9 @@ boundary between an AI agent and its memory backend.
 - **Telemetry**: stdlib `logging` (no `basicConfig`) and optional OpenTelemetry
   tracing (injected, never global).
 - **Modes**: `observe`, `warn`, `enforce` (default).
-- **CLI**: `memtrust check` and `memtrust audit`.
+- **CLI**: `memorysec check` and `memorysec audit`.
 - Test suite (unit, integration, security-invariant, property-based) and six
   runnable examples.
 
-[Unreleased]: https://github.com/memtrust/memtrust/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/memtrust/memtrust/releases/tag/v0.1.0
+[Unreleased]: https://github.com/memorysec/memorysec/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/memorysec/memorysec/releases/tag/v0.1.0

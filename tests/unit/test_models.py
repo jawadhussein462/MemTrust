@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from memtrust import (
+from memorysec import (
     Action,
     MemoryCandidate,
     MemoryRecord,
     Severity,
 )
-from memtrust._coerce import coerce_candidate
-from memtrust.exceptions import ConfigurationError
+from memorysec._coerce import coerce_candidate
+from memorysec.exceptions import ConfigurationError
 
 
 def test_severity_and_action_ordering():

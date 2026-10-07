@@ -76,7 +76,7 @@ class PgVectorScanSource:
                 pass
         cursor_factory = conn.cursor
         try:
-            cursor = cursor_factory(name="memtrust_scan")
+            cursor = cursor_factory(name="memorysec_scan")
         except TypeError:
             cursor = cursor_factory()
         with cursor as cur:

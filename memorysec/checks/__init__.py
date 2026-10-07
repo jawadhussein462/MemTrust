@@ -5,7 +5,7 @@ appended without modifying the engine.
 
 Security checks are configured with detectors (heuristic by default; model
 and hosted detectors opt-in). Passing a configured ``InjectionCheck`` /
-``PoisoningCheck`` / ``SecretsCheck`` to ``MemTrust(checks=[...])`` replaces
+``PoisoningCheck`` / ``SecretsCheck`` to ``MemorySec(checks=[...])`` replaces
 the default check of the same name.
 """
 

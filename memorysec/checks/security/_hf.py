@@ -5,7 +5,7 @@ core package stays dependency-free. Every detector accepts an injectable
 inference callable (``classify=`` / ``tag=``) so it can be unit-tested, or
 backed by a remote inference endpoint, without loading weights.
 
-Install with ``pip install "memtrust[hf]"``.
+Install with ``pip install "memorysec[hf]"``.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def require_transformers() -> Any:
         import transformers
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise ConfigurationError(
-            "This detector needs the 'transformers' package: pip install 'memtrust[hf]'"
+            "This detector needs the 'transformers' package: pip install 'memorysec[hf]'"
         ) from exc
     return transformers
 

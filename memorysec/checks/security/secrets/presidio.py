@@ -11,7 +11,7 @@ Pass your own configured ``AnalyzerEngine`` as ``analyzer`` (custom
 recognisers, other languages); otherwise a default English engine is built
 on first use, which needs the ``en_core_web_lg`` spaCy model installed.
 
-    pip install "memtrust[presidio]"
+    pip install "memorysec[presidio]"
     python -m spacy download en_core_web_lg
 """
 
@@ -85,7 +85,7 @@ class PresidioDetector(BaseDetector):
                 from presidio_analyzer import AnalyzerEngine
             except ImportError as exc:  # pragma: no cover - exercised only without the extra
                 raise ConfigurationError(
-                    "PresidioDetector needs 'presidio-analyzer': pip install 'memtrust[presidio]'"
+                    "PresidioDetector needs 'presidio-analyzer': pip install 'memorysec[presidio]'"
                 ) from exc
             analyzer = AnalyzerEngine()
             self._analyzer = analyzer

@@ -12,7 +12,7 @@ Each :class:`SecurityCheck` owns a list of :class:`Detector` objects. A
 detector implements *one method* of finding the concern -- a regex heuristic,
 a Hugging Face classifier, a hosted API, a statistical filter -- and returns
 :class:`Detection` objects. The check turns detections into
-:class:`~memtrust.Finding` objects using a per-code table of severity, action,
+:class:`~memorysec.Finding` objects using a per-code table of severity, action,
 and message, merging evidence when several detectors agree.
 
 Detectors never see the decision: they report, the check maps, the engine

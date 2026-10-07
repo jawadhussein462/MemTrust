@@ -1,4 +1,4 @@
-"""CLI: ``memtrust scan``.
+"""CLI: ``memorysec scan``.
 
 Scan finds poisoned facts, hidden instructions, and leaked secrets in an
 existing store. The HTML report explains the recommended fix. Connections
@@ -14,7 +14,7 @@ from collections.abc import Iterator, Sequence
 from pathlib import Path
 
 from . import __version__
-from .client import MemTrust
+from .client import MemorySec
 from .exceptions import ConfigurationError
 from .models.memory import MemoryRecord
 from .scan import render_html
@@ -32,8 +32,8 @@ _DESCRIPTION = (
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="memtrust", description=_DESCRIPTION)
-    parser.add_argument("--version", action="version", version=f"memtrust {__version__}")
+    parser = argparse.ArgumentParser(prog="memorysec", description=_DESCRIPTION)
+    parser.add_argument("--version", action="version", version=f"memorysec {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     scan = sub.add_parser(
@@ -157,12 +157,12 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    guard = MemTrust()
+    guard = MemorySec()
     try:
         records, label = _records_for(args)
         report = guard.scan(records)
     except (OSError, ConfigurationError, ValueError) as exc:
-        print(f"memtrust scan: {exc}", file=sys.stderr)
+        print(f"memorysec scan: {exc}", file=sys.stderr)
         return 2
     report.source = label
     report.sample = args.sample
@@ -175,7 +175,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             Path(args.json_path).write_text(report.model_dump_json(indent=2), encoding="utf-8")
             print(f"Wrote JSON findings to {args.json_path}")
     except OSError as exc:
-        print(f"memtrust scan: {exc}", file=sys.stderr)
+        print(f"memorysec scan: {exc}", file=sys.stderr)
         return 2
     return 0
 

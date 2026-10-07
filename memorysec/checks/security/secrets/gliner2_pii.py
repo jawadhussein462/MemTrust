@@ -8,7 +8,7 @@ inference time* -- so the detector asks only for the labels it maps. Its
 map to ``secret_detected`` by default; contact and name labels are
 available as ``pii_detected`` through ``GLINER2_ALL_LABELS``.
 
-    pip install "memtrust[gliner2]"     # the ``gliner2`` package (CPU-friendly)
+    pip install "memorysec[gliner2]"     # the ``gliner2`` package (CPU-friendly)
 """
 
 from __future__ import annotations
@@ -89,7 +89,7 @@ class GLiNER2PIIDetector(BaseDetector):
             from gliner2 import GLiNER2
         except ImportError as exc:  # pragma: no cover - exercised only without the extra
             raise ConfigurationError(
-                "GLiNER2PIIDetector needs the 'gliner2' package: pip install 'memtrust[gliner2]'"
+                "GLiNER2PIIDetector needs the 'gliner2' package: pip install 'memorysec[gliner2]'"
             ) from exc
         model = GLiNER2.from_pretrained(self.model_id)
 

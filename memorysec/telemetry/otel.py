@@ -1,7 +1,7 @@
 """Optional OpenTelemetry-backed tracer.
 
-Requires ``pip install "memtrust[otel]"``. Inject the result into a MemTrust
-instance via ``MemTrust(tracer=otel_tracer())``.
+Requires ``pip install "memorysec[otel]"``. Inject the result into a MemorySec
+instance via ``MemorySec(tracer=otel_tracer())``.
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from . import Span, Tracer
 
 
 class OtelTracer:
-    """Adapts an OpenTelemetry tracer to the MemTrust :class:`Tracer` protocol."""
+    """Adapts an OpenTelemetry tracer to the MemorySec :class:`Tracer` protocol."""
 
     def __init__(self, tracer: object | None = None) -> None:
         try:
             from opentelemetry import trace
         except ImportError as exc:  # pragma: no cover - only without the extra
             raise IntegrationError(
-                "opentelemetry is not installed. Install with: pip install 'memtrust[otel]'"
+                "opentelemetry is not installed. Install with: pip install 'memorysec[otel]'"
             ) from exc
-        self._tracer = tracer if tracer is not None else trace.get_tracer("memtrust")
+        self._tracer = tracer if tracer is not None else trace.get_tracer("memorysec")
 
     @contextmanager
     def span(self, name: str, attributes: Mapping[str, object] | None = None) -> Iterator[Span]:
@@ -35,7 +35,7 @@ class OtelTracer:
 
 
 def otel_tracer(tracer: object | None = None) -> Tracer:
-    """Return a MemTrust-compatible tracer backed by OpenTelemetry."""
+    """Return a MemorySec-compatible tracer backed by OpenTelemetry."""
     return OtelTracer(tracer)
 
 

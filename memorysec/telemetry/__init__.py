@@ -4,7 +4,7 @@
   ``logging.basicConfig`` — configuring logging is the application's job.
 * Tracing is optional and injected (no globals): the default is a no-op
   tracer; an OpenTelemetry-backed tracer can be supplied via
-  :func:`memtrust.telemetry.otel.otel_tracer`.
+  :func:`memorysec.telemetry.otel.otel_tracer`.
 * Raw memory content and secrets are never placed on spans by default.
 """
 
@@ -16,14 +16,14 @@ from contextlib import AbstractContextManager, contextmanager
 from typing import Protocol, runtime_checkable
 
 # Span names.
-SPAN_SCAN = "memtrust.scan"
+SPAN_SCAN = "memorysec.scan"
 
 # Attribute keys (safe metadata only).
-ATTR_FINDING_COUNT = "memtrust.finding_count"
-ATTR_OPERATION = "memtrust.operation"
+ATTR_FINDING_COUNT = "memorysec.finding_count"
+ATTR_OPERATION = "memorysec.operation"
 
 
-def get_logger(name: str = "memtrust") -> logging.Logger:
+def get_logger(name: str = "memorysec") -> logging.Logger:
     """Return a library logger. The library never configures handlers."""
     return logging.getLogger(name)
 

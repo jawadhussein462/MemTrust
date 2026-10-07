@@ -8,7 +8,7 @@ Run:  python examples/06_custom_check.py
 
 from __future__ import annotations
 
-from memtrust import Finding, MemTrust, check
+from memorysec import Finding, MemorySec, check
 
 
 @check("no-passwords")
@@ -24,7 +24,7 @@ def no_passwords(candidate, context):
 
 
 def main() -> None:
-    guard = MemTrust(checks=[no_passwords])
+    guard = MemorySec(checks=[no_passwords])
     report = guard.scan(
         [{"id": "leak", "content": "The database password is hunter2, keep it handy."}]
     )

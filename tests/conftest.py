@@ -1,4 +1,4 @@
-"""Shared fixtures for the MemTrust test suite (builders live in factories.py)."""
+"""Shared fixtures for the MemorySec test suite (builders live in factories.py)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from memtrust import MemTrust
-from memtrust.context import CheckContext
+from memorysec import MemorySec
+from memorysec.context import CheckContext
 from tests.factories import make_context
 
 
@@ -17,8 +17,8 @@ def now() -> datetime:
 
 
 @pytest.fixture
-def guard() -> MemTrust:
-    return MemTrust()
+def guard() -> MemorySec:
+    return MemorySec()
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ right pick when memories contain snippets, configs, or logs rather than
 prose. The authors recommend ignoring keys shorter than nine characters and
 usernames (noisy); the default label map follows that advice. Gated model.
 
-    pip install "memtrust[hf]"
+    pip install "memorysec[hf]"
 """
 
 from __future__ import annotations

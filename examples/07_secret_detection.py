@@ -4,12 +4,12 @@ A JSONL export of agent memory is screened locally. Secret values never
 appear in the report.
 
 Run:  python examples/07_secret_detection.py
-CLI:  memtrust scan jsonl export.jsonl --report report.html
+CLI:  memorysec scan jsonl export.jsonl --report report.html
 """
 
 from __future__ import annotations
 
-from memtrust import MemoryRecord, MemTrust
+from memorysec import MemoryRecord, MemorySec
 
 
 def main() -> None:
@@ -17,7 +17,7 @@ def main() -> None:
         MemoryRecord(id="ok", content="Alice prefers annual billing."),
         MemoryRecord(id="leak", content="The billing API key is sk-abcdefghijklmnop1234567890."),
     ]
-    report = MemTrust().scan(records)
+    report = MemorySec().scan(records)
     print(report)
     for finding in report.findings:
         print(finding.id, finding.type, finding.action.value, finding.snippet)
