@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from memorysec.exceptions import ConfigurationError
-from memorysec.scan.chroma import ChromaScanSource
-from memorysec.scan.jsonl import JsonlScanSource
-from memorysec.scan.pgvector import PgVectorScanSource
-from memorysec.scan.pinecone import PineconeScanSource
-from memorysec.scan.qdrant import QdrantScanSource
-from memorysec.scan.source import parse_datetime, quote_ident
+from mimvo.exceptions import ConfigurationError
+from mimvo.scan.chroma import ChromaScanSource
+from mimvo.scan.jsonl import JsonlScanSource
+from mimvo.scan.pgvector import PgVectorScanSource
+from mimvo.scan.pinecone import PineconeScanSource
+from mimvo.scan.qdrant import QdrantScanSource
+from mimvo.scan.source import parse_datetime, quote_ident
 from tests.fakes import FakeChroma, FakePgConnection, FakePineconeIndex, FakeQdrant
 
 

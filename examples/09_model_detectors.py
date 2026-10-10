@@ -6,7 +6,7 @@ filter, or a hosted API. Detectors that agree are merged into one finding.
 `min_detectors` is the number that must agree before that finding is kept.
 
 This example downloads nothing. The model detector is given a stand-in
-classifier. Omit `classify=` and install `memorysec[hf]` to use the real
+classifier. Omit `classify=` and install `mimvo[hf]` to use the real
 Llama Prompt Guard 2 weights.
 
 Run it with `python examples/09_model_detectors.py`.
@@ -14,11 +14,11 @@ Run it with `python examples/09_model_detectors.py`.
 
 from __future__ import annotations
 
-from memorysec import MemorySec
-from memorysec.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
-from memorysec.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
-from memorysec.checks.security.poisoning import HeuristicPoisoningDetector, TrustRAGDetector
-from memorysec.checks.security.secrets import EntropyDetector, HeuristicSecretsDetector
+from mimvo import Mimvo
+from mimvo.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
+from mimvo.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
+from mimvo.checks.security.poisoning import HeuristicPoisoningDetector, TrustRAGDetector
+from mimvo.checks.security.secrets import EntropyDetector, HeuristicSecretsDetector
 
 
 def stand_in_classifier(text: str) -> list[dict[str, object]]:
@@ -38,7 +38,7 @@ def stand_in_classifier(text: str) -> list[dict[str, object]]:
 
 
 def main() -> None:
-    guard = MemorySec(
+    guard = Mimvo(
         checks=[
             # Configured checks replace the defaults of the same name.
             InjectionCheck(

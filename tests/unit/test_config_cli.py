@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from memorysec.config import Config
+from mimvo.config import Config
 
 
 def test_config_defaults():

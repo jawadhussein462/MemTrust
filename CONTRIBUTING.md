@@ -1,12 +1,12 @@
-# Contributing to MemorySec
+# Contributing to Mimvo
 
-Thanks for your interest in improving MemorySec. This project aims to be a
+Thanks for your interest in improving Mimvo. This project aims to be a
 familiar, well-typed, batteries-included toolkit — contributions should preserve
 that feel.
 
 ## Development setup
 
-MemorySec requires Python 3.11+. We recommend [uv](https://docs.astral.sh/uv/).
+Mimvo requires Python 3.11+. We recommend [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv venv
@@ -18,9 +18,9 @@ pre-commit install
 ## The toolchain
 
 ```bash
-ruff check memorysec tests examples      # lint
-ruff format memorysec tests examples     # format
-mypy memorysec                           # type-check
+ruff check mimvo tests examples      # lint
+ruff format mimvo tests examples     # format
+mypy mimvo                           # type-check
 pytest                                  # tests
 ```
 
@@ -28,7 +28,7 @@ All four must pass. CI runs them on Python 3.11–3.13.
 
 ## Design principles
 
-- **CLI is the front door.** Most users run `memorysec scan`.
+- **CLI is the front door.** Most users run `mimvo scan`.
 - **Find, then fix.** Scan finds poisoned facts, hidden instructions, and
   leaked secrets. The HTML report explains the recommended action.
 - **Deterministic first.** Checks are cheap, offline, and fully functional
@@ -45,7 +45,7 @@ All four must pass. CI runs them on Python 3.11–3.13.
 ## Adding a detector (a new method for an existing security concern)
 
 Security checks are organised as one folder per concern, one module per
-method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
+method: `mimvo/checks/security/{injection,poisoning,secrets}/<method>.py`.
 
 1. Subclass `BaseDetector` (or `HFTextClassifierDetector` /
    `HFTokenClassifierDetector` from `security/_hf.py` for Hugging Face
@@ -56,7 +56,7 @@ method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
    and pass `score=` (0 to 1) so findings get a confidence.
    A detector that overrides `detect` runs after the whole store is read;
    set `needs_corpus = False` if it only reads the candidate. Neighbour
-   searches go through `memorysec.corpus.corpus_of(context)`, never a loop
+   searches go through `mimvo.corpus.corpus_of(context)`, never a loop
    over `context.existing`.
 3. **Never** put matched text or secret values in evidence: kinds, labels,
    counts, and scores only.
@@ -76,14 +76,14 @@ method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
 ## Adding a check
 
 1. Subclass `SecurityCheck` in a new
-   `memorysec/checks/security/<concern>/` folder with `name`, `default_code`,
+   `mimvo/checks/security/<concern>/` folder with `name`, `default_code`,
    `specs` (code -> `FindingSpec`), `default_detectors()`, and at least a
    heuristic detector.
 2. Return a list of `Finding`s; set `recommended_action` to `review`,
    `quarantine`, or `delete`. Pick severities by the rule in the README: the
    text is the attack (high), model or behavioural evidence (medium), a
    statistical pattern across the store (low). Mirror them in
-   `memorysec/rules.py`; a test keeps the two in sync.
+   `mimvo/rules.py`; a test keeps the two in sync.
 3. Add it to `default_checks()` only if it should run by default (defaults
    must stay offline and dependency-free).
 4. Add unit tests under `tests/unit/` and, if security-relevant, an invariant
@@ -97,7 +97,7 @@ method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
    without importing it; add an optional extra in `pyproject.toml`.
 4. Return stored vectors when the store has them (the vector detectors need
    them), and keep the store's own ids.
-5. Wire it into `memorysec scan <name>` in `memorysec/cli.py`.
+5. Wire it into `mimvo scan <name>` in `mimvo/cli.py`.
 6. Test against an in-process fake in `tests/unit/`, and against the real
    client in `tests/integration/test_backends.py` (skipped when the client is
    not installed; the CI `backends` job installs it).

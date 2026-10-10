@@ -12,7 +12,7 @@ reports.
 
 ## Scope and threat model
 
-MemorySec is a **trust boundary** between an AI agent and a long-term
+Mimvo is a **trust boundary** between an AI agent and a long-term
 knowledge memory (RAG store, user memory, retrieved documents). It is
 designed to reduce the risk that persistent memory becomes poisoned, injected,
 or secret-bearing — [OWASP ASI06: Memory & Context Poisoning](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications/).
@@ -24,7 +24,7 @@ The product is oriented around three security checks:
 - **Injection** — hidden / persistent instructions.
 - **Secrets** — credentials and secret-bearing content.
 
-### What MemorySec enforces reliably (deterministic)
+### What Mimvo enforces reliably (deterministic)
 
 - **Secret values** are never included in findings, scan reports, or telemetry.
   Secret findings recommend **delete**.
@@ -49,7 +49,7 @@ production-perfect**. They produce strong *signals*, not guarantees.
   unusual secret formats. Do not rely on it as your only secret scanner.
 
 Each security check accepts additional **detectors** (classifier models,
-hosted APIs, statistical filters; see `memorysec.checks.security`). Notes on
+hosted APIs, statistical filters; see `mimvo.checks.security`). Notes on
 those:
 
 - Model detectors are only as good as their training distribution; every

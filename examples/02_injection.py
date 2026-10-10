@@ -8,11 +8,11 @@ Run it with `python examples/02_injection.py`.
 
 from __future__ import annotations
 
-from memorysec import MemorySec
+from mimvo import Mimvo
 
 
 def main() -> None:
-    report = MemorySec().scan(
+    report = Mimvo().scan(
         [
             {
                 "id": "inject",

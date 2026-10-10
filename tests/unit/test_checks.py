@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from memorysec.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
-from memorysec.models.enums import Action, Severity
+from mimvo.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
+from mimvo.models.enums import Action, Severity
 from tests.factories import make_candidate, make_context
 
 

@@ -7,12 +7,12 @@ Run it with `python examples/07_secret_detection.py`.
 
 The same scan from the command line:
 
-    memorysec scan jsonl export.jsonl --report report.html
+    mimvo scan jsonl export.jsonl --report report.html
 """
 
 from __future__ import annotations
 
-from memorysec import MemoryRecord, MemorySec
+from mimvo import MemoryRecord, Mimvo
 
 
 def main() -> None:
@@ -20,7 +20,7 @@ def main() -> None:
         MemoryRecord(id="ok", content="Alice prefers annual billing."),
         MemoryRecord(id="leak", content="The billing API key is sk-abcdefghijklmnop1234567890."),
     ]
-    report = MemorySec().scan(records)
+    report = Mimvo().scan(records)
     print(report)
     for finding in report.findings:
         print(finding.id, finding.type, finding.action.value, finding.snippet)

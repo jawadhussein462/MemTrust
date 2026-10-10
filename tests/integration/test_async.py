@@ -1,16 +1,16 @@
-"""Tests for `AsyncMemorySec.scan`."""
+"""Tests for `AsyncMimvo.scan`."""
 
 from __future__ import annotations
 
 import asyncio
 import time
 
-from memorysec import AsyncMemorySec
-from memorysec.checks.security import BaseDetector, InjectionCheck
+from mimvo import AsyncMimvo
+from mimvo.checks.security import BaseDetector, InjectionCheck
 
 
 async def test_async_scan_flags_injection():
-    guard = AsyncMemorySec()
+    guard = AsyncMimvo()
     report = await guard.scan(
         [
             {"id": "clean", "content": "Bob prefers dark mode."},
@@ -25,7 +25,7 @@ async def test_async_scan_flags_injection():
 
 
 async def test_async_scan_passes_query():
-    report = await AsyncMemorySec().scan(
+    report = await AsyncMimvo().scan(
         [{"id": "m", "content": "Alice prefers annual billing."}],
         query="billing",
     )
@@ -40,7 +40,7 @@ async def test_async_scan_does_not_block_the_event_loop():
             time.sleep(0.1)  # a model call that holds the thread
             return []
 
-    guard = AsyncMemorySec(checks=[InjectionCheck(detectors=[Slow()])])
+    guard = AsyncMimvo(checks=[InjectionCheck(detectors=[Slow()])])
     ticks = 0
 
     async def ticker():
@@ -67,6 +67,6 @@ async def test_async_scan_reads_async_iterables():
         def records(self):
             return records()
 
-    guard = AsyncMemorySec()
+    guard = AsyncMimvo()
     assert (await guard.scan(records())).flagged == 2
     assert (await guard.scan(AsyncSource())).total == 3

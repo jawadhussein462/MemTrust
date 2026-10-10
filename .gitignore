@@ -37,7 +37,7 @@ coverage.xml
 *.swp
 .DS_Store
 
-# MemorySec local artifacts (example and CLI outputs)
+# Mimvo local artifacts (example and CLI outputs)
 report.html
 results.sarif
 summary.md

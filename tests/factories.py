@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from memorysec import MemoryCandidate, MemoryRecord
-from memorysec.config import Config
-from memorysec.context import CheckContext
+from mimvo import MemoryCandidate, MemoryRecord
+from mimvo.config import Config
+from mimvo.context import CheckContext
 
 
 def make_candidate(
