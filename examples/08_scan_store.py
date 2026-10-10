@@ -1,14 +1,18 @@
 """Example 8: scan an existing store and write a report.
 
 The scan looks for poisoned facts, hidden instructions, and leaked secrets.
-The HTML report is one file you can forward: totals, percent flagged,
-findings by severity, masked snippets, recommended actions, and OWASP ASI06.
+The HTML report is one file you can forward: a verdict, the records to
+delete, quarantine, or review, findings by severity, and per finding the
+masked excerpt, evidence, fix steps, and OWASP/CWE references. The same
+findings are also written as SARIF (GitHub code scanning) and Markdown
+(CI job summaries).
 
 Run it with `python examples/08_scan_store.py`.
 
 The same scan from the command line:
 
-    memorysec scan jsonl export.jsonl --report report.html --json findings.json
+    memorysec scan jsonl export.jsonl --report report.html --json findings.json \
+        --sarif results.sarif --markdown summary.md
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ from pathlib import Path
 
 from memorysec import MemoryRecord, MemorySec
 from memorysec.models.results import format_scan_summary
-from memorysec.scan import render_html
+from memorysec.scan import render_html, render_markdown, render_sarif
 
 
 def main() -> None:
@@ -35,9 +39,20 @@ def main() -> None:
     ]
 
     report = MemorySec().scan(records)
+    report.source = "example:agent_memory"
     path = Path("report.html")
     path.write_text(render_html(report), encoding="utf-8")
-    print(format_scan_summary(report, report_path=path.name, color=True))
+    Path("results.sarif").write_text(render_sarif(report), encoding="utf-8")
+    Path("summary.md").write_text(render_markdown(report), encoding="utf-8")
+    print(
+        format_scan_summary(
+            report,
+            report_path=path.name,
+            color=True,
+            details=True,
+            outputs=[("SARIF", "results.sarif"), ("Markdown summary", "summary.md")],
+        )
+    )
 
 
 if __name__ == "__main__":

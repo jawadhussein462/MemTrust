@@ -46,10 +46,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/memorysec/memorysec"
-Documentation = "https://github.com/memorysec/memorysec#readme"
-Repository = "https://github.com/memorysec/memorysec"
-Changelog = "https://github.com/memorysec/memorysec/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/jawadhussein462/MemorySec"
+Documentation = "https://github.com/jawadhussein462/MemorySec#readme"
+Repository = "https://github.com/jawadhussein462/MemorySec"
+Changelog = "https://github.com/jawadhussein462/MemorySec/blob/main/CHANGELOG.md"
+Issues = "https://github.com/jawadhussein462/MemorySec/issues"
 
 [project.optional-dependencies]
 chroma = ["chromadb>=0.5.0"]

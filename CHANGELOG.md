@@ -6,6 +6,42 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Reports
+
+- **HTML report redesign.** Opens with a verdict ("3 of 5 records need
+  action") and a triage plan listing which records to delete, quarantine,
+  and review, each record once under its strongest action. Then a severity
+  breakdown, a filterable, expandable list of findings (masked excerpt,
+  evidence, numbered fix steps, OWASP and CWE links, fingerprint), the
+  rules that fired, and the checks and detectors that ran. Still one file
+  with no network access; adds dark mode, a phone layout, and print styles.
+  The footer no longer cites ASI06 for every report; each finding cites
+  its own OWASP item.
+- **SARIF 2.1.0** (`--sarif PATH`, `memorysec.scan.render_sarif`) for
+  GitHub code scanning: one rule per finding code with help text and
+  `security-severity`, one result per finding with a stable
+  `partialFingerprints` entry. Snippets are omitted unless
+  `include_snippets=True`.
+- **Markdown summary** (`--markdown PATH`, `render_markdown`) for
+  `$GITHUB_STEP_SUMMARY` and PR comments. Memory text is fenced so it
+  cannot inject links or HTML.
+- **`--fail-on SEVERITY`** exits `1` when a finding reaches that severity.
+  Without it the exit code is unchanged (`0` on a finished scan, `2` on
+  errors).
+- **Findings table in the terminal**: severity, rule, record id, action,
+  and OWASP item, worst first, capped at 20 rows. Memory text is never
+  printed. `-q/--quiet` keeps the old counts-only output.
+- **Rule catalogue** (`memorysec.rules`): title, explanation, remediation
+  steps, OWASP item, and CWE (CWE-312, CWE-359, CWE-1427, CWE-345,
+  CWE-1039) for every built-in finding code, shared by all formats and
+  tested against the checks' `specs`.
+- **JSON report** gains `schema_version` (`"1.1"`), `memorysec_version`,
+  `duration_seconds`, `checks` (check → detectors), `by_rule`, and
+  `by_action`. Each finding gains `check`, `title`, `remediation`, `cwe`,
+  masked `evidence`, and a stable `fingerprint` (hash of rule and record
+  id, never the text). Existing fields are unchanged.
+- `ScanReport.action_plan()` and `ScanReport.at_or_above(severity)`.
+
 ### Changed
 
 - **Scan-only.** MemorySec is a scanner for agent memory: poisoned facts,
