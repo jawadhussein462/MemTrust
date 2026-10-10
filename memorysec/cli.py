@@ -8,7 +8,8 @@ write to the store.
 
 Exit codes follow other security scanners: `0` when the scan finished,
 `1` when `--fail-on` is set and a finding reached that severity, `2` on a
-usage, connection, or file error.
+usage, connection, or file error, or when a check or detector failed so
+the scan is incomplete (unless `--allow-incomplete`).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from pathlib import Path
 
 from . import __version__
 from .client import MemorySec
-from .exceptions import ConfigurationError
+from .exceptions import ConfigurationError, MemorySecError
 from .models.enums import Severity
 from .models.memory import MemoryRecord
 from .models.results import ScanReport, format_scan_summary
@@ -145,6 +146,24 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--min-confidence",
+        type=_confidence,
+        metavar="SCORE",
+        default=None,
+        help=(
+            "With --fail-on, ignore findings whose confidence is below SCORE (0 to 1). "
+            "Unscored findings still count."
+        ),
+    )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help=(
+            "Exit 0 even when a check or detector failed (missing model, bad API key). "
+            "By default a failure makes the scan incomplete and exits 2."
+        ),
+    )
+    parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
@@ -163,6 +182,16 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_BATCH_SIZE,
         help=f"Records fetched per round-trip (default: {DEFAULT_BATCH_SIZE}).",
     )
+
+
+def _confidence(value: str) -> float:
+    try:
+        score = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number") from exc
+    if not 0.0 <= score <= 1.0:
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
+    return score
 
 
 def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]:
@@ -212,11 +241,11 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:
-    guard = MemorySec()
+    guard = MemorySec(fail_closed=not args.allow_incomplete)
     try:
         records, label = _records_for(args)
         report = guard.scan(records)
-    except (OSError, ConfigurationError, ValueError) as exc:
+    except (OSError, MemorySecError, ValueError) as exc:
         print(f"memorysec scan: {exc}", file=sys.stderr)
         return EXIT_ERROR
     report.source = label
@@ -254,14 +283,24 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         _summary(report, args, report_path=report_path, json_path=json_path, outputs=outputs),
         flush=True,
     )
+    if not report.complete and guard.config.fail_closed:
+        print(
+            f"memorysec scan: incomplete: {report.records_with_errors:,} records were not fully "
+            "checked because a check or detector failed (see above). Fix it and scan again, "
+            "or pass --allow-incomplete.",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
     if args.fail_on:
         threshold = Severity(args.fail_on)
-        failing = report.at_or_above(threshold)
+        failing = report.at_or_above(threshold, min_confidence=args.min_confidence)
         if failing:
             noun = "finding" if len(failing) == 1 else "findings"
+            gate = f"--fail-on {threshold.value}"
+            if args.min_confidence is not None:
+                gate += f" --min-confidence {args.min_confidence:g}"
             print(
-                f"memorysec scan: {len(failing):,} {noun} at {threshold.value} or above "
-                f"(--fail-on {threshold.value})",
+                f"memorysec scan: {len(failing):,} {noun} at {threshold.value} or above ({gate})",
                 file=sys.stderr,
             )
             return EXIT_FINDINGS
@@ -311,7 +350,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     Returns:
         `0` when the scan finished and any requested files were written.
         `1` when `--fail-on` is set and a finding reached that severity.
-        `2` when the arguments, the store, or a file write failed.
+        `2` when the arguments, the store, or a file write failed, or when
+        the scan is incomplete and `--allow-incomplete` was not passed.
     """
     parser = _build_parser()
     args = parser.parse_args(argv)

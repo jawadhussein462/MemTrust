@@ -98,11 +98,35 @@ def sarif_log(report: ScanReport, *, include_snippets: bool = False) -> dict[str
             "source": report.source,
             "recordsScanned": report.total,
             "recordsFlagged": report.flagged,
+            "recordsWithErrors": report.records_with_errors,
             "sample": report.sample,
             "checks": report.checks,
         },
     }
-    invocation: dict[str, Any] = {"executionSuccessful": True}
+    invocation: dict[str, Any] = {"executionSuccessful": report.complete}
+    if report.errors:
+        invocation["toolExecutionNotifications"] = [
+            {
+                "level": "error",
+                "descriptor": {"id": "check-failure"},
+                "message": {
+                    "text": (
+                        f"{error.check}"
+                        + (f"/{error.detector}" if error.detector else "")
+                        + f" raised {error.error_type} on {error.records} record(s); "
+                        "those records were not fully checked."
+                    )
+                },
+                "properties": {
+                    "check": error.check,
+                    "detector": error.detector,
+                    "errorType": error.error_type,
+                    "records": error.records,
+                    "recordIds": error.record_ids,
+                },
+            }
+            for error in report.errors
+        ]
     if report.generated_at is not None:
         invocation["startTimeUtc"] = _iso(report.generated_at)
         if report.duration_seconds is not None:
@@ -165,6 +189,7 @@ def _result(
             "action": item.action.value,
             "check": item.check,
             "detectors": item.detectors,
+            "confidence": item.confidence,
             "owasp": item.owasp,
             "cwe": item.cwe,
         },

@@ -56,8 +56,8 @@ class Rule:
     Attributes:
         id: The finding code, such as `"secret_detected"`. Stable.
         title: Short name shown as the finding's heading.
-        category: Which check raises it: `"secrets"`, `"injection"`,
-            `"poisoning"`, or `"core"`. `"custom"` for unknown codes.
+        category: Which check raises it: `"secrets"`, `"injection"`, or
+            `"poisoning"`. `"custom"` for unknown codes.
         severity: Default severity for the code.
         action: Default recommended action for the code.
         summary: One sentence saying what was found.
@@ -103,7 +103,6 @@ _OWASP = {
     "secrets": (LLM02_ID, LLM02_TITLE, LLM02_URL),
     "injection": (LLM01_ID, LLM01_TITLE, LLM01_URL),
     "poisoning": (ASI06_ID, ASI06_TITLE, ASI06_URL),
-    "core": (ASI06_ID, ASI06_TITLE, ASI06_URL),
 }
 _DEFAULT_CWE = {"injection": ("CWE-1427",), "poisoning": ("CWE-345",)}
 
@@ -163,7 +162,7 @@ _RULES: tuple[Rule, ...] = (
         "pii_detected",
         "secrets",
         title="Personal data",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.REVIEW,
         summary="The record contains personal data such as a name, email, or phone number.",
         remediation=(
@@ -193,7 +192,7 @@ _RULES: tuple[Rule, ...] = (
         "known_answer",
         "injection",
         title="Canary instruction dropped",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.REVIEW,
         summary=(
             "Placed next to a canary instruction, the record made a language model ignore it."
@@ -207,7 +206,7 @@ _RULES: tuple[Rule, ...] = (
         "embedding_injection",
         "injection",
         title="Injection embedding",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.REVIEW,
         summary="A classifier on the stored vector labels the record as prompt injection.",
         remediation=(
@@ -247,7 +246,7 @@ _RULES: tuple[Rule, ...] = (
         "poisoning_cluster",
         "poisoning",
         title="Poisoning cluster",
-        severity=Severity.HIGH,
+        severity=Severity.LOW,
         action=Action.REVIEW,
         summary=(
             "The record is one of several near-identical records, the pattern of "
@@ -262,7 +261,7 @@ _RULES: tuple[Rule, ...] = (
         "hub_record",
         "poisoning",
         title="Retrieval hub",
-        severity=Severity.HIGH,
+        severity=Severity.LOW,
         action=Action.REVIEW,
         summary=(
             "The record is a nearest neighbour of unusually many others, so it is "
@@ -277,7 +276,7 @@ _RULES: tuple[Rule, ...] = (
         "adversarial_text",
         "poisoning",
         title="Adversarial text",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.REVIEW,
         summary="Part of the record reads as machine-optimised rather than natural text.",
         remediation=(
@@ -290,7 +289,7 @@ _RULES: tuple[Rule, ...] = (
         "embedding_mismatch",
         "poisoning",
         title="Tampered vector",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.QUARANTINE,
         summary="The stored vector does not match a fresh embedding of the record text.",
         remediation=(
@@ -303,7 +302,7 @@ _RULES: tuple[Rule, ...] = (
         "temporal_contradiction",
         "poisoning",
         title="Contradicts older memory",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.REVIEW,
         summary="A newer record contradicts the older records around it.",
         remediation=_REVIEW_POISON,
@@ -312,25 +311,10 @@ _RULES: tuple[Rule, ...] = (
         "retrieval_flip",
         "poisoning",
         title="Answer flip",
-        severity=Severity.HIGH,
+        severity=Severity.MEDIUM,
         action=Action.REVIEW,
         summary="Removing the record changes the answers to questions about its topic.",
         remediation=_REVIEW_POISON,
-    ),
-    _rule(
-        "check_error",
-        "core",
-        title="Check error",
-        severity=Severity.CRITICAL,
-        action=Action.DELETE,
-        summary=(
-            "A check crashed on this record. Fail-closed mode reports it instead of scanning less."
-        ),
-        remediation=(
-            "Read the scan log for the detector error (missing model, network, API key).",
-            "Fix the detector and scan again before acting on this record.",
-            "Pass fail_closed=False only if a skipped check is acceptable.",
-        ),
     ),
 )
 

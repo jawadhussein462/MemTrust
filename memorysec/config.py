@@ -13,9 +13,13 @@ class Config(BaseModel):
     """Settings a check can read while it runs.
 
     Attributes:
-        fail_closed: When `True` (the default), a check that crashes becomes
-            a `check_error` finding instead of being skipped. When `False`,
-            the error is logged and that check contributes nothing.
+        fail_closed: What an incomplete scan means. A check or detector that
+            raises (missing model, network error, bad API key) is always
+            logged and listed in `ScanReport.errors`, and never becomes a
+            finding. With `True` (the default) that incompleteness counts as
+            a failure: the CLI exits `2`, `WriteGuard` refuses the write, and
+            `RetrieveGuard` drops the record. With `False` the parts that ran
+            are trusted on their own.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -23,7 +27,8 @@ class Config(BaseModel):
     fail_closed: bool = Field(
         default=True,
         description=(
-            "On internal check errors, report a check_error finding rather than skipping it."
+            "Treat an incomplete scan (a check or detector raised) as a failure: "
+            "the CLI exits 2 and the guards block the affected records."
         ),
     )
 

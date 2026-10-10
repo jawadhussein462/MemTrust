@@ -7,19 +7,20 @@ the hypothesis: a passage written to match many queries sits close to
 many stored memories and becomes an outlier hub.
 
 Needs stored embeddings on the scanned batch. Without them this detector
-returns nothing. The k-occurrence table is computed once per scan and
-cached on `context.cache`.
+returns nothing. The k-occurrence counts come from the scan's shared
+nearest-neighbour table, computed once per scan (and once per `k`).
+
+The score is 0.5 at the cutoff and reaches 1.0 at twice the cutoff, so a
+record barely over the line is reported one severity step lower.
 """
 
 from __future__ import annotations
 
 from ....context import CheckContext
+from ....corpus import corpus_of
 from ....exceptions import ConfigurationError
 from ....models.memory import MemoryCandidate
-from ....vectors import k_occurrence, with_embeddings
 from ..base import BaseDetector, Detection
-
-_CACHE_KEY = "hubness.k_occurrence"
 
 
 class HubnessDetector(BaseDetector):
@@ -30,6 +31,7 @@ class HubnessDetector(BaseDetector):
     """
 
     name = "hubness"
+    needs_corpus = True
 
     def __init__(
         self,
@@ -68,21 +70,13 @@ class HubnessDetector(BaseDetector):
         self.min_occurrence = min_occurrence
         self.min_corpus = min_corpus
 
-    def _counts(self, context: CheckContext) -> dict[str, int]:
-        cached = context.cache.get(_CACHE_KEY)
-        if isinstance(cached, dict):
-            return cached
-        counts = k_occurrence(context.existing, k=self.k)
-        context.cache[_CACHE_KEY] = counts
-        return counts
-
     def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
         """Score how often this memory is a neighbour of the others.
 
         Args:
             candidate: The memory being scanned. Needs `candidate.id` and
                 a stored `embedding`.
-            context: The materialised batch in `context.existing`.
+            context: The scan context.
 
         Returns:
             One `Detection` with code `hub_record` when this record's
@@ -90,18 +84,17 @@ class HubnessDetector(BaseDetector):
         """
         if candidate.id is None or not candidate.embedding:
             return []
-        embedded = with_embeddings(context.existing)
-        if len(embedded) < self.min_corpus:
+        corpus = corpus_of(context)
+        if corpus.active_total(with_vector=True) < self.min_corpus:
             return []
-        counts = self._counts(context)
-        occurrence = counts.get(candidate.id, 0)
+        occurrence = corpus.k_occurrence(self.k).get(candidate.id, 0)
         if self.min_occurrence is not None:
             cutoff = self.min_occurrence
         else:
             cutoff = int(self.factor * self.k)
         if occurrence < cutoff:
             return []
-        score = min(1.0, occurrence / max(cutoff, 1))
+        score = min(1.0, 0.5 + 0.5 * (occurrence - cutoff) / max(cutoff, 1))
         return [
             self.hit(
                 code="hub_record",

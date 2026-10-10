@@ -191,7 +191,7 @@ def test_markdown_summary(report):
     assert "| 🔴 Critical | 2 |" in md
     assert "### What to do" in md
     assert "**Delete 2 records**" in md
-    assert "| Severity | Finding | Record | Action | OWASP |" in md
+    assert "| Severity | Finding | Record | Action | Confidence | OWASP |" in md
     assert "<details>" in md and "</details>" in md
 
 
@@ -212,7 +212,7 @@ def test_markdown_neutralises_hostile_content():
     assert "``a\\|b`c``" in md  # pipe escaped, backtick cannot close the span
     assert "`````text\n[click me](https://evil.example)" in md  # fence outlasts content
     table_row = next(line for line in md.splitlines() if line.startswith("| 🟠 high"))
-    assert table_row.count(" | ") == 4
+    assert table_row.count(" | ") == 5
 
 
 def test_markdown_truncates_and_handles_clean():

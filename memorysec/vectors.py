@@ -1,9 +1,8 @@
 """Nearest-neighbour helpers over stored embeddings.
 
-Corpus detectors (TrustRAG, hubness, NLI, embedding consistency) should use
-the store's vectors and a k-NN lookup, not pairwise Python string similarity.
-These functions are the shared primitive. They do not talk to a store; the
-caller already loaded the records.
+These work on a list of records you already hold. During a scan, detectors
+use `memorysec.corpus.Corpus` instead, which packs the vectors and computes
+one shared nearest-neighbour table; `k_occurrence` here delegates to it.
 """
 
 from __future__ import annotations
@@ -19,8 +18,9 @@ def as_floats(value: object) -> list[float] | None:
     """Turn a store vector into a Python list of floats.
 
     Args:
-        value: A list or tuple of numbers, or an array with `.tolist()`.
-            `None` and empty sequences become `None`.
+        value: A list or tuple of numbers, an array with `.tolist()`, or the
+            text form pgvector returns when no vector adapter is registered
+            (`"[0.1,0.2,0.3]"`). `None` and empty sequences become `None`.
 
     Returns:
         The values as `float`, or `None` when `value` is missing or not a
@@ -28,6 +28,11 @@ def as_floats(value: object) -> list[float] | None:
     """
     if value is None:
         return None
+    if isinstance(value, str):
+        text = value.strip()
+        if len(text) < 2 or text[0] not in "[({" or text[-1] not in "])}":
+            return None
+        value = [part for part in text[1:-1].split(",") if part.strip()]
     if hasattr(value, "tolist"):
         value = value.tolist()
     if isinstance(value, dict):
@@ -126,18 +131,14 @@ def k_occurrence(
         `{record_id: count}` for every record that had an embedding.
         Missing ids were skipped.
     """
-    indexed = with_embeddings(records, active_only=active_only)
-    counts = {record.id: 0 for record in indexed}
-    for record in indexed:
-        assert record.embedding is not None
-        for neighbour, _score in nearest(
-            record.embedding,
-            indexed,
-            k=k,
-            exclude_id=record.id,
-            active_only=False,
-        ):
-            counts[neighbour.id] = counts.get(neighbour.id, 0) + 1
+    from .corpus import Corpus
+
+    corpus = Corpus.from_records(list(records))
+    if active_only:
+        return corpus.k_occurrence(k)
+    counts: dict[str, int] = {}
+    for row, count in corpus.knn(k, active_only=False).occurrence().items():
+        counts[corpus.ids[row]] = counts.get(corpus.ids[row], 0) + count
     return counts
 
 

@@ -183,6 +183,9 @@ h2 { font-size: 22px; letter-spacing: -0.01em; margin: 0 0 6px; }
   max-width: 48em;
 }
 .allclear strong { color: var(--ok); }
+.notice.incomplete { background: var(--critical-tint); }
+.notice.incomplete ul { margin: 8px 0 0; padding-left: 20px; }
+.notice.incomplete code { font: 13px var(--mono); }
 
 /* Severity breakdown. */
 .spread { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 28px; }
@@ -506,6 +509,11 @@ def render_html(report: ScanReport) -> str:
 
 
 def _headline(report: ScanReport) -> str:
+    if report.clean and not report.complete:
+        return (
+            f"Scan incomplete: {report.records_with_errors:,} of {_records(report.total)} "
+            "not fully checked"
+        )
     if report.clean:
         return f"No problems found in {_records(report.total)}"
     return f"{report.flagged:,} of {_records(report.total)} need action"
@@ -515,7 +523,13 @@ def _masthead(report: ScanReport, title: str) -> str:
     source = (
         f"Memory scan of <code>{escape(report.source)}</code>" if report.source else "Memory scan"
     )
-    if report.clean:
+    if report.clean and not report.complete:
+        lede = (
+            "Nothing was flagged, but a check or detector failed, so some records were not "
+            "fully checked. A failure is not a finding: fix it (see below) and scan again "
+            "before acting on this report."
+        )
+    elif report.clean:
         lede = (
             "None of the checks matched a poisoned fact, hidden instruction, or leaked "
             "secret. The default detectors are heuristics, so see what was checked below "
@@ -543,6 +557,20 @@ def _masthead(report: ScanReport, title: str) -> str:
             f'<p class="notice">Only the first {report.sample:,} records were scanned '
             "(<code>--sample</code>). Records after that were not checked.</p>"
         )
+    if report.errors:
+        items = "".join(
+            f"<li><code>{escape(e.check)}{'/' + escape(e.detector) if e.detector else ''}</code> "
+            f"raised <code>{escape(e.error_type)}</code> on {_records(e.records)}"
+            + (f": {escape(e.message)}" if e.message else "")
+            + "</li>"
+            for e in report.errors[:10]
+        )
+        notice += (
+            f'<div class="notice incomplete" role="alert"><strong>Scan incomplete.</strong> '
+            f"{_records(report.records_with_errors)} were not fully checked because a check or "
+            f"detector failed. Records are not flagged for this; fix the failure and scan "
+            f"again.<ul>{items}</ul></div>"
+        )
     return f"""
 <header>
   <p class="brand"><b>MemorySec</b> report</p>
@@ -558,6 +586,14 @@ def _masthead(report: ScanReport, title: str) -> str:
 
 
 def _plan(report: ScanReport) -> str:
+    if report.clean and not report.complete:
+        return f"""
+<section aria-labelledby="plan-h">
+  <h2 id="plan-h">What to do</h2>
+  <div class="notice incomplete"><strong>Fix the failing check first.</strong>
+  {_records(report.records_with_errors)} could not be fully checked, so this scan cannot
+  say they are clean.</div>
+</section>"""
     if report.clean:
         return f"""
 <section aria-labelledby="plan-h">
@@ -692,6 +728,8 @@ def _finding(item: ScanFinding, anchor: str) -> str:
     )
     steps = "".join(f"<li>{escape(step)}</li>" for step in item.remediation)
     why_rows = [("Detectors", ", ".join(item.detectors) or "—")]
+    if item.confidence is not None:
+        why_rows.append(("Confidence", f"{item.confidence:.2f}"))
     if item.check:
         why_rows.append(("Check", item.check))
     why_rows += [(_humanize(k), _evidence_text(v)) for k, v in item.evidence.items()]

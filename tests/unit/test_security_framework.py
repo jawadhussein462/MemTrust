@@ -144,14 +144,34 @@ def test_constructor_validation(kwargs, match):
         InjectionCheck(**kwargs)
 
 
-def test_failing_detector_fails_closed_by_default():
+def test_failing_detector_is_recorded_and_the_others_still_count():
     chk = InjectionCheck(detectors=[Boom(), Always("ok")])
-    with pytest.raises(RuntimeError):
-        chk.check(make_candidate("x"), make_context())
-    # Through the engine this becomes a check_error finding.
-    guard = MemorySec(checks=[chk])
-    report = guard.scan([{"id": "m", "content": "hello"}])
-    assert any(f.type == "check_error" for f in report.findings)
+    ctx = make_context()
+    findings = chk.check(make_candidate("x", id="m"), ctx)
+    assert [f.evidence["detectors"] for f in findings] == [["ok"]]
+    (failure,) = ctx.failures
+    assert (failure.check, failure.detector, failure.error_type, failure.record_id) == (
+        "injection",
+        "boom",
+        "RuntimeError",
+        "m",
+    )
+
+
+def test_failing_detector_never_becomes_a_finding_or_an_action():
+    # A broken model or bad API key used to turn every record into a
+    # critical check_error with action "delete". It must only mark the scan
+    # incomplete.
+    guard = MemorySec(checks=[InjectionCheck(detectors=[Boom()])], use_default_checks=False)
+    report = guard.scan(
+        [{"id": "a", "content": "Alice prefers annual billing."}, {"id": "b", "content": "hi"}]
+    )
+    assert report.findings == []
+    assert report.action_plan() == {Action.DELETE: [], Action.QUARANTINE: [], Action.REVIEW: []}
+    assert not report.complete
+    assert report.records_with_errors == 2
+    (error,) = report.errors
+    assert error.records == 2 and error.record_ids == ["a", "b"]
 
 
 def test_failing_detector_is_skipped_when_fail_open():

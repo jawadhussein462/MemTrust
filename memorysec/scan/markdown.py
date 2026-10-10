@@ -59,6 +59,8 @@ def render_markdown(report: ScanReport, *, max_findings: int = 50) -> str:
             f"> [!NOTE]\n> Only the first {report.sample:,} records were scanned (`--sample`).",
             "",
         ]
+    if report.errors:
+        parts += _incomplete(report)
     if report.clean:
         parts += [
             "No poisoned facts, hidden instructions, or leaked secrets were found by the "
@@ -84,6 +86,9 @@ def render_markdown(report: ScanReport, *, max_findings: int = 50) -> str:
 
 
 def _verdict(report: ScanReport) -> str:
+    if report.clean and not report.complete:
+        unchecked = report.records_with_errors
+        return f"⚠️ incomplete, {unchecked:,} of {_records(report.total)} not fully checked"
     if report.clean:
         return f"no problems in {_records(report.total)}"
     worst = report.worst_severity()
@@ -102,6 +107,19 @@ def _meta(report: ScanReport) -> str:
         bits.append(f"{secs * 1000:.0f} ms" if secs < 1 else f"{secs:.1f} s")
     bits.append(f"MemorySec {report.memorysec_version}")
     return " · ".join(bits)
+
+
+def _incomplete(report: ScanReport) -> list[str]:
+    lines = [
+        "> [!WARNING]",
+        f"> Scan incomplete: {_records(report.records_with_errors)} were not fully checked "
+        "because a check or detector failed. A failure is not a finding; fix it and scan again.",
+        ">",
+    ]
+    for error in report.errors[:10]:
+        where = _code(error.check + (f"/{error.detector}" if error.detector else ""))
+        lines.append(f"> - {where} raised {_code(error.error_type)} on {_records(error.records)}")
+    return [*lines, ""]
 
 
 def _severity_table(report: ScanReport) -> list[str]:
@@ -133,8 +151,8 @@ def _findings_table(findings: list[ScanFinding]) -> list[str]:
     lines = [
         "### Findings",
         "",
-        "| Severity | Finding | Record | Action | OWASP |",
-        "| :-- | :-- | :-- | :-- | :-- |",
+        "| Severity | Finding | Record | Action | Confidence | OWASP |",
+        "| :-- | :-- | :-- | :-- | --: | :-- |",
     ]
     for item in findings:
         owasp_id = item.owasp.split(":", 1)[0]
@@ -143,6 +161,7 @@ def _findings_table(findings: list[ScanFinding]) -> list[str]:
             f"| {_cell(item.title)} {_cell(_code(item.type))} "
             f"| {_cell(_code(item.id))} "
             f"| {_ACTION_COPY[item.action]} "
+            f"| {_confidence(item.confidence)} "
             f"| [{_cell(owasp_id)}]({rule_for(item.type).owasp_url}) |"
         )
     return [*lines, ""]
@@ -171,6 +190,10 @@ def _details(findings: list[ScanFinding]) -> list[str]:
         lines += ["", refs, ""]
     lines += ["</details>", ""]
     return lines
+
+
+def _confidence(value: float | None) -> str:
+    return "—" if value is None else f"{value:.2f}"
 
 
 def _footer(report: ScanReport) -> str:

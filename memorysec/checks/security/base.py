@@ -105,9 +105,18 @@ class BaseDetector:
     Attributes:
         name: Short name stamped onto every `Detection` this detector builds.
             Subclasses should set their own, for example `"heuristic"`.
+        needs_corpus: Whether the detector reads other records
+            (`context.existing` or the corpus). The engine runs text-only
+            detectors while records stream in, and corpus detectors once
+            every record has been read. Leave it unset: a detector that only
+            implements `detect_text` is treated as text-only, and one that
+            overrides `detect` as needing the corpus. Set it to `False` on a
+            `detect` override that only reads the candidate (its embedding,
+            say) so it streams.
     """
 
     name: str = "base"
+    needs_corpus: bool | None = None
 
     def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
         """Run this detector on one memory.
@@ -208,6 +217,14 @@ class SecurityCheck(MemoryCheck):
     both raise it. Stacking noisy methods this way reports fewer false alarms
     and can miss a real hit that only one detector saw.
 
+    Confidence. Each detector's best score on a code is combined as
+    `1 - Π(1 - score)`: one detector at 0.7 gives 0.7, two at 0.7 give
+    0.91. A finding whose confidence is below `low_confidence` is reported
+    one severity step lower, so a borderline heuristic or a classifier just
+    over its threshold does not rank with a clear-cut hit. Detections
+    without a score do not contribute; a finding with no scored detection
+    has `confidence=None` and keeps its rule's severity.
+
     Attributes:
         category: Always security for this family of checks.
         default_code: Code used when a detection has `code=None`.
@@ -216,6 +233,8 @@ class SecurityCheck(MemoryCheck):
         min_detectors: How many different detectors must agree on a code
             before that code becomes a finding. `1` means any single hit
             is enough.
+        low_confidence: Findings below this confidence drop one severity
+            step. Default `0.6`.
     """
 
     category: ClassVar[Category] = Category.SECURITY
@@ -227,6 +246,7 @@ class SecurityCheck(MemoryCheck):
         detectors: Sequence[Detector] | None = None,
         *,
         min_detectors: int = 1,
+        low_confidence: float = 0.6,
     ) -> None:
         """Choose the detectors this check will run.
 
@@ -237,11 +257,14 @@ class SecurityCheck(MemoryCheck):
             min_detectors: How many different detectors must agree on the same
                 finding code before it is reported. `1` reports every hit.
                 Must be at least 1 and no larger than the number of detectors.
+            low_confidence: A finding whose combined confidence is below
+                this is reported one severity step lower. `0` turns the
+                step-down off. Must be within [0, 1].
 
         Raises:
             ConfigurationError: There are no detectors, two detectors share a
-                name, or `min_detectors` is below 1 or larger than the
-                detector list.
+                name, `min_detectors` is below 1 or larger than the
+                detector list, or `low_confidence` is outside [0, 1].
         """
         resolved = list(detectors) if detectors is not None else self.default_detectors()
         if not resolved:
@@ -257,8 +280,11 @@ class SecurityCheck(MemoryCheck):
             raise ConfigurationError(
                 f"min_detectors={min_detectors} exceeds the {len(resolved)} configured detector(s)."
             )
+        if not 0.0 <= low_confidence <= 1.0:
+            raise ConfigurationError("low_confidence must be within [0, 1].")
         self.detectors: list[Detector] = resolved
         self.min_detectors = min_detectors
+        self.low_confidence = low_confidence
 
     @classmethod
     def default_detectors(cls) -> list[Detector]:
@@ -285,15 +311,14 @@ class SecurityCheck(MemoryCheck):
         code. A code is kept only when at least `min_detectors` different
         detectors reported it. Those hits are then merged into one finding.
 
-        If a detector raises, the error is logged and that detector is
-        skipped. When `context.config.fail_closed` is true, the first error
-        is raised again after the remaining detectors finish, so a broken
-        detector cannot quietly hide a problem.
+        A detector that raises is recorded on `context.failures` (the scan
+        report lists it under `errors` and is marked incomplete) and the
+        other detectors' results are kept. A failure never becomes a
+        finding: it says nothing about the record.
 
         Args:
             candidate: The stored memory to scan.
-            context: Settings and neighbouring records for this scan. The
-                flag that matters here is `context.config.fail_closed`.
+            context: Settings and neighbouring records for this scan.
 
         Returns:
             One `Finding` for each code that enough detectors agreed on,
@@ -303,12 +328,35 @@ class SecurityCheck(MemoryCheck):
         Raises:
             ConfigurationError: A detector returned a `code` that is not a
                 key in `specs`.
-            Exception: The first error a detector raised, and only when
-                fail-closed is on.
+        """
+        return self.decide(self.collect(candidate, context))
+
+    def collect(
+        self,
+        candidate: MemoryCandidate,
+        context: CheckContext,
+        detectors: Sequence[Detector] | None = None,
+    ) -> dict[str, list[Detection]]:
+        """Run detectors and group their hits by finding code.
+
+        The engine calls this twice per record during a streamed scan:
+        once with the text-only detectors as records arrive, once with the
+        corpus detectors after the whole store is read. `decide` then votes
+        over both.
+
+        Args:
+            candidate: The stored memory to scan.
+            context: Scan context. Failing detectors are recorded on it.
+            detectors: Which detectors to run. `None` runs all of them.
+
+        Returns:
+            `{code: detections}` in first-seen order.
+
+        Raises:
+            ConfigurationError: A detector returned an unknown code.
         """
         by_code: dict[str, list[Detection]] = {}
-        first_error: Exception | None = None
-        for detector in self.detectors:
+        for detector in self.detectors if detectors is None else detectors:
             try:
                 detections = detector.detect(candidate, context)
             except Exception as exc:
@@ -318,7 +366,9 @@ class SecurityCheck(MemoryCheck):
                     self.name,
                     type(exc).__name__,
                 )
-                first_error = first_error or exc
+                context.record_failure(
+                    check=self.name, detector=detector.name, error=exc, record_id=candidate.id
+                )
                 continue
             for detection in detections:
                 code = detection.code or self.default_code
@@ -328,12 +378,17 @@ class SecurityCheck(MemoryCheck):
                         f"{self.name!r}; known codes: {sorted(self.specs)}."
                     )
                 by_code.setdefault(code, []).append(detection)
+        return by_code
 
-        # A failing detector must not silently weaken the check: under
-        # fail-closed the engine turns this into a blocking ``check_error``.
-        if first_error is not None and context.config.fail_closed:
-            raise first_error
+    def decide(self, by_code: Mapping[str, Sequence[Detection]]) -> list[Finding]:
+        """Apply the `min_detectors` vote and build one finding per code.
 
+        Args:
+            by_code: Detections grouped by finding code, from `collect`.
+
+        Returns:
+            Findings for the codes enough detectors agreed on.
+        """
         findings: list[Finding] = []
         for code, detections in by_code.items():
             voters = {d.detector for d in detections}
@@ -346,7 +401,9 @@ class SecurityCheck(MemoryCheck):
         """Turn every detection that shares one code into a single finding.
 
         Severity, recommended action, and the user-facing message come from
-        `specs[code]`. Evidence from the detections is combined.
+        `specs[code]`. Evidence from the detections is combined, and their
+        scores become the finding's confidence. Below `low_confidence` the
+        severity drops one step.
 
         Args:
             code: Finding code to look up in `specs`, such as `"api_key"`.
@@ -357,19 +414,72 @@ class SecurityCheck(MemoryCheck):
             One `Finding` for `code`. Its `check` field is this check's name.
         """
         spec = self.specs[code]
+        confidence = combine_scores(detections)
+        severity = spec.severity
+        if confidence is not None and confidence < self.low_confidence:
+            severity = severity.lower()
         return Finding(
             code=code,
             category=self.category,
-            severity=spec.severity,
+            severity=severity,
             message=spec.message,
             evidence=merge_evidence(detections),
             check=self.name,
             recommended_action=spec.action,
             owasp=spec.owasp,
+            confidence=confidence,
         )
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(detectors={self.detectors!r})"
+
+
+def combine_scores(detections: Sequence[Detection]) -> float | None:
+    """Combine detector scores into one confidence.
+
+    Each detector contributes its best score, clipped to [0, 1]. Agreement
+    raises confidence: `1 - Π(1 - score)` over detectors.
+
+    Args:
+        detections: Hits that share one finding code.
+
+    Returns:
+        The combined confidence rounded to three places, or `None` when no
+        detection carried a score.
+    """
+    best: dict[str, float] = {}
+    for detection in detections:
+        if detection.score is None:
+            continue
+        score = min(1.0, max(0.0, float(detection.score)))
+        best[detection.detector] = max(best.get(detection.detector, 0.0), score)
+    if not best:
+        return None
+    remaining = 1.0
+    for score in best.values():
+        remaining *= 1.0 - score
+    return round(1.0 - remaining, 3)
+
+
+def needs_corpus(detector: object) -> bool:
+    """Whether a detector (or check) must wait until every record is read.
+
+    Args:
+        detector: A detector or a `MemoryCheck`.
+
+    Returns:
+        The object's own `needs_corpus` when it sets a bool. Otherwise
+        `False` for a `BaseDetector` that only implements `detect_text`
+        (it cannot see other records) and `True` for anything else, so a
+        custom detector or check that reads `context.existing` always sees
+        the full scan.
+    """
+    flag = getattr(detector, "needs_corpus", None)
+    if isinstance(flag, bool):
+        return flag
+    if isinstance(detector, BaseDetector):
+        return type(detector).detect is not BaseDetector.detect
+    return True
 
 
 def merge_evidence(detections: Sequence[Detection]) -> dict[str, object]:
@@ -421,5 +531,7 @@ __all__ = [
     "Detector",
     "FindingSpec",
     "SecurityCheck",
+    "combine_scores",
     "merge_evidence",
+    "needs_corpus",
 ]

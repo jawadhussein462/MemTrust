@@ -14,15 +14,18 @@ batch (`context.existing`).
 
 Search order:
 
-1. Stored vectors, via cosine nearest-neighbour (the store already has them).
-2. An `embed` callback, then the same nearest-neighbour cut.
-3. Lexical similarity, only when the batch is at most `max_pairwise`
-   records. Larger batches without vectors are skipped rather than doing
-   O(n²) Python string compares.
+1. Stored vectors, via the scan's shared nearest-neighbour table (computed
+   once per scan, with numpy when it is installed).
+2. An `embed` callback: every record's text is embedded once per scan, in
+   batches, then the same nearest-neighbour cut.
+3. Lexical similarity. Candidates are the records that share rare word
+   pairs with this one, so it no longer compares every record with every
+   other; phrases shared by hundreds of records (templates) are ignored.
+   Stores larger than `max_pairwise` records without vectors are skipped.
 
 Pass `embed`, a function `(texts) -> vectors`, when the records have no
 stored embeddings. Real copies of the same fact trigger this too, so the
-finding asks for review rather than quarantine.
+finding is low severity and asks for review rather than quarantine.
 """
 
 from __future__ import annotations
@@ -30,12 +33,12 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 from ....context import CheckContext
+from ....corpus import Corpus, corpus_of
 from ....exceptions import ConfigurationError
-from ....models.memory import MemoryCandidate, MemoryRecord
-from ....text import cosine, rouge_l, similarity
-from ....vectors import nearest
+from ....models.enums import MemoryStatus
+from ....models.memory import MemoryCandidate
+from ....text import jaccard, ratio, rouge_l
 from ..base import BaseDetector, Detection
-from ._corpus import active_neighbours
 
 Embed = Callable[[Sequence[str]], Sequence[Sequence[float]]]
 
@@ -48,6 +51,7 @@ class TrustRAGDetector(BaseDetector):
     """
 
     name = "trustrag"
+    needs_corpus = True
 
     def __init__(
         self,
@@ -57,7 +61,7 @@ class TrustRAGDetector(BaseDetector):
         rouge_threshold: float = 0.25,
         min_cluster: int = 2,
         nn: int = 32,
-        max_pairwise: int = 2000,
+        max_pairwise: int = 200_000,
     ) -> None:
         """Store the cluster thresholds. No model is loaded here.
 
@@ -75,8 +79,8 @@ class TrustRAGDetector(BaseDetector):
             nn: How many nearest neighbours to inspect when vectors are
                 available. Default `32`.
             max_pairwise: Largest batch that may fall back to lexical
-                pairwise compares. Larger batches without vectors are
-                skipped. Default `2000`.
+                similarity. Larger batches without vectors are skipped.
+                Default `200000`.
 
         Raises:
             ConfigurationError: A threshold is outside (0, 1], or
@@ -98,42 +102,48 @@ class TrustRAGDetector(BaseDetector):
         self.max_pairwise = max_pairwise
 
     def _ranked(
-        self, candidate: MemoryCandidate, neighbours: Sequence[MemoryRecord]
-    ) -> tuple[list[tuple[MemoryRecord, float]], str]:
-        if candidate.embedding and any(n.embedding for n in neighbours):
-            ranked = nearest(
-                candidate.embedding,
-                neighbours,
-                k=min(self.nn, len(neighbours)),
-                exclude_id=candidate.id,
-                active_only=False,
-            )
-            return ranked, "stored"
+        self, candidate: MemoryCandidate, corpus: Corpus, neighbours: int
+    ) -> tuple[list[tuple[int, float]], str]:
+        row = corpus.row_of(candidate)
+        if candidate.embedding and corpus.neighbour_count(candidate.id, with_vector=True) > 0:
+            table = corpus.knn(self.nn)
+            if row is not None and row in table:
+                return table[row], "stored"
+            rows = [r for r in corpus.vector_rows() if corpus.ids[r] != candidate.id]
+            return corpus.nearest(candidate.embedding, rows, self.nn), "stored"
         if self.embed is not None:
-            vectors = self.embed([candidate.content, *(n.content for n in neighbours)])
-            if len(vectors) != len(neighbours) + 1:
-                raise ConfigurationError("embed() must return one vector per input text.")
-            anchor = list(vectors[0])
-            scored = [
-                (record, cosine(anchor, list(vector)))
-                for record, vector in zip(neighbours, vectors[1:], strict=True)
-            ]
-            scored.sort(key=lambda item: item[1], reverse=True)
-            return scored[: min(self.nn, len(scored))], "cosine"
-        if len(neighbours) > self.max_pairwise:
+            table = corpus.knn_embedded(self.embed, self.nn)
+            if row is not None and row in table:
+                return table[row], "cosine"
+            vectors = corpus.embed_all(self.embed)
+            (anchor,) = _embed_one(self.embed, candidate.content)
+            rows = corpus.active_rows(exclude_id=candidate.id)
+            return corpus.nearest(anchor, rows, self.nn, vectors=vectors), "cosine"
+        if neighbours > self.max_pairwise:
             return [], "skipped"
-        scored = [(record, similarity(candidate.content, record.content)) for record in neighbours]
+        pool = corpus.lexical_candidates(candidate.content, exclude=row, limit=self.nn)
+        scored: list[tuple[int, float]] = []
+        for r in pool:
+            if corpus.ids[r] == candidate.id or corpus.statuses[r] != MemoryStatus.ACTIVE:
+                continue
+            other = corpus.contents[r]
+            overlap = jaccard(candidate.content, other)
+            # difflib is slow, and near-identical character sequences share
+            # most of their words, so the character ratio is only computed
+            # when at least half the words already match.
+            sim = max(overlap, ratio(candidate.content, other)) if overlap >= 0.5 else overlap
+            scored.append((r, sim))
         scored.sort(key=lambda item: item[1], reverse=True)
-        return scored, "lexical"
+        return scored[: self.nn], "lexical"
 
     def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
         """Look for a near-copy cluster around this memory.
 
         Args:
             candidate: The memory being scanned.
-            context: Must include `context.existing`, the other records in
-                the batch. Inactive records and the candidate itself are
-                skipped.
+            context: The scan context. Neighbours are the scan's other
+                active records; inactive records and the candidate's own
+                id are skipped.
 
         Returns:
             One `Detection` with code `poisoning_cluster` when at least
@@ -142,19 +152,20 @@ class TrustRAGDetector(BaseDetector):
         Raises:
             ConfigurationError: `embed` did not return one vector per text.
         """
-        neighbours = active_neighbours(candidate, context)
-        if len(neighbours) < self.min_cluster:
+        corpus = corpus_of(context)
+        neighbours = corpus.neighbour_count(candidate.id)
+        if neighbours < self.min_cluster:
             return []
-        ranked, metric = self._ranked(candidate, neighbours)
+        ranked, metric = self._ranked(candidate, corpus, neighbours)
         if not ranked:
             return []
         cluster: list[tuple[str, float, float]] = []
-        for record, sim in ranked:
-            if sim < self.cosine_threshold:
+        for row, sim in ranked:
+            if sim < self.cosine_threshold or corpus.ids[row] == candidate.id:
                 continue
-            overlap = rouge_l(candidate.content, record.content)
+            overlap = rouge_l(candidate.content, corpus.contents[row])
             if overlap >= self.rouge_threshold:
-                cluster.append((record.id, sim, overlap))
+                cluster.append((corpus.ids[row], sim, overlap))
         if len(cluster) < self.min_cluster:
             return []
         cluster.sort(key=lambda item: -item[1])
@@ -162,13 +173,20 @@ class TrustRAGDetector(BaseDetector):
             self.hit(
                 code="poisoning_cluster",
                 score=min(1.0, sum(s for _, s, _ in cluster) / len(cluster)),
-                cluster=[rid for rid, _, _ in cluster],
+                cluster=[rid for rid, _, _ in cluster][:20],
                 cluster_size=len(cluster),
                 similarity_metric=metric,
                 min_similarity=round(min(s for _, s, _ in cluster), 3),
                 min_rouge_l=round(min(r for _, _, r in cluster), 3),
             )
         ]
+
+
+def _embed_one(embed: Embed, text: str) -> list[list[float]]:
+    vectors = embed([text])
+    if len(vectors) != 1:
+        raise ConfigurationError("embed() must return one vector per input text.")
+    return [list(map(float, vectors[0]))]
 
 
 __all__ = ["TrustRAGDetector"]

@@ -13,7 +13,7 @@ from .._version import __version__
 from ..rules import rule_for
 from .enums import Action, Severity
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 """Version of the JSON report layout. Bumped when fields change meaning."""
 
 
@@ -58,6 +58,9 @@ class ScanFinding(BaseModel):
             are masked; raw secrets and full text are never included.
         fingerprint: Stable hash of rule and record id. See
             `finding_fingerprint`.
+        confidence: Combined detector confidence from 0 to 1. Several
+            agreeing detectors raise it. `None` when no detector scored
+            its hit.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -76,6 +79,7 @@ class ScanFinding(BaseModel):
     cwe: list[str] = Field(default_factory=list)
     evidence: dict[str, Any] = Field(default_factory=dict)
     fingerprint: str = ""
+    confidence: float | None = None
 
     @model_validator(mode="after")
     def _fill_from_rule(self) -> ScanFinding:
@@ -89,6 +93,33 @@ class ScanFinding(BaseModel):
         if not self.fingerprint:
             self.fingerprint = finding_fingerprint(self.id, self.type)
         return self
+
+
+class ScanError(BaseModel):
+    """A check or detector that failed during a scan, grouped across records.
+
+    An error is not a finding. It says the affected records were not fully
+    checked, not that anything is wrong with them, so it never adds a
+    record to the action plan.
+
+    Attributes:
+        check: Name of the check, such as `"injection"`.
+        detector: Name of the detector that raised, or `None` when the
+            whole check raised.
+        error_type: Exception class name, such as `"BackendError"`.
+        message: The first error message, secret-masked and shortened.
+        records: How many records hit this error.
+        record_ids: The first few affected record ids.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    check: str
+    detector: str | None = None
+    error_type: str
+    message: str = ""
+    records: int = 0
+    record_ids: list[str] = Field(default_factory=list)
 
 
 class ScanReport(BaseModel):
@@ -111,6 +142,10 @@ class ScanReport(BaseModel):
         duration_seconds: How long the checks took. `None` if not measured.
         checks: Each check that ran, mapped to its detector names, so a
             reader can tell what was looked for as well as what was found.
+        errors: Checks and detectors that failed, grouped by check,
+            detector, and exception type. Empty on a complete scan.
+        records_with_errors: Distinct records at least one check or
+            detector failed on.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -124,6 +159,21 @@ class ScanReport(BaseModel):
     generated_at: datetime | None = None
     duration_seconds: float | None = None
     checks: dict[str, list[str]] = Field(default_factory=dict)
+    errors: list[ScanError] = Field(default_factory=list)
+    records_with_errors: int = 0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def complete(self) -> bool:
+        """Whether every check and detector ran on every record.
+
+        Returns:
+            `False` when any check or detector raised. Findings from the
+            parts that did run are still in `findings`, but a record with
+            no finding may not have been fully checked. The CLI exits `2`
+            on an incomplete scan.
+        """
+        return not self.errors
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -235,17 +285,31 @@ class ScanReport(BaseModel):
             plan[action].append(record_id)
         return plan
 
-    def at_or_above(self, severity: Severity) -> list[ScanFinding]:
+    def at_or_above(
+        self, severity: Severity, *, min_confidence: float | None = None
+    ) -> list[ScanFinding]:
         """Findings as serious as `severity`, or worse.
 
         Args:
             severity: The threshold, such as `Severity.HIGH`.
+            min_confidence: Also drop findings whose confidence is below
+                this. Findings with no confidence (`None`) are kept, so an
+                unscored detector is never silently ignored.
 
         Returns:
             The matching findings, in report order. This is what the CLI's
-            `--fail-on` gates on.
+            `--fail-on` and `--min-confidence` gate on.
         """
-        return [item for item in self.findings if item.severity.is_at_least(severity)]
+        return [
+            item
+            for item in self.findings
+            if item.severity.is_at_least(severity)
+            and (
+                min_confidence is None
+                or item.confidence is None
+                or item.confidence >= min_confidence
+            )
+        ]
 
     def __str__(self) -> str:
         return format_scan_summary(self)
@@ -253,6 +317,7 @@ class ScanReport(BaseModel):
 
 _RESET = "\033[0m"
 _GREEN = "\033[32m"
+_RED = "\033[31m"
 _AMBER = "\033[38;5;214m"
 _UNDERLINE = "\033[4m"
 _SEVERITY_COLOR = {
@@ -310,6 +375,16 @@ def format_scan_summary(
             lines.append(severity)
     else:
         lines.append(f"{check} {_records(0)} flagged")
+    if report.errors:
+        cross = _paint("✗", _RED, enabled=color)
+        lines.append(
+            f"{cross} Scan incomplete: {_records(report.records_with_errors)} not fully checked"
+        )
+        for error in report.errors[:3]:
+            where = error.check + (f"/{error.detector}" if error.detector else "")
+            lines.append(f"  • {where} raised {error.error_type} on {_records(error.records)}")
+        if len(report.errors) > 3:
+            lines.append(f"  • … {len(report.errors) - 3} more in the report")
 
     if details and report.findings:
         lines.append("")
@@ -405,6 +480,7 @@ def _paint(text: str, code: str, *, enabled: bool) -> str:
 
 __all__ = [
     "SCHEMA_VERSION",
+    "ScanError",
     "ScanFinding",
     "ScanReport",
     "finding_fingerprint",

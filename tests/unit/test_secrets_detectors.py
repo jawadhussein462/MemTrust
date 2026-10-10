@@ -103,7 +103,7 @@ def test_piiranha_all_labels_add_pii_review():
     findings = {f.code: f for f in chk.check(make_candidate("x"), make_context())}
     assert findings["secret_detected"].recommended_action == Action.DELETE
     assert findings["pii_detected"].recommended_action == Action.REVIEW
-    assert findings["pii_detected"].severity == Severity.HIGH
+    assert findings["pii_detected"].severity == Severity.MEDIUM
 
 
 def test_token_classifier_threshold_and_unknown_labels():

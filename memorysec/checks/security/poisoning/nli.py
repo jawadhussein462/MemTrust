@@ -19,11 +19,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 
 from ....context import CheckContext
+from ....corpus import corpus_of
 from ....exceptions import ConfigurationError
-from ....models.memory import MemoryCandidate, MemoryRecord
-from ....vectors import nearest
+from ....models.memory import MemoryCandidate
 from ..base import BaseDetector, Detection
-from ._corpus import active_neighbours
 
 NLI = Callable[[str, str], Mapping[str, float]]
 
@@ -35,6 +34,7 @@ class TemporalNLIDetector(BaseDetector):
     """
 
     name = "temporal_nli"
+    needs_corpus = True
 
     def __init__(
         self,
@@ -73,19 +73,16 @@ class TemporalNLIDetector(BaseDetector):
         self.nn = nn
         self.max_compare = max_compare
 
-    def _neighbours(self, candidate: MemoryCandidate, context: CheckContext) -> list[MemoryRecord]:
-        neighbours = active_neighbours(candidate, context)
-        older = [record for record in neighbours if record.created_at < candidate.created_at]
-        if candidate.embedding and any(record.embedding for record in older):
-            ranked = nearest(
-                candidate.embedding,
-                older,
-                k=min(self.nn, len(older)),
-                exclude_id=candidate.id,
-                active_only=False,
-            )
-            return [record for record, _score in ranked]
-        older.sort(key=lambda record: record.created_at)
+    def _neighbours(self, candidate: MemoryCandidate, context: CheckContext) -> list[int]:
+        corpus = corpus_of(context)
+        older = [
+            row
+            for row in corpus.active_rows(exclude_id=candidate.id)
+            if corpus.created[row] < candidate.created_at
+        ]
+        if candidate.embedding and any(corpus.has_vector(row) for row in older):
+            return [row for row, _ in corpus.nearest(candidate.embedding, older, self.nn)]
+        older.sort(key=lambda row: corpus.created[row])
         return older[: self.max_compare]
 
     def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
@@ -94,7 +91,7 @@ class TemporalNLIDetector(BaseDetector):
         Args:
             candidate: The newer claim. `created_at` is compared with
                 each neighbour.
-            context: The materialised batch in `context.existing`.
+            context: The scan context; neighbours come from its corpus.
 
         Returns:
             One `Detection` with code `temporal_contradiction` when at
@@ -106,13 +103,14 @@ class TemporalNLIDetector(BaseDetector):
         older = self._neighbours(candidate, context)
         if len(older) < self.min_older:
             return []
+        corpus = corpus_of(context)
         hits: list[tuple[str, float]] = []
-        for record in older:
-            raw = self.nli(record.content, candidate.content)
+        for row in older:
+            raw = self.nli(corpus.contents[row], candidate.content)
             scores = {str(k).lower(): float(v) for k, v in raw.items()}
             contradiction = scores.get("contradiction", 0.0)
             if contradiction >= self.contradiction_threshold:
-                hits.append((record.id, contradiction))
+                hits.append((corpus.ids[row], contradiction))
         if len(hits) < self.min_older:
             return []
         hits.sort(key=lambda item: -item[1])

@@ -94,8 +94,9 @@ class _ClientBase:
                 * an object with `.all()`, such as some vector-store wrappers
                 * an iterable of `MemoryRecord` objects or dicts
 
-                Any iterable is materialised into one batch so corpus
-                detectors (TrustRAG, hubness) can see the other records.
+                Records are streamed: each one is checked as it arrives and
+                only a packed copy (text, metadata, 4-byte vector) is kept
+                for the detectors that compare records with each other.
             query: The question that retrieved this batch, when you have one.
                 Most checks ignore it. Cluster detectors can use it.
 
@@ -120,7 +121,7 @@ class _ClientBase:
                 f"Cannot scan {type(source).__name__}: pass a scan source, "
                 "an object with .all(), or an iterable of records."
             )
-        records = [coerce_record(item) for item in items]
+        records = (coerce_record(item) for item in items)
         return self._evaluator.scan(records, query=query)
 
 
@@ -146,8 +147,9 @@ class MemorySec(_ClientBase):
                 * an object with `.all()`, such as some vector-store wrappers
                 * an iterable of `MemoryRecord` objects or dicts
 
-                Any iterable is materialised into one batch so corpus
-                detectors (TrustRAG, hubness) can see the other records.
+                Records are streamed: each one is checked as it arrives and
+                only a packed copy (text, metadata, 4-byte vector) is kept
+                for the detectors that compare records with each other.
             query: The question that retrieved this batch, when you have one.
                 Most checks ignore it. Cluster detectors can use it.
 

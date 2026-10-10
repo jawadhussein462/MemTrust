@@ -28,6 +28,7 @@ class EmbeddingInjectionDetector(BaseDetector):
     """
 
     name = "embedding_classifier"
+    needs_corpus = False
 
     def __init__(self, *, score: Score | None = None, threshold: float = 0.5) -> None:
         """Store the classifier and the probability cutoff.
