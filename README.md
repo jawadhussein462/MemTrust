@@ -9,11 +9,21 @@ pip install memorysec
 ```
 
 ```bash
-memorysec scan chroma --path ./chroma_db --collection agent_memory
-memorysec scan qdrant --url http://localhost:6333 --collection agent_memory
-memorysec scan pgvector --dsn postgresql://... --table memories --text-column content
-memorysec scan jsonl export.jsonl --report report.html --json findings.json
+memorysec scan qdrant \
+    --url http://localhost:6333 \
+    --collection agent_memory \
+    --report report.html
 ```
+
+```text
+✓ Scanned 48,291 records
+! 137 records flagged (0.28%)
+  • 12 critical  • 31 high  • 58 medium  • 36 low
+
+✓ Report written to report.html
+```
+
+The command prints that summary. Marks are colored in a terminal. The HTML file is what you forward. A Qdrant scan needs `pip install "memorysec[qdrant]"`; other stores need their own extra, listed below.
 
 MemorySec does not own your memory store. Connections are **read-only**, records stream in batches, and `--sample 10000` caps very large stores.
 
@@ -50,6 +60,8 @@ report = MemorySec().scan(ChromaScanSource(path="./chroma_db", collection="agent
 print(report)
 ```
 
+`print(report)` prints the same summary as the CLI.
+
 ---
 
 ## Fix
@@ -80,12 +92,12 @@ No cloud account. No LLM API key. Deterministic heuristics are the default and r
 from memorysec import MemorySec
 from memorysec.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
 from memorysec.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
-from memorysec.checks.security.poisoning import HeuristicPoisoningDetector, FilterRAGDetector
+from memorysec.checks.security.poisoning import HeuristicPoisoningDetector, TrustRAGDetector
 from memorysec.checks.security.secrets import HeuristicSecretsDetector, EntropyDetector, PiiranhaDetector
 
 guard = MemorySec(checks=[
     InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()]),
-    PoisoningCheck(detectors=[HeuristicPoisoningDetector(), FilterRAGDetector()]),
+    PoisoningCheck(detectors=[HeuristicPoisoningDetector(), TrustRAGDetector()]),
     SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector(), PiiranhaDetector()]),
 ])
 ```
@@ -102,7 +114,6 @@ A configured check replaces the default of the same name. Detectors that agree a
 | | `PromptShieldDetector` | Azure AI Content Safety Prompt Shields (document attack) | API key |
 | | `LakeraGuardDetector` | Lakera Guard `/v2/guard` | API key |
 | **Poisoning** | `HeuristicPoisoningDetector` | control-bypass + redirect patterns (default) | — |
-| | `FilterRAGDetector` | Freq-Density of query/answer words ([FilterRAG](https://arxiv.org/abs/2508.02835)) | — (needs the query) |
 | | `TrustRAGDetector` | tight near-paraphrase cluster among retrieved neighbours ([TrustRAG](https://arxiv.org/abs/2501.00879)) | — (optional `embed`) |
 | | `PerplexityDetector` | causal-LM perplexity for adversarial suffixes | `memorysec[hf]` |
 | **Secrets** | `HeuristicSecretsDetector` | key formats + stated credentials (default) | — |
@@ -146,7 +157,7 @@ Scan sources only **read**.
 memorysec/checks/security/
   base.py               SecurityCheck, Detector, Detection, FindingSpec
   injection/            InjectionCheck + heuristic, prompt_guard, ...
-  poisoning/            PoisoningCheck + heuristic, filterrag, trustrag, perplexity
+  poisoning/            PoisoningCheck + heuristic, trustrag, perplexity
   secrets/              SecretsCheck + heuristic, entropy, piiranha, ...
 memorysec/scan/
   chroma.py qdrant.py pgvector.py pinecone.py jsonl.py
@@ -157,7 +168,7 @@ memorysec/scan/
 
 ## Observability
 
-MemorySec uses the standard `logging` module (and never calls `basicConfig`).
+MemorySec logs with [loguru](https://github.com/Delgan/loguru) and does not add or remove sinks.
 OpenTelemetry tracing is optional and injected:
 
 ```python

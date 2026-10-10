@@ -17,6 +17,7 @@ from . import __version__
 from .client import MemorySec
 from .exceptions import ConfigurationError
 from .models.memory import MemoryRecord
+from .models.results import ScanReport, format_scan_summary
 from .scan import render_html
 from .scan.chroma import ChromaScanSource
 from .scan.jsonl import JsonlScanSource
@@ -166,18 +167,47 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         return 2
     report.source = label
     report.sample = args.sample
-    print(str(report))
+    report_path: str | None = None
+    json_path: str | None = None
     try:
         if args.report:
             Path(args.report).write_text(render_html(report), encoding="utf-8")
-            print(f"Wrote HTML report to {args.report}")
+            report_path = args.report
         if args.json_path:
             Path(args.json_path).write_text(report.model_dump_json(indent=2), encoding="utf-8")
-            print(f"Wrote JSON findings to {args.json_path}")
+            json_path = args.json_path
     except OSError as exc:
+        print(_summary(report, report_path=report_path, json_path=json_path))
         print(f"memorysec scan: {exc}", file=sys.stderr)
         return 2
+    print(_summary(report, report_path=report_path, json_path=json_path))
     return 0
+
+
+def _summary(
+    report: ScanReport,
+    *,
+    report_path: str | None = None,
+    json_path: str | None = None,
+) -> str:
+    return format_scan_summary(
+        report,
+        report_path=report_path,
+        json_path=json_path,
+        color=_color_enabled(),
+    )
+
+
+def _color_enabled() -> bool:
+    """Scan summaries are colored unless the user opts out.
+
+    ``NO_COLOR`` (any non-empty value) and ``TERM=dumb`` turn color off.
+    A missing TTY does not: IDE runners often fail ``isatty`` and would
+    otherwise print the summary in plain text.
+    """
+    if os.environ.get("NO_COLOR", "") != "":
+        return False
+    return os.environ.get("TERM") != "dumb"
 
 
 def main(argv: Sequence[str] | None = None) -> int:

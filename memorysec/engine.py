@@ -110,7 +110,9 @@ class Evaluator:
                         finding = finding.model_copy(update={"check": name})
                     findings.append(finding)
             except Exception as exc:
-                _logger.warning("check %r raised %s", getattr(chk, "name", chk), type(exc).__name__)
+                _logger.warning(
+                    "check {!r} raised {}", getattr(chk, "name", chk), type(exc).__name__
+                )
                 if self.config.fail_closed:
                     findings.append(
                         Finding(

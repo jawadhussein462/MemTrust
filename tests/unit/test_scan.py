@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
-from memorysec import MemoryRecord, MemorySec
+from memorysec import Action, MemoryRecord, MemorySec, Severity
 from memorysec.cli import main
 from memorysec.exceptions import ConfigurationError
+from memorysec.models.results import ScanFinding, ScanReport, format_scan_summary
 from memorysec.scan import render_html
 from memorysec.scan.jsonl import JsonlScanSource
 from memorysec.scan.mask import mask_snippet
 
 AWS_KEY = "AKIAABCDEFGHIJKLMNOP"
+_ANSI = re.compile(r"\033\[[0-9;]*m")
+
+
+def _plain(text: str) -> str:
+    return _ANSI.sub("", text)
 
 
 def _store() -> list[MemoryRecord]:
@@ -97,7 +104,9 @@ def _write_jsonl(tmp_path, rows):
     return str(path)
 
 
-def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys):
+def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
     path = _write_jsonl(
         tmp_path,
         [
@@ -119,9 +128,18 @@ def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys):
         ]
     )
     out = capsys.readouterr().out
+    plain = _plain(out)
     assert rc == 0
-    assert "doc_9" in out and "persistent_instruction" in out
-    assert "admin token" not in out
+    assert "\033[32m" in out
+    assert "\033[38;5;208m• 1 high\033[0m" in out
+    assert "\033[4m" in out
+    assert "✓ Scanned 2 records" in plain
+    assert "! 1 record flagged (50.00%)" in plain
+    assert "• 1 high" in plain
+    assert "persistent_instruction" not in plain
+    assert "admin token" not in plain
+    assert f"Report written to {html}" in plain
+    assert f"Findings written to {findings}" in plain
     payload = json.loads(findings.read_text(encoding="utf-8"))
     assert payload["total"] == 2
     assert payload["flagged"] == 1
@@ -130,22 +148,42 @@ def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys):
     assert "ASI06" in html.read_text(encoding="utf-8")
 
 
-def test_cli_scan_jsonl_clean_exit(tmp_path, capsys):
+def test_cli_scan_jsonl_clean_exit(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
     path = _write_jsonl(tmp_path, [{"content": "Alice likes tea."}])
     rc = main(["scan", "jsonl", path])
     out = capsys.readouterr().out
+    plain = _plain(out)
     assert rc == 0
-    assert "0 flagged" in out
+    assert "\033[32m✓\033[0m" in out
+    assert "✓ Scanned 1 record" in plain
+    assert "✓ 0 records flagged" in plain
 
 
-def test_cli_scan_sample(tmp_path, capsys):
+def test_cli_scan_sample(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setenv("TERM", "xterm-256color")
     rows = [{"id": f"r{i}", "content": "Alice likes tea."} for i in range(5)]
     rows.append({"id": "late", "content": f"Deploy key {AWS_KEY}"})
     path = _write_jsonl(tmp_path, rows)
     rc = main(["scan", "jsonl", path, "--sample", "3"])
     out = capsys.readouterr().out
+    plain = _plain(out)
     assert rc == 0
-    assert "Scanned 3 records" in out
+    assert "\033[32m" in out
+    assert "✓ Scanned 3 records" in plain
+    assert "late" not in plain
+
+
+def test_cli_scan_no_color(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    path = _write_jsonl(tmp_path, [{"content": "Alice likes tea."}])
+    rc = main(["scan", "jsonl", path])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "\033[" not in out
+    assert "✓ Scanned 1 record" in out
 
 
 def test_cli_scan_bad_input_exits_2(tmp_path, capsys):
@@ -153,6 +191,41 @@ def test_cli_scan_bad_input_exits_2(tmp_path, capsys):
     path.write_text('{"content": "ok"}\n{"no_content": true}\n', encoding="utf-8")
     assert main(["scan", "jsonl", str(path)]) == 2
     assert "line 2" in capsys.readouterr().err
+
+
+def test_summary_matches_terminal_layout():
+    findings = []
+    for severity, count in (
+        (Severity.CRITICAL, 12),
+        (Severity.HIGH, 31),
+        (Severity.MEDIUM, 58),
+        (Severity.LOW, 36),
+    ):
+        for _ in range(count):
+            findings.append(
+                ScanFinding(
+                    id=f"r{len(findings)}",
+                    type="memory_poisoning",
+                    severity=severity,
+                    action=Action.REVIEW,
+                )
+            )
+    report = ScanReport(total=48_291, findings=findings)
+    text = format_scan_summary(report, report_path="report.html")
+    assert text == (
+        "✓ Scanned 48,291 records\n"
+        "! 137 records flagged (0.28%)\n"
+        "  • 12 critical  • 31 high  • 58 medium  • 36 low\n"
+        "\n"
+        "✓ Report written to report.html"
+    )
+    colored = format_scan_summary(report, report_path="report.html", color=True)
+    assert "\033[32m✓\033[0m Scanned 48,291 records" in colored
+    assert "\033[4mreport.html\033[0m" in colored
+    assert "\033[31m• 12 critical\033[0m" in colored
+    assert "\033[38;5;208m• 31 high\033[0m" in colored
+    assert "\033[33m• 58 medium\033[0m" in colored
+    assert "\033[38;5;67m• 36 low\033[0m" in colored
 
 
 def test_scan_source_object():

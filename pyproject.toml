@@ -39,8 +39,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# Core stays lightweight: only pydantic. Everything else is an optional extra.
-dependencies = ["pydantic>=2.7"]
+# Core stays lightweight: pydantic and loguru. Everything else is an optional extra.
+dependencies = [
+    "loguru>=0.7",
+    "pydantic>=2.7",
+]
 
 [project.urls]
 Homepage = "https://github.com/memorysec/memorysec"

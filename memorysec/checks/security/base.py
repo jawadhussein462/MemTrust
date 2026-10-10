@@ -154,7 +154,7 @@ class SecurityCheck(BaseCheck):
                 detections = detector.detect(candidate, context)
             except Exception as exc:
                 _logger.warning(
-                    "detector %r in check %r raised %s",
+                    "detector {!r} in check {!r} raised {}",
                     detector.name,
                     self.name,
                     type(exc).__name__,

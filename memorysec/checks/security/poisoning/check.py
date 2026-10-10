@@ -13,10 +13,9 @@ class PoisoningCheck(SecurityCheck):
     """Flag content that looks like an attempt to plant a false fact.
 
     Defaults to the offline heuristic detector. Retrieval-aware detectors
-    (FilterRAG, TrustRAG) need the query or the neighbouring records from a
-    batched scan::
+    (TrustRAG) need the neighbouring records from a batched scan::
 
-        PoisoningCheck(detectors=[HeuristicPoisoningDetector(), FilterRAGDetector()])
+        PoisoningCheck(detectors=[HeuristicPoisoningDetector(), TrustRAGDetector()])
     """
 
     name = "poisoning"

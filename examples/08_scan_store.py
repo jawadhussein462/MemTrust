@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from memorysec import MemoryRecord, MemorySec
+from memorysec.models.results import format_scan_summary
 from memorysec.scan import render_html
 
 
@@ -31,10 +32,9 @@ def main() -> None:
     ]
 
     report = MemorySec().scan(records)
-    print(report)
     path = Path("report.html")
     path.write_text(render_html(report), encoding="utf-8")
-    print(f"\nWrote {path.resolve()}")
+    print(format_scan_summary(report, report_path=path.name, color=True))
 
 
 if __name__ == "__main__":

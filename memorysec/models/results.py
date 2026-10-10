@@ -52,7 +52,8 @@ class ScanReport(BaseModel):
     def flagged_pct(self) -> float:
         if not self.total:
             return 0.0
-        return round(100.0 * self.flagged / self.total, 1)
+        # Two decimals so a large store reads 0.28%, not 0.3%.
+        return round(100.0 * self.flagged / self.total, 2)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -73,36 +74,87 @@ class ScanReport(BaseModel):
         return max((item.severity for item in self.findings), key=lambda s: s.rank)
 
     def __str__(self) -> str:
-        pct = f"{self.flagged_pct:g}%"
-        lines = [f"Scanned {_count(self.total, 'record')}: {self.flagged} flagged ({pct})."]
-        if self.by_severity:
-            parts = ", ".join(
-                f"{count} {name}"
-                for name, count in sorted(
-                    self.by_severity.items(),
-                    key=lambda kv: Severity(kv[0]).rank,
-                    reverse=True,
-                )
-            )
-            lines.append(f"By severity: {parts}.")
-        if self.findings:
-            lines.append("")
-            for item in self.findings:
-                detectors = ", ".join(item.detectors) if item.detectors else "—"
-                lines.append(
-                    f"  {item.id}  {item.type}  {item.severity.value}  "
-                    f"{item.action.value}  [{detectors}]"
-                )
-        if self.clean:
-            lines.append("No poisoned facts, hidden instructions, or leaked secrets found.")
-        return "\n".join(lines)
+        return format_scan_summary(self)
 
 
-def _count(n: int, noun: str) -> str:
-    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+_RESET = "\033[0m"
+_GREEN = "\033[32m"
+_AMBER = "\033[38;5;214m"
+_UNDERLINE = "\033[4m"
+_SEVERITY_COLOR = {
+    "critical": "\033[31m",
+    "high": "\033[38;5;208m",
+    "medium": "\033[33m",
+    "low": "\033[38;5;67m",
+    "info": "\033[90m",
+}
+_SEVERITY_ORDER = ("critical", "high", "medium", "low", "info")
+
+
+def format_scan_summary(
+    report: ScanReport,
+    *,
+    report_path: str | None = None,
+    json_path: str | None = None,
+    color: bool = False,
+) -> str:
+    """Terminal summary: scanned, flagged, severity, then files written.
+
+    Plain text by default. ``color=True`` paints the marks the way a terminal
+    does: green checks, an amber flag, and a colored dot per severity.
+    """
+    check = _paint("✓", _GREEN, enabled=color)
+    lines = [f"{check} Scanned {_records(report.total)}"]
+    if report.flagged:
+        bang = _paint("!", _AMBER, enabled=color)
+        lines.append(f"{bang} {_records(report.flagged)} flagged ({report.flagged_pct:.2f}%)")
+        severity = _severity_line(report, color=color)
+        if severity:
+            lines.append(severity)
+    else:
+        lines.append(f"{check} {_records(0)} flagged")
+
+    written: list[str] = []
+    if report_path:
+        path = _paint(report_path, _UNDERLINE, enabled=color)
+        written.append(f"{check} Report written to {path}")
+    if json_path:
+        written.append(
+            f"{check} Findings written to {_paint(json_path, _UNDERLINE, enabled=color)}"
+        )
+    if written:
+        lines.append("")
+        lines.extend(written)
+    return "\n".join(lines)
+
+
+def _records(n: int) -> str:
+    noun = "record" if n == 1 else "records"
+    return f"{n:,} {noun}"
+
+
+def _severity_line(report: ScanReport, *, color: bool) -> str:
+    counts = report.by_severity
+    parts: list[str] = []
+    for name in _SEVERITY_ORDER:
+        count = counts.get(name, 0)
+        if not count:
+            continue
+        label = f"• {count:,} {name}"
+        parts.append(_paint(label, _SEVERITY_COLOR[name], enabled=color))
+    if not parts:
+        return ""
+    return "  " + "  ".join(parts)
+
+
+def _paint(text: str, code: str, *, enabled: bool) -> str:
+    if not enabled:
+        return text
+    return f"{code}{text}{_RESET}"
 
 
 __all__ = [
     "ScanFinding",
     "ScanReport",
+    "format_scan_summary",
 ]

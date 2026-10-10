@@ -17,7 +17,7 @@ from __future__ import annotations
 from memorysec import MemorySec
 from memorysec.checks.security import InjectionCheck, PoisoningCheck, SecretsCheck
 from memorysec.checks.security.injection import HeuristicInjectionDetector, PromptGuardDetector
-from memorysec.checks.security.poisoning import FilterRAGDetector, HeuristicPoisoningDetector
+from memorysec.checks.security.poisoning import HeuristicPoisoningDetector, TrustRAGDetector
 from memorysec.checks.security.secrets import EntropyDetector, HeuristicSecretsDetector
 
 
@@ -39,7 +39,7 @@ def main() -> None:
                     ),  # drop classify= for the real model
                 ]
             ),
-            PoisoningCheck(detectors=[HeuristicPoisoningDetector(), FilterRAGDetector()]),
+            PoisoningCheck(detectors=[HeuristicPoisoningDetector(), TrustRAGDetector()]),
             SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector()]),
         ]
     )

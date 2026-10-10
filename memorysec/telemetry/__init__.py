@@ -1,7 +1,7 @@
 """Observability facade.
 
-* Uses the stdlib :mod:`logging` module and **never** calls
-  ``logging.basicConfig`` — configuring logging is the application's job.
+* Logs with `loguru`. MemorySec does not add or remove sinks — configuring
+  loguru is the application's job.
 * Tracing is optional and injected (no globals): the default is a no-op
   tracer; an OpenTelemetry-backed tracer can be supplied via
   :func:`memorysec.telemetry.otel.otel_tracer`.
@@ -10,10 +10,14 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+from loguru import logger
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 # Span names.
 SPAN_SCAN = "memorysec.scan"
@@ -23,9 +27,9 @@ ATTR_FINDING_COUNT = "memorysec.finding_count"
 ATTR_OPERATION = "memorysec.operation"
 
 
-def get_logger(name: str = "memorysec") -> logging.Logger:
-    """Return a library logger. The library never configures handlers."""
-    return logging.getLogger(name)
+def get_logger(name: str = "memorysec") -> Logger:
+    """Return a loguru logger bound to ``name``. The library never adds sinks."""
+    return logger.bind(name=name)
 
 
 @runtime_checkable

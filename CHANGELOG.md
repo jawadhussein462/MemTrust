@@ -17,6 +17,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   total records, percentage flagged, findings by severity.
 - Secret findings recommend **delete**.
 - Default pipeline is security only: secrets, injection, poisoning.
+- Logging uses [loguru](https://github.com/Delgan/loguru). MemorySec does not
+  add or remove sinks.
 
 ### Added
 
@@ -117,8 +119,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
     `SentinelDetector` (`qualifire/prompt-injection-sentinel`),
     `PromptShieldDetector` (Azure AI Content Safety Prompt Shields),
     `LakeraGuardDetector` (Lakera Guard `/v2/guard`).
-  - Poisoning: `FilterRAGDetector` (Freq-Density filtering, arXiv:2508.02835),
-    `TrustRAGDetector` (near-paraphrase cluster among retrieved neighbours,
+  - Poisoning: `TrustRAGDetector` (near-paraphrase cluster among retrieved neighbours,
     arXiv:2501.00879; new `poisoning_cluster` finding), `PerplexityDetector`
     (causal-LM perplexity; new `adversarial_text` finding).
   - Secrets: `EntropyDetector` (detect-secrets-style high-entropy strings),
