@@ -82,7 +82,7 @@ class _ClientBase:
             tracer=tracer,
         )
 
-    def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
+    def _scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
         """Find poisoned facts, hidden instructions, and leaked secrets.
 
         The store is not modified.
@@ -108,10 +108,11 @@ class _ClientBase:
                 `.all()`, or an iterable of records.
         """
         records_fn = getattr(source, "records", None)
+        all_fn = getattr(source, "all", None)
         if callable(records_fn):
             items: Iterable[Any] = records_fn()
-        elif callable(getattr(source, "all", None)):
-            items = source.all()
+        elif callable(all_fn):
+            items = all_fn()
         elif isinstance(source, Iterable) and not isinstance(source, str | bytes | dict):
             items = source
         else:
@@ -133,6 +134,33 @@ class MemorySec(_ClientBase):
             print(report)
     """
 
+    def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
+        """Find poisoned facts, hidden instructions, and leaked secrets.
+
+        The store is not modified.
+
+        Args:
+            source: Where the records come from. Accepted shapes:
+
+                * a scan source, which is read with `.records()`
+                * an object with `.all()`, such as some vector-store wrappers
+                * an iterable of `MemoryRecord` objects or dicts
+
+                Any iterable is materialised into one batch so corpus
+                detectors (TrustRAG, hubness) can see the other records.
+            query: The question that retrieved this batch, when you have one.
+                Most checks ignore it. Cluster detectors can use it.
+
+        Returns:
+            A `ScanReport` with one entry per problem found. An empty
+            `findings` list means nothing was flagged.
+
+        Raises:
+            ConfigurationError: `source` is not a scan source, an object with
+                `.all()`, or an iterable of records.
+        """
+        return self._scan(source, query=query)
+
 
 class AsyncMemorySec(_ClientBase):
     """Asynchronous client. Same arguments as `MemorySec`.
@@ -152,7 +180,7 @@ class AsyncMemorySec(_ClientBase):
         Returns:
             The same `ScanReport` the synchronous client would return.
         """
-        return super().scan(source, query=query)
+        return self._scan(source, query=query)
 
 
 __all__ = [

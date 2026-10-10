@@ -160,11 +160,7 @@ class RetrieveGuard:
             `block_at` or worse. Order is preserved.
         """
         report = self.client.scan(records, query=query)
-        blocked = {
-            item.id
-            for item in report.findings
-            if item.severity.is_at_least(self.block_at)
-        }
+        blocked = {item.id for item in report.findings if item.severity.is_at_least(self.block_at)}
         return [record for record in records if record.id not in blocked]
 
 

@@ -73,9 +73,7 @@ class TemporalNLIDetector(BaseDetector):
         self.nn = nn
         self.max_compare = max_compare
 
-    def _neighbours(
-        self, candidate: MemoryCandidate, context: CheckContext
-    ) -> list[MemoryRecord]:
+    def _neighbours(self, candidate: MemoryCandidate, context: CheckContext) -> list[MemoryRecord]:
         neighbours = active_neighbours(candidate, context)
         older = [record for record in neighbours if record.created_at < candidate.created_at]
         if candidate.embedding and any(record.embedding for record in older):

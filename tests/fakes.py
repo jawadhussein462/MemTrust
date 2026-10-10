@@ -66,7 +66,9 @@ class FakeQdrant:
     def upsert(self, collection_name, points):
         for point in points:
             payload = point["payload"] if isinstance(point, dict) else point.payload
-            vector = point.get("vector") if isinstance(point, dict) else getattr(point, "vector", None)
+            vector = (
+                point.get("vector") if isinstance(point, dict) else getattr(point, "vector", None)
+            )
             self._d[_pid(point)] = {
                 "id": _pid(point),
                 "payload": dict(payload),
