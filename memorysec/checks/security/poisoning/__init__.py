@@ -1,14 +1,13 @@
-"""Poisoning: false or attacker-controlled facts planted in memory / RAG.
+"""Poisoning: false or attacker-controlled facts planted in memory or RAG.
 
-:class:`PoisoningCheck` runs one or more detectors:
+`PoisoningCheck` runs one or more detectors:
 
-==========================  ================================================  ==========
-Detector                    Method                                            Needs
-==========================  ================================================  ==========
-HeuristicPoisoningDetector  control-bypass + redirect patterns (default)      nothing
-TrustRAGDetector            tight near-paraphrase cluster among neighbours    neighbours
-PerplexityDetector          causal-LM perplexity (adversarial suffixes)       [hf]
-==========================  ================================================  ==========
+* `HeuristicPoisoningDetector` — phrases that turn off a control, or that
+  redirect payments and data. Default. Needs nothing extra.
+* `TrustRAGDetector` — a tight cluster of near-copies among neighbouring
+  records. Needs those neighbours from a batched scan.
+* `PerplexityDetector` — text a language model finds implausible, which
+  catches adversarial suffixes. Needs `[hf]`.
 """
 
 from __future__ import annotations

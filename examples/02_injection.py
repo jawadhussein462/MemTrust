@@ -1,9 +1,9 @@
-"""Example 2 — Prompt injection / persistent instruction.
+"""Example 2: a prompt injection saved as memory.
 
-Agent-directed phrases like "ignore previous instructions" should not sit
-in long-term memory. The scan flags them.
+Phrases such as "ignore previous instructions" should not sit in long-term
+memory. The scan flags them.
 
-Run:  python examples/02_injection.py
+Run it with `python examples/02_injection.py`.
 """
 
 from __future__ import annotations

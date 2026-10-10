@@ -1,4 +1,8 @@
-"""Shared fixtures for the MemorySec test suite (builders live in factories.py)."""
+"""Shared pytest fixtures.
+
+Object builders live in `tests/factories.py` so other tests can import
+them without going through this file.
+"""
 
 from __future__ import annotations
 

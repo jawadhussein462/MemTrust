@@ -1,7 +1,8 @@
-"""OWASP Agentic Top 10 — ASI06 Memory & Context Poisoning.
+"""OWASP Agentic Top 10, item ASI06: Memory and Context Poisoning.
 
 Every MemorySec finding is a stored-memory issue under ASI06: poisoned facts,
-hidden instructions, and leaked secrets that persist across agent turns.
+hidden instructions, and leaked secrets that stay in memory across turns.
+The constants here are the id, title, and URL written on reports.
 """
 
 from __future__ import annotations

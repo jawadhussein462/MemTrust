@@ -1,12 +1,10 @@
-"""The evaluation engine.
+"""Run every check over stored records and build a `ScanReport`.
 
-Runs the check pipeline over stored records and produces a
-:class:`~memorysec.ScanReport`. Checks can add findings; they cannot hide
-ones another check raised. A check that raises becomes a ``check_error``
-finding when ``fail_closed`` is set.
+A check can add findings. It cannot hide a finding another check already
+raised. If a check raises and `fail_closed` is on, that error becomes a
+`check_error` finding instead of being skipped.
 
-Shared by both :class:`~memorysec.MemorySec` and
-:class:`~memorysec.AsyncMemorySec`.
+Both `MemorySec` and `AsyncMemorySec` use this engine.
 """
 
 from __future__ import annotations
@@ -36,7 +34,14 @@ _logger = get_logger(__name__)
 
 
 class Evaluator:
-    """Runs checks and produces a scan report."""
+    """Run the check list and collect a `ScanReport`.
+
+    Attributes:
+        config: Settings for this scan, including `fail_closed`.
+        checks: Checks to run, in order, on every record.
+        tracer: Receives one span per scan. A missing tracer is replaced
+            with `NullTracer`, which records nothing.
+    """
 
     def __init__(
         self,
@@ -45,16 +50,31 @@ class Evaluator:
         checks: list[MemoryCheck],
         tracer: Tracer | None = None,
     ) -> None:
+        """Store the settings, checks, and tracer used by `scan`.
+
+        Args:
+            config: Settings for this scan.
+            checks: Checks to run on every record, in this order.
+            tracer: Span destination. `None` means record nothing.
+        """
         self.config = config
         self.checks = checks
         self.tracer: Tracer = tracer or NullTracer()
 
     def scan(self, records: Iterable[MemoryRecord], *, query: str | None = None) -> ScanReport:
-        """Audit stored records: poisoned facts, hidden instructions, leaked secrets.
+        """Audit stored records for poisoned facts, hidden instructions, and secrets.
 
-        A concrete sequence is one batch: each check sees the other records as
-        ``context.existing`` and ``query`` when the caller passed one.
-        Streaming iterables are not buffered.
+        Args:
+            records: Memories to scan. A list or tuple is one batch, so each
+                check sees the other records as `context.existing`. A streaming
+                iterable is not stored first, so `context.existing` stays empty.
+            query: The retrieval question for this batch. Passed through as
+                `context.query`. Most checks ignore it.
+
+        Returns:
+            A `ScanReport`. `total` is how many records were read. `findings`
+            lists each problem, highest severity first. Secret text in snippets
+            is masked.
         """
         now = datetime.now(UTC)
         batch = list(records) if isinstance(records, Sequence) else None
@@ -140,7 +160,18 @@ def _detectors(finding: Finding) -> list[str]:
 
 
 def _report_action(action: Action | None, severity: Severity) -> Action:
-    """Map a finding to review, quarantine, or delete."""
+    """Pick review, quarantine, or delete for one finding.
+
+    Args:
+        action: The action the check recommended. Used as-is when it is
+            already review, quarantine, or delete.
+        severity: Used when `action` is missing or is some other value.
+            Critical becomes delete, high becomes quarantine, and anything
+            lower becomes review.
+
+    Returns:
+        The action written on the scan finding.
+    """
     if action in {Action.REVIEW, Action.QUARANTINE, Action.DELETE}:
         return action
     if severity.is_at_least(Severity.CRITICAL):

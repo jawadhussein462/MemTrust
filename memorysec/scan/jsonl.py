@@ -1,4 +1,4 @@
-"""JSON Lines export: one object with a ``content`` string per line."""
+"""JSON Lines export: one JSON object with a `content` string per line."""
 
 from __future__ import annotations
 
@@ -13,14 +13,38 @@ from .source import DEFAULT_BATCH_SIZE, take, to_record
 
 
 class JsonlScanSource:
-    """Stream records from a JSON Lines file or an open text stream."""
+    """Stream records from a JSON Lines file or an open text stream.
+
+    Each non-blank line must be a JSON object with a string `content`.
+    An `id` field is used when present. Otherwise the id is `line_N`.
+    """
 
     def __init__(self, path: str | Path | IO[str]) -> None:
+        """Remember where the lines will be read from. Nothing is read yet.
+
+        Args:
+            path: A filesystem path, or an open text stream such as `sys.stdin`.
+        """
         self._path = path
 
     def records(
         self, *, batch_size: int = DEFAULT_BATCH_SIZE, sample: int | None = None
     ) -> Iterator[MemoryRecord]:
+        """Yield one `MemoryRecord` per JSON line.
+
+        Args:
+            batch_size: Accepted so this matches `ScanSource`. Lines are
+                already one at a time, so the value is ignored.
+            sample: Stop after this many records. `None` reads every line.
+
+        Returns:
+            An iterator. A path is opened with UTF-8 and closed when the
+            iterator is exhausted. A stream you passed in is left open.
+
+        Raises:
+            ConfigurationError: A line is not valid JSON, or the object has
+                no string `content`. The message includes the line number.
+        """
         del batch_size  # lines are already streamed
         stream = self._path
         if isinstance(stream, str | Path):

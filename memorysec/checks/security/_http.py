@@ -1,9 +1,13 @@
-"""Minimal JSON-over-HTTPS transport for hosted detectors (stdlib only).
+"""POST JSON over HTTPS for hosted detectors. Uses only the standard library.
 
-Hosted detectors (Azure Prompt Shields, Lakera Guard) take a ``transport``
-callable ``(url, headers, payload) -> response_json`` so they can be tested
-offline or routed through the caller's HTTP client. :func:`urllib_transport`
-is the default.
+Azure Prompt Shields and Lakera Guard take a `transport` callable so tests
+can fake the network and callers can plug in their own HTTP client.
+
+The callable's shape is:
+
+    (url, headers, payload) -> parsed JSON
+
+`urllib_transport` is the default.
 """
 
 from __future__ import annotations
@@ -20,7 +24,21 @@ Transport = Callable[[str, Mapping[str, str], Mapping[str, Any]], Any]
 
 
 def urllib_transport(timeout: float = 10.0) -> Transport:
-    """A transport that POSTs JSON with :mod:`urllib` and parses the JSON reply."""
+    """Build a transport that POSTs JSON with `urllib` and parses the reply.
+
+    Args:
+        timeout: Seconds to wait for the server before failing.
+
+    Returns:
+        A function `(url, headers, payload) -> parsed JSON`. `payload` is
+        encoded as JSON. `headers` are added on top of `Content-Type`.
+
+    Raises:
+        BackendError: The server returns an HTTP error, the connection
+            fails, the call times out, or the body is not JSON. The
+            function that is returned raises this, not `urllib_transport`
+            itself.
+    """
 
     def post(url: str, headers: Mapping[str, str], payload: Mapping[str, Any]) -> Any:
         body = json.dumps(payload).encode("utf-8")

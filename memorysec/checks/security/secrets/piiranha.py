@@ -1,17 +1,17 @@
-"""Piiranha-v1 (``iiiorg/piiranha-v1-detect-personal-information``).
+"""Piiranha-v1 (`iiiorg/piiranha-v1-detect-personal-information`).
 
-An mDeBERTa-v3 token classifier trained to tag 17 PII types in six
-languages (98% of PII tokens caught on its test set; especially strong on
-passwords, emails, phone numbers, usernames). Labels are BIO-style
-``I-PASSWORD``, ``I-CREDITCARDNUMBER``, ... and the context window is 256
-tokens, so content is scanned in chunks. Licence: CC-BY-NC-ND-4.0 -- check
-it fits your deployment.
+An mDeBERTa-v3 token classifier trained to tag 17 personal-data types in
+six languages. On its test set it caught 98% of those tokens, and it is
+especially strong on passwords, emails, phone numbers, and usernames.
+Labels look like `I-PASSWORD` and `I-CREDITCARDNUMBER`. The window is 256
+tokens, so long text is scanned in chunks. Licence is CC-BY-NC-ND-4.0.
+Check that it fits your deployment before you ship it.
 
-By default only credential-like labels map to ``secret_detected`` (block).
-Pass ``labels=PIIRANHA_ALL_LABELS`` (or your own mapping) to also report
-personal data as ``pii_detected`` (review).
+By default only credential-like labels map to `secret_detected` (delete).
+Pass `labels=PIIRANHA_ALL_LABELS`, or your own map, to also report personal
+data as `pii_detected` (review).
 
-    pip install "memorysec[hf]"
+Install with `pip install "memorysec[hf]"`.
 """
 
 from __future__ import annotations
@@ -45,13 +45,25 @@ PIIRANHA_ALL_LABELS: dict[str, str] = {**PIIRANHA_SECRET_LABELS, **PIIRANHA_PII_
 
 
 class PiiranhaDetector(HFTokenClassifierDetector):
-    """Piiranha-v1 token classification; credential labels block, PII labels review."""
+    """Piiranha-v1 token classifier.
+
+    Credential labels become `secret_detected`. Personal-data labels become
+    `pii_detected` only when you pass `labels=PIIRANHA_ALL_LABELS`.
+    `chunk_chars` defaults to 600, about 256 tokens. Other constructor
+    arguments come from `HFTokenClassifierDetector`.
+    """
 
     name = "piiranha"
     model_id = PIIRANHA_V1
     default_labels = PIIRANHA_SECRET_LABELS
 
     def __init__(self, **kwargs: object) -> None:
+        """Build a Piiranha detector with a 256-token-sized default chunk.
+
+        Args:
+            **kwargs: Forwarded to `HFTokenClassifierDetector`. `chunk_chars`
+                defaults to 600 when you omit it.
+        """
         kwargs.setdefault("chunk_chars", 600)  # ~256 mDeBERTa tokens
         super().__init__(**kwargs)  # type: ignore[arg-type]
 

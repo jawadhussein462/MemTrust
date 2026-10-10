@@ -1,7 +1,12 @@
-"""MemorySec — scan agent memory for poisoned facts, hidden instructions, and leaked secrets.
+"""Scan agent memory for poisoned facts, hidden instructions, and leaked secrets.
 
-memorysec scan chroma --path ./chroma_db --collection agent_memory
-memorysec scan jsonl export.jsonl --report report.html --json findings.json
+From the command line:
+
+    memorysec scan chroma --path ./chroma_db --collection agent_memory
+    memorysec scan jsonl export.jsonl --report report.html --json findings.json
+
+From Python, create a `MemorySec` and call `scan`. The scan reads records and
+returns a `ScanReport`. It does not change the store.
 """
 
 from __future__ import annotations

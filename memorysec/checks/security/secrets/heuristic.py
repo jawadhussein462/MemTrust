@@ -1,8 +1,11 @@
-"""Heuristic secret detection: well-known key formats and stated credentials.
+"""Known key formats and stated credentials, matched with regexes.
 
-Evidence names the *kinds* detected ("aws_access_key_id", "credential"),
-never the values. Deterministic and offline; misses secrets in formats it
-has no pattern for, which is what the entropy and model detectors add.
+Evidence names the kinds found, such as `"aws_access_key_id"` or
+`"credential"`. It never includes the secret value. The same text always
+produces the same result, and nothing is downloaded.
+
+Formats with no pattern here are missed. Add `EntropyDetector` or a model
+detector for those.
 """
 
 from __future__ import annotations
@@ -48,7 +51,17 @@ _HAS_DIGIT_OR_SYMBOL = re.compile(r"[\d!#$%&*+/=?@^_~|-]")
 
 
 def _stated_credential(text: str) -> bool:
-    """A stated value that looks like a secret (has a digit/symbol), not a description."""
+    """Whether `text` states a secret value, not just the word "password".
+
+    A match of "my password is hunter2" counts when the value contains a
+    digit or a symbol. "my password is correct" does not.
+
+    Args:
+        text: Memory content, scanned as written (not deobfuscated).
+
+    Returns:
+        `True` when at least one stated value looks like a secret.
+    """
     for match in _STATED_CREDENTIAL.finditer(text):
         value = match.group(1).rstrip(".!?)")
         if len(value) >= 4 and _HAS_DIGIT_OR_SYMBOL.search(value):
@@ -57,7 +70,15 @@ def _stated_credential(text: str) -> bool:
 
 
 def secret_kinds(text: str) -> list[str]:
-    """Kinds of secrets found in ``text`` (never the values)."""
+    """List the kinds of secrets found in `text`.
+
+    Args:
+        text: Memory content.
+
+    Returns:
+        Sorted kind names such as `"openai_api_key"` and `"credential"`.
+        The secret values are not included. Empty when nothing matched.
+    """
     kinds: set[str] = set()
     for kind, pattern in _PATTERNS:
         if pattern.search(text):
@@ -68,7 +89,15 @@ def secret_kinds(text: str) -> list[str]:
 
 
 def mask_secrets(text: str) -> str:
-    """Replace secret-like substrings with bullets so reports can be shared."""
+    """Replace secret-like substrings with bullets so a report can be shared.
+
+    Args:
+        text: Memory content.
+
+    Returns:
+        A copy of `text`. Matched keys, tokens, and stated secret values
+        are replaced with `••••••••`. Surrounding words are kept.
+    """
     masked = text
     for _, pattern in _PATTERNS:
         masked = pattern.sub("••••••••", masked)
@@ -81,7 +110,10 @@ def mask_secrets(text: str) -> str:
 
 
 class HeuristicSecretsDetector(BaseDetector):
-    """Known key formats plus ``key = value`` / "my password is ..." statements."""
+    """Match known key formats, `key = value`, and "my password is ..." lines.
+
+    The finding code is `secret_detected`. Evidence lists `kinds` only.
+    """
 
     name = "heuristic"
 

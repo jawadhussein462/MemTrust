@@ -1,4 +1,4 @@
-"""Model behaviour: coercion, enums, serialization."""
+"""Tests for coercion, enums, and serialization."""
 
 from __future__ import annotations
 

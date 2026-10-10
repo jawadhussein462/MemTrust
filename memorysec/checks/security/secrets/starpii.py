@@ -1,13 +1,17 @@
-"""StarPII (``bigcode/starpii``): PII and secrets in *code*.
+"""StarPII (`bigcode/starpii`): personal data and secrets inside code.
 
-The BigCode NER model used to scrub The Stack before StarCoder training. It
-tags six classes -- ``NAME``, ``EMAIL``, ``KEY``, ``PASSWORD``, ``IP_ADDRESS``,
-``USERNAME`` -- in source code across 31+ languages, which makes it the
-right pick when memories contain snippets, configs, or logs rather than
-prose. The authors recommend ignoring keys shorter than nine characters and
-usernames (noisy); the default label map follows that advice. Gated model.
+The BigCode model used to scrub The Stack before StarCoder training. It
+tags `NAME`, `EMAIL`, `KEY`, `PASSWORD`, `IP_ADDRESS`, and `USERNAME` in
+source code across 31 or more languages. Use it when memories contain
+snippets, configs, or logs rather than prose.
 
-    pip install "memorysec[hf]"
+The authors recommend ignoring keys shorter than nine characters and
+usernames, which are noisy. The default label map follows that: only `KEY`
+and `PASSWORD` are on, as `secret_detected`. Pass `labels=STARPII_ALL_LABELS`
+to add the personal-data labels as `pii_detected`. The model is gated on
+the Hugging Face Hub.
+
+Install with `pip install "memorysec[hf]"`.
 """
 
 from __future__ import annotations
@@ -30,7 +34,11 @@ STARPII_ALL_LABELS: dict[str, str] = {**STARPII_SECRET_LABELS, **STARPII_PII_LAB
 
 
 class StarPIIDetector(HFTokenClassifierDetector):
-    """StarPII token classification for keys and passwords in code-like content."""
+    """StarPII token classifier for keys and passwords in code-like content.
+
+    Constructor arguments come from `HFTokenClassifierDetector`. The default
+    `labels` are `STARPII_SECRET_LABELS`.
+    """
 
     name = "starpii"
     model_id = STARPII

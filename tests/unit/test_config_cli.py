@@ -1,4 +1,4 @@
-"""Config helpers and the CLI."""
+"""Tests for `Config` and the command-line parser."""
 
 from __future__ import annotations
 

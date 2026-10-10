@@ -12,10 +12,16 @@ from .heuristic import HeuristicPoisoningDetector
 class PoisoningCheck(SecurityCheck):
     """Flag content that looks like an attempt to plant a false fact.
 
-    Defaults to the offline heuristic detector. Retrieval-aware detectors
-    (TrustRAG) need the neighbouring records from a batched scan::
+    The default detector is the offline phrase list. TrustRAG also needs
+    the other records from a batched scan (`context.existing`).
 
-        PoisoningCheck(detectors=[HeuristicPoisoningDetector(), TrustRAGDetector()])
+    Example:
+        Run the phrase list and the cluster detector together::
+
+            PoisoningCheck(detectors=[
+                HeuristicPoisoningDetector(),
+                TrustRAGDetector(),
+            ])
     """
 
     name = "poisoning"
@@ -57,6 +63,11 @@ class PoisoningCheck(SecurityCheck):
 
     @classmethod
     def default_detectors(cls) -> list[Detector]:
+        """Return the offline phrase detector.
+
+        Returns:
+            A one-item list: `HeuristicPoisoningDetector`.
+        """
         return [HeuristicPoisoningDetector()]
 
 

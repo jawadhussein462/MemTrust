@@ -1,15 +1,15 @@
-"""Example 9 — Stacking detection methods on a security check.
+"""Example 9: stack several detectors on one security check.
 
-Each security check (injection, poisoning, secrets) runs a list of detectors:
-the offline heuristic by default, plus any model, statistical, or hosted
-method you add. Agreeing detectors merge into one finding; ``min_detectors``
-turns that into a vote.
+Each security check (injection, poisoning, secrets) runs a list of detectors.
+The default is the offline phrase list. You can add a model, a statistical
+filter, or a hosted API. Detectors that agree are merged into one finding.
+`min_detectors` is the number that must agree before that finding is kept.
 
-This example runs without downloading anything: the model detector is fed a
-stand-in classifier. Replace ``classify=`` with nothing (and
-``pip install "memorysec[hf]"``) to use the real Llama Prompt Guard 2 weights.
+This example downloads nothing. The model detector is given a stand-in
+classifier. Omit `classify=` and install `memorysec[hf]` to use the real
+Llama Prompt Guard 2 weights.
 
-Run:  python examples/09_model_detectors.py
+Run it with `python examples/09_model_detectors.py`.
 """
 
 from __future__ import annotations
@@ -22,7 +22,17 @@ from memorysec.checks.security.secrets import EntropyDetector, HeuristicSecretsD
 
 
 def stand_in_classifier(text: str) -> list[dict[str, object]]:
-    """Pretend to be Prompt Guard: flag anything asking the agent to forget guidance."""
+    """Stand in for Prompt Guard so the example needs no model download.
+
+    Args:
+        text: The memory content Prompt Guard would have classified.
+
+    Returns:
+        Two label scores, `MALICIOUS` and `BENIGN`, in the shape Hugging
+        Face text-classification pipelines return. The malicious score is
+        `0.97` when `text` contains "guidance" or "ignore", and `0.01`
+        otherwise.
+    """
     malicious = 0.97 if "guidance" in text.lower() or "ignore" in text.lower() else 0.01
     return [{"label": "MALICIOUS", "score": malicious}, {"label": "BENIGN", "score": 1 - malicious}]
 

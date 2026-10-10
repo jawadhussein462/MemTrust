@@ -1,7 +1,7 @@
-"""Pydantic-style coercion of loose inputs into domain models.
+"""Turn loose caller input into `MemoryCandidate` and `MemoryRecord`.
 
-Lets callers pass a string, a dict, or a :class:`MemoryCandidate` for content
-so the common case stays terse.
+Callers can pass a string, a dict, or an existing model. These helpers
+accept all three so the common case stays short.
 """
 
 from __future__ import annotations
@@ -11,7 +11,20 @@ from .models.memory import MemoryCandidate, MemoryRecord
 
 
 def coerce_candidate(content: str | MemoryCandidate | dict) -> MemoryCandidate:
-    """Return a :class:`MemoryCandidate` from a string, dict, or model."""
+    """Turn one input into a `MemoryCandidate`.
+
+    Args:
+        content: The memory to scan. A string becomes the `content` field.
+            A dict is validated as a `MemoryCandidate`. A `MemoryCandidate`
+            is returned unchanged.
+
+    Returns:
+        A `MemoryCandidate` the checks can read.
+
+    Raises:
+        ConfigurationError: `content` is not a string, a dict, or a
+            `MemoryCandidate`.
+    """
     if isinstance(content, MemoryCandidate):
         return content
     if isinstance(content, dict):
@@ -22,7 +35,18 @@ def coerce_candidate(content: str | MemoryCandidate | dict) -> MemoryCandidate:
 
 
 def coerce_record(item: object) -> MemoryRecord:
-    """Return a :class:`MemoryRecord` from a record or a dict."""
+    """Turn one input into a `MemoryRecord`.
+
+    Args:
+        item: A `MemoryRecord`, returned unchanged, or a dict with at least
+            an `id` and a `content` string.
+
+    Returns:
+        A `MemoryRecord` the scan engine can read.
+
+    Raises:
+        ConfigurationError: `item` is not a record or a dict.
+    """
     if isinstance(item, MemoryRecord):
         return item
     if isinstance(item, dict):
@@ -31,6 +55,17 @@ def coerce_record(item: object) -> MemoryRecord:
 
 
 def coerce_records(records: list) -> list[MemoryRecord]:
+    """Turn a list of records or dicts into `MemoryRecord` objects.
+
+    Args:
+        records: Each item is passed to `coerce_record`.
+
+    Returns:
+        One `MemoryRecord` per item, in the same order.
+
+    Raises:
+        ConfigurationError: Any item is not a record or a dict.
+    """
     return [coerce_record(item) for item in records]
 
 

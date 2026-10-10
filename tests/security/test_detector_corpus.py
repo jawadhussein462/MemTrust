@@ -1,4 +1,4 @@
-"""Detectors against the labelled regression corpus (see tests/corpus.py)."""
+"""Run the built-in detectors against the labelled examples in `tests/corpus.py`."""
 
 from __future__ import annotations
 

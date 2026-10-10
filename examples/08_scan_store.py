@@ -1,11 +1,14 @@
-"""Example 8 — Scan an existing store and write a report.
+"""Example 8: scan an existing store and write a report.
 
-Find poisoned facts, hidden instructions, and leaked secrets. The HTML
-report is one file you can forward: totals, percentage flagged, findings
-by severity, masked snippets, recommended actions, OWASP ASI06.
+The scan looks for poisoned facts, hidden instructions, and leaked secrets.
+The HTML report is one file you can forward: totals, percent flagged,
+findings by severity, masked snippets, recommended actions, and OWASP ASI06.
 
-Run:  python examples/08_scan_store.py
-CLI:  memorysec scan jsonl export.jsonl --report report.html --json findings.json
+Run it with `python examples/08_scan_store.py`.
+
+The same scan from the command line:
+
+    memorysec scan jsonl export.jsonl --report report.html --json findings.json
 """
 
 from __future__ import annotations

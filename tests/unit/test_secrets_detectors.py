@@ -1,4 +1,8 @@
-"""Secrets detectors, driven through injected fakes (no models, no network)."""
+"""Tests for secrets detectors.
+
+Model and hosted detectors are given fake callables, so these tests
+download nothing and open no network connection.
+"""
 
 from __future__ import annotations
 

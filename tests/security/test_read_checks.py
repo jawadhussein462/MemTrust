@@ -1,4 +1,4 @@
-"""Scan screens content that reached the store through another pipeline."""
+"""Tests that a scan still flags text that was saved by some other pipeline."""
 
 from __future__ import annotations
 

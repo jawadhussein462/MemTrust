@@ -1,22 +1,21 @@
-"""TrustRAG clean-retrieval stage: coordinated poison forms a tight cluster.
+"""TrustRAG: coordinated poison shows up as a tight cluster of near-copies.
 
-From *TrustRAG: Enhancing Robustness and Trustworthiness in RAG*
-(arXiv:2501.00879). Attackers who inject several passages for one target
-query optimise them all toward the same query and answer, so the poisoned
-passages sit unusually close together in embedding space (pairwise cosine
->= 0.85 in the paper) *and* share unusually many n-grams (ROUGE-L >= 0.25,
-the "n-gram preservation" rule that keeps merely topical clean documents).
-A single poisoned passage is dispersed among clean ones and is not caught
-here; that is what the content detectors are for.
+From TrustRAG (arXiv:2501.00879). An attacker who plants several passages
+for one question pushes them all toward the same query and answer, so the
+poisoned passages sit close together in embedding space (pairwise cosine
+at least 0.85 in the paper) and share many word sequences (ROUGE-L at
+least 0.25). That second test keeps ordinary documents on the same topic
+from counting. One poisoned passage sitting among clean ones is not caught
+here. The phrase detectors are for that case.
 
-Applied to memory: a candidate is suspicious when at least ``min_cluster``
-of its neighbours -- the other records in the scanned batch
-(``context.existing``)
--- are near-paraphrases of it. Pass ``embed`` (``list[str] -> list[vector]``)
-to use cosine similarity as in the paper; without it MemorySec's lexical
-similarity stands in for the embedding test, with the same threshold.
-Legitimate copies of the same fact trigger this too, which is why the
-finding asks for review rather than quarantine.
+Applied to memory: a candidate is suspicious when at least `min_cluster`
+neighbours are near-paraphrases of it. Neighbours are the other records in
+the scanned batch (`context.existing`).
+
+Pass `embed`, a function `(texts) -> vectors`, to use cosine similarity as
+in the paper. Without it, lexical similarity is used with the same threshold.
+Real copies of the same fact trigger this too, so the finding asks for
+review rather than quarantine.
 """
 
 from __future__ import annotations
@@ -34,7 +33,11 @@ Embed = Callable[[Sequence[str]], Sequence[Sequence[float]]]
 
 
 class TrustRAGDetector(BaseDetector):
-    """Flag candidates that belong to a tight near-paraphrase cluster of neighbours."""
+    """Flag a memory that has several near-copy neighbours.
+
+    The finding code is `poisoning_cluster`. Streaming scans have no
+    neighbours, so this detector returns nothing for them.
+    """
 
     name = "trustrag"
 
@@ -46,6 +49,24 @@ class TrustRAGDetector(BaseDetector):
         rouge_threshold: float = 0.25,
         min_cluster: int = 2,
     ) -> None:
+        """Store the cluster thresholds. No model is loaded here.
+
+        Args:
+            embed: Function `(texts) -> one vector per text`. The first text
+                is the candidate and the rest are neighbours. `None` uses
+                lexical similarity instead of cosine.
+            cosine_threshold: Minimum similarity with a neighbour, from just
+                above 0 to 1. Default `0.85`, the paper's cutoff. Also used
+                as the lexical cutoff when `embed` is omitted.
+            rouge_threshold: Minimum ROUGE-L overlap with a neighbour, from
+                just above 0 to 1. Default `0.25`.
+            min_cluster: How many neighbours must pass both tests. Default
+                `2`. Must be at least 1.
+
+        Raises:
+            ConfigurationError: A threshold is outside (0, 1], or
+                `min_cluster` is below 1.
+        """
         if not 0.0 < cosine_threshold <= 1.0 or not 0.0 < rouge_threshold <= 1.0:
             raise ConfigurationError("thresholds must be within (0, 1].")
         if min_cluster < 1:
@@ -73,6 +94,21 @@ class TrustRAGDetector(BaseDetector):
         return [cosine(anchor, list(v)) for v in vectors[1:]]
 
     def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
+        """Look for a near-copy cluster around this memory.
+
+        Args:
+            candidate: The memory being scanned.
+            context: Must include `context.existing`, the other records in
+                the batch. Inactive records and the candidate itself are
+                skipped.
+
+        Returns:
+            One `Detection` with code `poisoning_cluster` when at least
+            `min_cluster` neighbours are close enough. Otherwise an empty list.
+
+        Raises:
+            ConfigurationError: `embed` did not return one vector per text.
+        """
         neighbours = self._neighbours(candidate, context)
         if len(neighbours) < self.min_cluster:
             return []

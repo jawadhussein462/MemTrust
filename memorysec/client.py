@@ -1,8 +1,8 @@
-"""The public facade: :class:`MemorySec` and :class:`AsyncMemorySec`.
+"""The two objects most people import: `MemorySec` and `AsyncMemorySec`.
 
-``MemorySec`` is the one object most users import. It wires the check
-pipeline so ``MemorySec().scan(...)`` just works. Sync and async are
-separate classes; a method is never sometimes-async.
+`MemorySec()` is ready to scan. It builds the default checks for you.
+The sync class and the async class are separate, so `scan` is never
+sometimes a coroutine and sometimes a normal function.
 """
 
 from __future__ import annotations
@@ -22,7 +22,11 @@ from .telemetry import Tracer
 
 
 class _ClientBase:
-    """Shared construction and pure logic for the sync/async clients."""
+    """Shared setup for the sync and async clients.
+
+    Builds the config, the check list, and the engine. `scan` lives here
+    because it does no I/O of its own: the caller supplies the records.
+    """
 
     def __init__(
         self,
@@ -33,6 +37,24 @@ class _ClientBase:
         tracer: Tracer | None = None,
         use_default_checks: bool = True,
     ) -> None:
+        """Build a client and the checks it will run.
+
+        Args:
+            fail_closed: When a check crashes, report a blocking `check_error`
+                instead of skipping that check. `None` keeps the value already
+                on `config` (the default config uses `True`).
+            checks: Extra checks, or replacements for a default check of the
+                same name. Each item must be a `MemoryCheck`.
+            config: Full settings object. Fields you also pass as arguments
+                (`fail_closed`) override this object.
+            tracer: Where scan spans are sent. `None` uses a tracer that
+                records nothing.
+            use_default_checks: When `True`, start from secrets, injection,
+                and poisoning. When `False`, run only the checks you passed.
+
+        Raises:
+            ConfigurationError: An item in `checks` is not a `MemoryCheck`.
+        """
         base_config = config or Config()
         updates: dict[str, Any] = {}
         if fail_closed is not None:
@@ -64,11 +86,28 @@ class _ClientBase:
     def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
         """Find poisoned facts, hidden instructions, and leaked secrets.
 
-        ``source`` is a scan source (``.records()``), an object with
-        ``.all()``, or an iterable of records or dicts. A concrete sequence
-        is one batch, so retrieval-aware detectors see the other records and
-        ``query`` when you pass one. Streaming sources are not buffered.
-        Nothing is modified.
+        The store is not modified.
+
+        Args:
+            source: Where the records come from. Accepted shapes:
+
+                * a scan source, which is read with `.records()`
+                * an object with `.all()`, such as some vector-store wrappers
+                * an iterable of `MemoryRecord` objects or dicts
+
+                A list or tuple is one batch: detectors that look at neighbours
+                can see the other records. A streaming source is not stored
+                in memory first, so those detectors see no neighbours.
+            query: The question that retrieved this batch, when you have one.
+                Most checks ignore it. Cluster detectors can use it.
+
+        Returns:
+            A `ScanReport` with one entry per problem found. An empty
+            `findings` list means nothing was flagged.
+
+        Raises:
+            ConfigurationError: `source` is not a scan source, an object with
+                `.all()`, or an iterable of records.
         """
         records_fn = getattr(source, "records", None)
         if callable(records_fn):
@@ -90,19 +129,34 @@ class _ClientBase:
 
 
 class MemorySec(_ClientBase):
-    """Synchronous entry point.
+    """Synchronous client. Call `scan` and wait for the report.
 
-    Example::
+    Example:
+        Scan a list of records and print the summary::
 
-        report = MemorySec().scan(records)
-        print(report)
+            report = MemorySec().scan(records)
+            print(report)
     """
 
 
 class AsyncMemorySec(_ClientBase):
-    """Asynchronous entry point. Mirrors :class:`MemorySec`."""
+    """Asynchronous client. Same arguments as `MemorySec`.
+
+    `scan` is a coroutine so it can be awaited. The work inside is the same
+    synchronous scan; it does not talk to the network by itself.
+    """
 
     async def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
+        """Scan records and return the report. See `MemorySec.scan`.
+
+        Args:
+            source: A scan source, an object with `.all()`, or an iterable
+                of records or dicts.
+            query: The retrieval question for this batch, if you have one.
+
+        Returns:
+            The same `ScanReport` the synchronous client would return.
+        """
         return super().scan(source, query=query)
 
 

@@ -1,10 +1,8 @@
-"""Enumerations used across MemorySec.
+"""Labels shared across MemorySec: severity, risk, category, action, status.
 
-All enums subclass ``StrEnum`` so they serialize cleanly to JSON and compare
-equal to their string values (``Severity.HIGH == "high"``). Where an
-ordering is meaningful (severity, risk) a ``rank`` property and an
-``is_at_least`` helper are provided rather than overriding comparison
-operators, which would be ambiguous on a ``str`` subclass.
+Each enum is a `StrEnum`, so `Severity.HIGH == "high"` and JSON stores the
+plain string. Severity and risk have a `rank` number instead of `<` and `>`
+operators, because those operators would also compare the strings.
 """
 
 from __future__ import annotations
@@ -13,7 +11,10 @@ from enum import StrEnum
 
 
 class Severity(StrEnum):
-    """Severity of an individual :class:`~memorysec.Finding`."""
+    """How serious one finding is.
+
+    From least to most serious: `INFO`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`.
+    """
 
     INFO = "info"
     LOW = "low"
@@ -23,9 +24,24 @@ class Severity(StrEnum):
 
     @property
     def rank(self) -> int:
+        """Position on the severity scale.
+
+        Returns:
+            `0` for info through `4` for critical. A larger number is worse.
+        """
         return _SEVERITY_ORDER[self]
 
     def is_at_least(self, other: Severity) -> bool:
+        """Say whether this severity is as serious as `other`, or worse.
+
+        Args:
+            other: The severity to compare against.
+
+        Returns:
+            `True` when `self.rank` is greater than or equal to `other.rank`.
+            `Severity.HIGH.is_at_least(Severity.MEDIUM)` is `True`.
+            `Severity.LOW.is_at_least(Severity.HIGH)` is `False`.
+        """
         return self.rank >= other.rank
 
 
@@ -39,7 +55,11 @@ _SEVERITY_ORDER: dict[Severity, int] = {
 
 
 class Risk(StrEnum):
-    """Overall risk, aligned with finding severity."""
+    """Overall risk for a record. Same names as `Severity`, plus `NONE`.
+
+    `NONE` means nothing was found. The other values match a finding's
+    severity string, so `"high"` is both `Severity.HIGH` and `Risk.HIGH`.
+    """
 
     NONE = "none"
     INFO = "info"
@@ -50,10 +70,25 @@ class Risk(StrEnum):
 
     @property
     def rank(self) -> int:
+        """Position on the risk scale.
+
+        Returns:
+            `0` for none through `5` for critical. A larger number is worse.
+        """
         return _RISK_ORDER[self]
 
     @classmethod
     def from_severity(cls, severity: Severity) -> Risk:
+        """Build the risk label that matches a finding severity.
+
+        Args:
+            severity: A finding severity. `NONE` is not a severity, so it
+                cannot be passed here.
+
+        Returns:
+            The `Risk` member with the same string value, such as
+            `Risk.HIGH` for `Severity.HIGH`.
+        """
         return cls(severity.value)
 
 
@@ -68,16 +103,19 @@ _RISK_ORDER: dict[Risk, int] = {
 
 
 class Category(StrEnum):
-    """The concern a finding relates to. Built-in checks are security only."""
+    """Which family a finding belongs to.
+
+    Built-in checks all use `SECURITY`.
+    """
 
     SECURITY = "security"
 
 
 class Action(StrEnum):
-    """What a scan recommends doing with a stored record.
+    """What the scan recommends doing with a stored record.
 
-    Ordered by :attr:`precedence` so that when several checks disagree the
-    stronger recommendation wins.
+    From weakest to strongest: `REVIEW`, `QUARANTINE`, `DELETE`. When several
+    findings disagree, the one with the higher `precedence` wins.
     """
 
     REVIEW = "review"
@@ -86,7 +124,12 @@ class Action(StrEnum):
 
     @property
     def precedence(self) -> int:
-        """Higher precedence wins when aggregating findings."""
+        """How strong this recommendation is compared with the others.
+
+        Returns:
+            `0` for review, `1` for quarantine, `2` for delete. The larger
+            number wins when findings are combined.
+        """
         return _ACTION_PRECEDENCE[self]
 
 
@@ -98,7 +141,11 @@ _ACTION_PRECEDENCE: dict[Action, int] = {
 
 
 class MemoryStatus(StrEnum):
-    """Lifecycle state of a persisted :class:`~memorysec.MemoryRecord`."""
+    """Where a stored record is in its life.
+
+    `ACTIVE` is normal. `QUARANTINED` is held back from retrieval.
+    `REVOKED` is no longer in use.
+    """
 
     ACTIVE = "active"
     REVOKED = "revoked"

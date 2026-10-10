@@ -1,4 +1,9 @@
-"""Lightweight text normalization and similarity. Leaf module (stdlib only)."""
+"""Normalize text and compare two strings.
+
+Uses only the Python standard library. Detectors call these helpers before
+matching patterns or measuring how alike two memories are. Nothing here is
+stored back into the memory.
+"""
 
 from __future__ import annotations
 
@@ -23,11 +28,19 @@ _SEPARATORS = re.compile(r"[-._*\s]")
 
 
 def deobfuscate(text: str) -> str:
-    """Undo common obfuscation before pattern matching (never stored).
+    """Undo common tricks used to hide a phrase from a regex.
 
-    NFKC-normalizes, drops invisible characters, maps Cyrillic/Greek
-    look-alikes to Latin, strips diacritics, and joins letter-by-letter
-    spelling ("i-g-n-o-r-e" -> "ignore").
+    The result is only for matching. It is not written back to the store.
+
+    The steps are: Unicode NFKC normalize, drop invisible characters, map
+    Cyrillic and Greek look-alikes to Latin, strip accents, and join
+    letters spelled out one by one (`"i-g-n-o-r-e"` becomes `"ignore"`).
+
+    Args:
+        text: The memory content, unchanged.
+
+    Returns:
+        A new string that is easier for phrase patterns to match.
     """
     text = unicodedata.normalize("NFKC", text).translate(_INVISIBLE).translate(_CONFUSABLES)
     text = "".join(
@@ -72,17 +85,43 @@ _STOPWORDS = frozenset(
 
 
 def normalize(text: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace."""
+    """Make two strings easier to compare as words.
+
+    Args:
+        text: Any string.
+
+    Returns:
+        `text` in lowercase, with punctuation replaced by spaces and
+        repeated whitespace collapsed to a single space.
+    """
     text = text.lower()
     text = _PUNCT.sub(" ", text)
     return _WS.sub(" ", text).strip()
 
 
 def tokenize(text: str) -> list[str]:
+    """Split `text` into words after `normalize`.
+
+    Args:
+        text: Any string.
+
+    Returns:
+        Lowercase words, in order. Empty when `text` has no words.
+    """
     return normalize(text).split()
 
 
 def token_set(text: str, *, drop_stopwords: bool = True) -> set[str]:
+    """Return the unique words in `text`.
+
+    Args:
+        text: Any string. It is normalized before the split.
+        drop_stopwords: When `True` (the default), drop filler words such
+            as "the" and "and" so they do not count as similarity.
+
+    Returns:
+        A set of lowercase words. Order is not preserved.
+    """
     tokens = set(tokenize(text))
     if drop_stopwords:
         tokens -= _STOPWORDS
@@ -90,7 +129,16 @@ def token_set(text: str, *, drop_stopwords: bool = True) -> set[str]:
 
 
 def jaccard(a: str, b: str) -> float:
-    """Jaccard similarity of the two token sets (0..1)."""
+    """Score how much the word sets of `a` and `b` overlap.
+
+    Args:
+        a: First text.
+        b: Second text.
+
+    Returns:
+        A float from 0 to 1. `1` means the same words (after dropping
+        filler words). `0` means no shared words. Two empty texts return `1`.
+    """
     sa, sb = token_set(a), token_set(b)
     if not sa and not sb:
         return 1.0
@@ -102,12 +150,29 @@ def jaccard(a: str, b: str) -> float:
 
 
 def ratio(a: str, b: str) -> float:
-    """Character-sequence similarity on normalized text (0..1)."""
+    """Score how similar `a` and `b` are as character sequences.
+
+    Args:
+        a: First text.
+        b: Second text.
+
+    Returns:
+        A float from 0 to 1 from `difflib.SequenceMatcher` on the normalized
+        strings. `1` means the normalized texts are identical.
+    """
     return difflib.SequenceMatcher(None, normalize(a), normalize(b)).ratio()
 
 
 def similarity(a: str, b: str) -> float:
-    """Combined similarity: max of Jaccard and sequence ratio."""
+    """Score how alike two texts are, using whichever measure is higher.
+
+    Args:
+        a: First text.
+        b: Second text.
+
+    Returns:
+        The larger of `jaccard(a, b)` and `ratio(a, b)`, from 0 to 1.
+    """
     return max(jaccard(a, b), ratio(a, b))
 
 
@@ -126,7 +191,17 @@ def _lcs_length(a: list[str], b: list[str]) -> int:
 
 
 def rouge_l(a: str, b: str) -> float:
-    """ROUGE-L F1 on normalized tokens: longest-common-subsequence overlap (0..1)."""
+    """Score how much of the word order is shared, via the longest common subsequence.
+
+    Args:
+        a: First text.
+        b: Second text.
+
+    Returns:
+        An F1 score from 0 to 1. `0` means no shared word sequence.
+        Higher means the two texts reuse a longer run of the same words,
+        even with gaps.
+    """
     ta, tb = tokenize(a), tokenize(b)
     lcs = _lcs_length(ta, tb)
     if lcs == 0:
@@ -136,7 +211,20 @@ def rouge_l(a: str, b: str) -> float:
 
 
 def cosine(a: list[float], b: list[float]) -> float:
-    """Cosine similarity of two equal-length vectors (0 for a zero vector)."""
+    """Score how aligned two embedding vectors are.
+
+    Args:
+        a: First vector.
+        b: Second vector. Must be the same length as `a`.
+
+    Returns:
+        Cosine similarity. `1` means the same direction, `0` means
+        perpendicular or a zero-length vector. Negative values mean
+        opposite directions.
+
+    Raises:
+        ValueError: The two lists have different lengths.
+    """
     if len(a) != len(b):
         raise ValueError("vectors must have the same dimension")
     dot = sum(x * y for x, y in zip(a, b, strict=True))

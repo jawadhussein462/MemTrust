@@ -1,4 +1,4 @@
-"""Read-only Qdrant collection scanner."""
+"""Scroll every point in a Qdrant collection. Never writes."""
 
 from __future__ import annotations
 
@@ -13,7 +13,11 @@ _QDRANT_PAGE = 256
 
 
 class QdrantScanSource:
-    """Scroll every point in a Qdrant collection. Never upserts or deletes."""
+    """Scroll every point in a Qdrant collection.
+
+    Uses `scroll` with payloads and without vectors. Nothing is upserted
+    or deleted. Text is taken from the payload.
+    """
 
     def __init__(
         self,
@@ -24,6 +28,20 @@ class QdrantScanSource:
         client: Any | None = None,
         text_field: str | None = None,
     ) -> None:
+        """Point at a Qdrant collection, or at an already-open client.
+
+        Args:
+            url: Qdrant HTTP URL. Required unless `client` is set.
+            collection: Collection name to scroll.
+            api_key: Sent to `QdrantClient` when opening a new client.
+            client: An already-open client, used by tests. When set, `url`
+                is not used.
+            text_field: Payload key that holds the memory text. `None`
+                tries common keys such as `content` and `text`.
+
+        Raises:
+            ConfigurationError: `client` is omitted and `url` is missing.
+        """
         if client is None and not url:
             raise ConfigurationError("qdrant scan needs --url.")
         self._url = url
@@ -35,6 +53,21 @@ class QdrantScanSource:
     def records(
         self, *, batch_size: int = _QDRANT_PAGE, sample: int | None = None
     ) -> Iterator[MemoryRecord]:
+        """Yield each point's payload text as a `MemoryRecord`.
+
+        Args:
+            batch_size: Points per `scroll` call. Default 256, which is
+                also Qdrant's typical page cap.
+            sample: Stop after this many points. `None` reads the
+                whole collection.
+
+        Returns:
+            An iterator. The first pull opens the client if one was not passed.
+
+        Raises:
+            ConfigurationError: The Qdrant client is not installed, or a
+                scroll call fails.
+        """
         client = self._client if self._client is not None else self._open()
         yield from take(self._scroll(client, batch_size=batch_size), sample=sample)
 

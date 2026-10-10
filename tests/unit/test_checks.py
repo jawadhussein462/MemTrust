@@ -1,4 +1,4 @@
-"""Individual built-in checks."""
+"""Tests for each built-in check on its own."""
 
 from __future__ import annotations
 

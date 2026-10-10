@@ -1,23 +1,24 @@
-"""Security check framework: one check per concern, one detector per method.
+"""Security checks: one check per problem, one detector per way of finding it.
 
-The hierarchy is::
+A security check looks for one kind of problem (injection, poisoning, or
+secrets). It runs one or more detectors. Each detector is a single way of
+looking: a regex, a Hugging Face model, a hosted API, or a statistical filter.
+
+How the classes fit together:
 
     MemoryCheck
-    └── SecurityCheck                  (this module; the "father" class)
-        ├── InjectionCheck             (security/injection/)
-        ├── PoisoningCheck             (security/poisoning/)
-        └── SecretsCheck               (security/secrets/)
+    └── SecurityCheck
+        ├── InjectionCheck
+        ├── PoisoningCheck
+        └── SecretsCheck
 
-Each :class:`SecurityCheck` owns a list of :class:`Detector` objects. A
-detector implements *one method* of finding the concern -- a regex heuristic,
-a Hugging Face classifier, a hosted API, a statistical filter -- and returns
-:class:`Detection` objects. The check turns detections into
-:class:`~memorysec.Finding` objects using a per-code table of severity, action,
-and message, merging evidence when several detectors agree.
+A detector only reports what it saw (`Detection`). The check turns those
+reports into `Finding` objects. The engine then collects findings from every
+check.
 
-Detectors never see the decision: they report, the check maps, the engine
-aggregates. Adding a method means adding a detector class; adding a concern
-means adding a ``SecurityCheck`` subclass with its ``specs`` table.
+To add a new way of looking, add a detector class.
+To add a new kind of problem, add a `SecurityCheck` subclass and fill in its
+`specs` table (finding code → severity, action, and message).
 """
 
 from __future__ import annotations
@@ -39,12 +40,21 @@ _logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class Detection:
-    """What one detector noticed about a candidate.
+    """One thing a detector noticed in a memory.
 
-    ``code`` selects the finding the parent check emits (``None`` means the
-    check's default code). ``score`` is the detector's confidence when it has
-    one (model probability, statistical density). ``evidence`` must never
-    contain raw secrets or the full text; kinds, counts, and scores only.
+    The detector does not decide what to do. It fills in this object and the
+    parent check turns it into a finding.
+
+    Attributes:
+        detector: Name of the detector that produced this result. The check
+            uses it to count votes and to record who agreed.
+        code: Which finding to emit, for example `"api_key"`. `None` means
+            "use the check's default code".
+        score: How sure the detector is, usually between 0 and 1 (a model
+            probability or a statistical score). `None` when this detector
+            does not score its hits.
+        evidence: Extra facts about the hit, such as pattern names or counts.
+            Never put a raw secret or the full memory text here.
     """
 
     detector: str
@@ -55,26 +65,77 @@ class Detection:
 
 @runtime_checkable
 class Detector(Protocol):
-    """One method of detecting a security concern."""
+    """One way of looking for a security problem.
+
+    Anything with a `name` and a `detect` method can be used as a detector.
+
+    Attributes:
+        name: Short name for this detector. It must be unique among the
+            detectors on the same check, because the check uses it as a vote.
+    """
 
     name: str
 
-    def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]: ...
+    def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
+        """Inspect one memory and report every hit.
+
+        Args:
+            candidate: The memory being scanned. The text is `candidate.content`.
+            context: Other information for this scan, such as the user's query
+                (`context.query`) and nearby stored records (`context.existing`).
+                A detector that only reads the text can ignore this.
+
+        Returns:
+            One `Detection` per hit. An empty list means this detector found
+            nothing suspicious.
+        """
+        ...
 
 
 class BaseDetector:
-    """Convenience base: implement :meth:`detect_text` for content-only methods.
+    """Starting point for a detector that only needs the memory text.
 
-    Detectors that need the retrieval query or the neighbouring records
-    (``context.query``, ``context.existing``) override :meth:`detect` instead.
+    Write `detect_text` and this class supplies `detect` for you: it pulls
+    the text out of the candidate and calls `detect_text`.
+
+    If the detector needs the query or the neighbouring records, override
+    `detect` instead and read `context.query` or `context.existing`.
+
+    Attributes:
+        name: Short name stamped onto every `Detection` this detector builds.
+            Subclasses should set their own, for example `"heuristic"`.
     """
 
     name: str = "base"
 
     def detect(self, candidate: MemoryCandidate, context: CheckContext) -> list[Detection]:
+        """Run this detector on one memory.
+
+        The default uses only the memory text. `context` is accepted so this
+        method matches the `Detector` protocol, and is otherwise unused.
+
+        Args:
+            candidate: The memory being scanned. Only `candidate.content` is read.
+            context: Scan context. Ignored here. Override this method if you
+                need the query or neighbouring records.
+
+        Returns:
+            Hits found in the memory text. An empty list means no hit.
+        """
         return self.detect_text(candidate.content)
 
     def detect_text(self, text: str) -> list[Detection]:
+        """Look for the problem in a plain string.
+
+        Args:
+            text: The memory content to inspect.
+
+        Returns:
+            Hits found in `text`. An empty list means no hit.
+
+        Raises:
+            NotImplementedError: Always, unless a subclass implements this.
+        """
         raise NotImplementedError
 
     def hit(
@@ -84,7 +145,23 @@ class BaseDetector:
         score: float | None = None,
         **evidence: object,
     ) -> Detection:
-        """Build a :class:`Detection` attributed to this detector."""
+        """Build a `Detection` and attach this detector's name to it.
+
+        Call this from `detect` or `detect_text` instead of constructing
+        `Detection` yourself, so `detector` is always filled in.
+
+        Args:
+            code: Finding code for this hit, such as `"instruction_override"`.
+                Leave it out to use the parent check's default code.
+            score: Confidence for this hit, usually between 0 and 1. Leave it
+                out when the method does not produce a score.
+            **evidence: Extra facts, passed as keywords. Example:
+                `hit(code="api_key", kinds=["openai"])`. Do not pass the secret
+                itself or the full text.
+
+        Returns:
+            A `Detection` whose `detector` field is this detector's `name`.
+        """
         return Detection(detector=self.name, code=code, score=score, evidence=evidence)
 
     def __repr__(self) -> str:
@@ -93,7 +170,16 @@ class BaseDetector:
 
 @dataclass(frozen=True)
 class FindingSpec:
-    """Severity, action, and message the check attaches to a finding code."""
+    """How the check should describe one finding code.
+
+    `SecurityCheck.specs` maps each allowed code to one of these.
+
+    Attributes:
+        severity: How serious the finding is (info, low, medium, high, critical).
+        action: What the scan recommends doing with the stored record, such as
+            review, quarantine, or delete.
+        message: Short sentence shown to the person reading the report.
+    """
 
     severity: Severity
     action: Action
@@ -101,15 +187,32 @@ class FindingSpec:
 
 
 class SecurityCheck(MemoryCheck):
-    """Base class for security checks: runs detectors and maps them to findings.
+    """Run detectors on a memory and turn their hits into findings.
 
-    Subclasses declare ``name``, ``default_code``, ``specs`` (code -> spec),
-    and :meth:`default_detectors`. Security checks run during a scan, so
-    content that entered the store through another pipeline is still screened.
+    A subclass handles one security problem. It must set:
 
-    ``min_detectors`` is a vote threshold counted per finding code: with
-    ``min_detectors=2`` a code is reported only when two distinct detectors
-    raised it, which trades recall for precision when stacking noisy methods.
+    * `name` — label written on each finding, such as `"injection"`.
+    * `default_code` — finding code used when a detector leaves `code` empty.
+    * `specs` — every allowed finding code, and the severity, action, and
+      message for that code.
+    * `default_detectors` — detectors used when the caller does not pass any.
+
+    These checks run while a store is scanned, so text that was saved by some
+    other pipeline is still examined.
+
+    `min_detectors` is a vote, counted separately for each finding code. With
+    `min_detectors=2`, a code is reported only after two different detectors
+    both raise it. Stacking noisy methods this way reports fewer false alarms
+    and can miss a real hit that only one detector saw.
+
+    Attributes:
+        category: Always security for this family of checks.
+        default_code: Code used when a detection has `code=None`.
+        specs: Allowed codes and how each one is reported.
+        detectors: The detectors this instance will run, in order.
+        min_detectors: How many different detectors must agree on a code
+            before that code becomes a finding. `1` means any single hit
+            is enough.
     """
 
     category: ClassVar[Category] = Category.SECURITY
@@ -122,6 +225,21 @@ class SecurityCheck(MemoryCheck):
         *,
         min_detectors: int = 1,
     ) -> None:
+        """Choose the detectors this check will run.
+
+        Args:
+            detectors: Detectors to run on every memory. Pass `None` to use
+                `default_detectors()`. An empty sequence is rejected: a check
+                with nothing to run cannot scan.
+            min_detectors: How many different detectors must agree on the same
+                finding code before it is reported. `1` reports every hit.
+                Must be at least 1 and no larger than the number of detectors.
+
+        Raises:
+            ConfigurationError: There are no detectors, two detectors share a
+                name, or `min_detectors` is below 1 or larger than the
+                detector list.
+        """
         resolved = list(detectors) if detectors is not None else self.default_detectors()
         if not resolved:
             raise ConfigurationError(f"Check {self.name!r} needs at least one detector.")
@@ -141,12 +259,50 @@ class SecurityCheck(MemoryCheck):
 
     @classmethod
     def default_detectors(cls) -> list[Detector]:
-        """Detectors used when none are given (deterministic and offline)."""
+        """Return the detectors used when the caller does not pass any.
+
+        Built-in checks return detectors that are deterministic and work
+        offline: no network call and no model download.
+
+        Returns:
+            The detectors to run. A subclass must override this and return
+            at least one.
+
+        Raises:
+            NotImplementedError: Always, on this base class.
+        """
         raise NotImplementedError
 
     # -- pipeline ----------------------------------------------------------------
 
     def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
+        """Scan one memory and return the findings that earned enough votes.
+
+        Each detector is asked about `candidate`. Hits are grouped by finding
+        code. A code is kept only when at least `min_detectors` different
+        detectors reported it. Those hits are then merged into one finding.
+
+        If a detector raises, the error is logged and that detector is
+        skipped. When `context.config.fail_closed` is true, the first error
+        is raised again after the remaining detectors finish, so a broken
+        detector cannot quietly hide a problem.
+
+        Args:
+            candidate: The stored memory to scan.
+            context: Settings and neighbouring records for this scan. The
+                flag that matters here is `context.config.fail_closed`.
+
+        Returns:
+            One `Finding` for each code that enough detectors agreed on,
+            in the order the codes were first seen. Empty when nothing
+            reached the vote threshold.
+
+        Raises:
+            ConfigurationError: A detector returned a `code` that is not a
+                key in `specs`.
+            Exception: The first error a detector raised, and only when
+                fail-closed is on.
+        """
         by_code: dict[str, list[Detection]] = {}
         first_error: Exception | None = None
         for detector in self.detectors:
@@ -184,7 +340,19 @@ class SecurityCheck(MemoryCheck):
         return findings
 
     def finding(self, code: str, detections: Sequence[Detection]) -> Finding:
-        """Turn the detections that share ``code`` into a single finding."""
+        """Turn every detection that shares one code into a single finding.
+
+        Severity, recommended action, and the user-facing message come from
+        `specs[code]`. Evidence from the detections is combined.
+
+        Args:
+            code: Finding code to look up in `specs`, such as `"api_key"`.
+            detections: Hits from one or more detectors that all used this
+                code. Must be non-empty; their evidence is merged.
+
+        Returns:
+            One `Finding` for `code`. Its `check` field is this check's name.
+        """
         spec = self.specs[code]
         return Finding(
             code=code,
@@ -201,7 +369,28 @@ class SecurityCheck(MemoryCheck):
 
 
 def merge_evidence(detections: Sequence[Detection]) -> dict[str, object]:
-    """Combine detector evidence: list values are unioned, scalars keep the first."""
+    """Combine the evidence from several detections into one dictionary.
+
+    Used when more than one detector reported the same finding code, so the
+    report shows one finding with everyone's facts attached.
+
+    List values are joined and duplicates are dropped. Any other value keeps
+    the first one seen, so a later detector cannot overwrite it. Scores are
+    collected separately, one per detector.
+
+    Args:
+        detections: The hits that belong to the same finding. Each one's
+            `evidence` mapping is folded in.
+
+    Returns:
+        A dictionary stored on the finding. It always has:
+
+        * `detectors` — sorted names of the detectors that voted.
+        * `scores` — `{detector name: score}`, present only when at least
+          one detection carried a score.
+
+        Every other key comes from the detections' own evidence.
+    """
     evidence: dict[str, object] = {"detectors": sorted({d.detector for d in detections})}
     scores = {d.detector: round(d.score, 4) for d in detections if d.score is not None}
     if scores:

@@ -1,11 +1,11 @@
-"""Shared bases for Hugging Face ``transformers`` detectors.
+"""Shared bases for Hugging Face `transformers` detectors.
 
-``transformers`` (and ``torch``) are imported lazily, on first use, so the
-core package stays dependency-free. Every detector accepts an injectable
-inference callable (``classify=`` / ``tag=``) so it can be unit-tested, or
-backed by a remote inference endpoint, without loading weights.
+`transformers` and `torch` are imported on first use, so the core package
+stays installable without them. Every detector accepts a callable
+(`classify=` or `tag=`) so tests can fake the model and so you can point
+the detector at a remote endpoint without loading weights locally.
 
-Install with ``pip install "memorysec[hf]"``.
+Install the models with `pip install "memorysec[hf]"`.
 """
 
 from __future__ import annotations
@@ -29,6 +29,15 @@ _BIO = re.compile(r"^[BIES]-")
 
 
 def require_transformers() -> Any:
+    """Import `transformers`, or raise a clear setup error.
+
+    Returns:
+        The `transformers` module.
+
+    Raises:
+        ConfigurationError: The package is not installed. The message
+            includes the `pip install "memorysec[hf]"` command.
+    """
     try:
         import transformers
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
@@ -39,11 +48,20 @@ def require_transformers() -> Any:
 
 
 def chunk_text(text: str, chunk_chars: int | None) -> list[str]:
-    """Split on whitespace into chunks of at most ``chunk_chars`` characters.
+    """Split `text` on whitespace into pieces a model can read.
 
-    Classifiers see a fixed context window (typically 512 tokens); scanning
-    every chunk and taking the worst score catches payloads buried late in a
-    long document instead of silently truncating them.
+    Classifiers see a fixed window, often 512 tokens. Scanning every chunk
+    and keeping the worst score catches a payload buried at the end of a
+    long document. Truncating to the first window would miss it.
+
+    Args:
+        text: The full memory content.
+        chunk_chars: Maximum characters per chunk. `None`, or a limit that
+            `text` already fits in, returns `[text]` unchanged.
+
+    Returns:
+        One or more chunks. Words are not split. The last chunk may be
+        shorter. An empty input still returns one chunk, `[text]`.
     """
     if not chunk_chars or len(text) <= chunk_chars:
         return [text]
@@ -63,11 +81,18 @@ def chunk_text(text: str, chunk_chars: int | None) -> list[str]:
 
 
 class HFTextClassifierDetector(BaseDetector):
-    """A sequence classifier whose positive labels signal the concern.
+    """A text classifier whose "bad" labels mean the security problem is present.
 
-    Subclasses set ``model_id`` and ``positive_labels``. The detection score
-    is the highest positive-label probability over all chunks; a detection is
-    emitted when it reaches ``threshold``.
+    Subclasses set `model_id` (the Hugging Face model name) and
+    `positive_labels` (the label strings that count as a hit, compared in
+    uppercase). The score is the highest positive-label probability across
+    all chunks. A hit is emitted only when that score reaches `threshold`.
+
+    Attributes:
+        model_id: Hugging Face model id. Overridable in the constructor.
+        positive_labels: Labels that count as a hit, stored uppercase.
+        threshold: Minimum score, from 0 to 1. Default `0.5`.
+        name: Detector name. Set `name=` to override the class default.
     """
 
     model_id: str = ""
@@ -85,6 +110,28 @@ class HFTextClassifierDetector(BaseDetector):
         chunk_chars: int | None = 1500,
         name: str | None = None,
     ) -> None:
+        """Load settings. The model weights are not downloaded yet.
+
+        Args:
+            model_id: Hugging Face model id. `None` uses the class `model_id`.
+            threshold: Minimum positive-label score, from 0 to 1.
+            positive_labels: Labels that count as a hit. `None` uses the
+                class `positive_labels`. Compared after uppercasing.
+            classify: Function `(text) -> [{"label": str, "score": float}, ...]`.
+                Pass one in tests, or to call a remote model. `None` loads
+                `transformers` on the first `detect` call.
+            device: Device passed to the Hugging Face pipeline, such as `0`
+                for the first GPU or `"cpu"`. `None` lets transformers choose.
+            max_length: Token cap passed to the pipeline. Extra tokens in a
+                chunk are truncated.
+            chunk_chars: Split the memory into pieces of about this many
+                characters before classifying. `None` sends the whole text.
+            name: Detector name written on each hit. `None` keeps the class name.
+
+        Raises:
+            ConfigurationError: `threshold` is outside 0 to 1, `model_id` is
+                empty, or `positive_labels` is empty.
+        """
         if not 0.0 <= threshold <= 1.0:
             raise ConfigurationError("threshold must be within [0, 1].")
         self.model_id = model_id or type(self).model_id
@@ -126,7 +173,16 @@ class HFTextClassifierDetector(BaseDetector):
         return self._classify(text)
 
     def positive_score(self, text: str) -> tuple[float, str | None]:
-        """Highest positive-label score across chunks and the label that produced it."""
+        """Find the strongest "bad" label score in `text`.
+
+        Args:
+            text: Memory content. It is split with `chunk_chars` first.
+
+        Returns:
+            A pair `(score, label)`. `score` is the highest positive-label
+            probability seen, from 0 to 1. `label` is that label in
+            uppercase. When no positive label appears, the pair is `(0.0, None)`.
+        """
         best, label = 0.0, None
         for chunk in chunk_text(text, self.chunk_chars):
             for item in self.classify(chunk):
@@ -143,12 +199,21 @@ class HFTextClassifierDetector(BaseDetector):
 
 
 class HFTokenClassifierDetector(BaseDetector):
-    """A token classifier (NER-style) mapping entity labels to finding codes.
+    """A token classifier that maps entity labels to finding codes.
 
-    ``labels`` maps an entity label (``"PASSWORD"``) to the code the parent
-    check should emit (``"secret_detected"``). Entities with other labels are
-    ignored, so a PII model can be scoped to credentials only. Evidence lists
-    the entity *kinds* found -- never the matched text.
+    This is the NER style: the model marks spans such as a password or an
+    email. `labels` maps an entity label (`"PASSWORD"`) to the finding code
+    the parent check should emit (`"secret_detected"`). Any other label is
+    ignored, so a personal-data model can be limited to credentials.
+
+    Evidence lists the kinds of entity found. It never includes the matched
+    text.
+
+    Attributes:
+        model_id: Hugging Face model id.
+        default_labels: Class-level map of entity label to finding code.
+            The constructor copies this when you do not pass `labels`.
+        threshold: Minimum entity score, from 0 to 1.
     """
 
     model_id: str = ""
@@ -165,6 +230,26 @@ class HFTokenClassifierDetector(BaseDetector):
         chunk_chars: int | None = 1000,
         name: str | None = None,
     ) -> None:
+        """Load settings. The model weights are not downloaded yet.
+
+        Args:
+            model_id: Hugging Face model id. `None` uses the class `model_id`.
+            labels: Map of entity label to finding code, for example
+                `{"PASSWORD": "secret_detected"}`. `None` uses `default_labels`.
+                Keys are compared in uppercase.
+            threshold: Minimum entity score, from 0 to 1.
+            tag: Function `(text) -> [{"entity_group": str, "score": float}, ...]`.
+                Pass one in tests. `None` loads `transformers` on first use.
+            device: Device passed to the pipeline, such as `"cpu"`. `None`
+                lets transformers choose.
+            chunk_chars: Split the memory into pieces of about this many
+                characters. `None` sends the whole text.
+            name: Detector name written on each hit. `None` keeps the class name.
+
+        Raises:
+            ConfigurationError: `threshold` is outside 0 to 1, `model_id` is
+                empty, or `labels` is empty.
+        """
         if not 0.0 <= threshold <= 1.0:
             raise ConfigurationError("threshold must be within [0, 1].")
         self.model_id = model_id or type(self).model_id
@@ -195,7 +280,17 @@ class HFTokenClassifierDetector(BaseDetector):
         return self._tag(text)
 
     def entity_kinds(self, text: str) -> dict[str, tuple[set[str], float]]:
-        """Per code: the entity kinds seen and the best score, above threshold."""
+        """Group recognized entities by the finding code they map to.
+
+        Args:
+            text: Memory content. It is split with `chunk_chars` first.
+
+        Returns:
+            A dict keyed by finding code. Each value is `(kinds, best_score)`:
+            `kinds` is the set of entity labels seen (lowercased), and
+            `best_score` is the highest score among them. Entities below
+            `threshold`, or with a label that is not in `labels`, are left out.
+        """
         found: dict[str, tuple[set[str], float]] = {}
         for chunk in chunk_text(text, self.chunk_chars):
             for entity in self.tag(chunk):

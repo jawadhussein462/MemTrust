@@ -1,4 +1,4 @@
-"""Structured return values for a store scan."""
+"""What `MemorySec.scan` gives back: `ScanFinding` rows and a `ScanReport`."""
 
 from __future__ import annotations
 
@@ -12,7 +12,17 @@ from .enums import Action, Severity
 class ScanFinding(BaseModel):
     """One problem in a stored record, safe to forward.
 
-    Snippets are secret-masked. Raw content is never included.
+    The snippet is secret-masked. The raw memory text is not included.
+
+    Attributes:
+        id: Id of the stored record.
+        type: Finding code, such as `"secret_detected"`.
+        severity: How serious this row is.
+        detectors: Names of the detectors that agreed on it.
+        snippet: A short, masked excerpt of the record.
+        action: Recommended next step: review, quarantine, or delete.
+        owasp: OWASP reference. Defaults to ASI06, memory and context poisoning.
+        message: The sentence from the check, explaining the hit.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -28,10 +38,20 @@ class ScanFinding(BaseModel):
 
 
 class ScanReport(BaseModel):
-    """Audit of a memory store produced by :meth:`MemorySec.scan`.
+    """The result of `MemorySec.scan`.
 
-    Counts every record examined and lists security findings (poisoned
-    facts, hidden instructions, leaked secrets) with a recommended action.
+    Counts every record read and lists each problem (poisoned fact, hidden
+    instruction, leaked secret) with a recommended action.
+
+    Attributes:
+        total: How many records were read.
+        findings: One `ScanFinding` per problem, not per record. A record
+            can appear more than once if it has several problems.
+        source: Label of where the records came from, such as
+            `"chroma:agent_memory"`. Empty when the caller did not set it.
+        sample: Cap on how many records were requested. `None` means the
+            scan was not capped.
+        generated_at: When the scan started, in UTC. `None` if not set.
     """
 
     model_config = ConfigDict(extra="ignore")
@@ -45,19 +65,36 @@ class ScanReport(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def flagged(self) -> int:
+        """How many distinct records have at least one finding.
+
+        Returns:
+            The number of unique `id` values in `findings`. A record with
+            two problems counts once.
+        """
         return len({item.id for item in self.findings})
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def flagged_pct(self) -> float:
+        """Share of scanned records that were flagged, as a percent.
+
+        Returns:
+            `100 * flagged / total`, rounded to two decimals so a large
+            store reads `0.28` rather than `0.3`. `0.0` when `total` is 0.
+        """
         if not self.total:
             return 0.0
-        # Two decimals so a large store reads 0.28%, not 0.3%.
         return round(100.0 * self.flagged / self.total, 2)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def by_severity(self) -> dict[str, int]:
+        """Count findings by severity name.
+
+        Returns:
+            A dict such as `{"high": 2, "critical": 1}`. Severities with
+            zero findings are omitted. Keys are the severity strings.
+        """
         counts: dict[str, int] = {}
         for item in self.findings:
             key = item.severity.value
@@ -66,9 +103,20 @@ class ScanReport(BaseModel):
 
     @property
     def clean(self) -> bool:
+        """Whether the scan found nothing.
+
+        Returns:
+            `True` when `findings` is empty.
+        """
         return not self.findings
 
     def worst_severity(self) -> Severity | None:
+        """Return the most serious severity in this report.
+
+        Returns:
+            The highest `Severity` among `findings`, or `None` when the
+            report has no findings.
+        """
         if not self.findings:
             return None
         return max((item.severity for item in self.findings), key=lambda s: s.rank)
@@ -98,10 +146,23 @@ def format_scan_summary(
     json_path: str | None = None,
     color: bool = False,
 ) -> str:
-    """Terminal summary: scanned, flagged, severity, then files written.
+    """Build the text printed after a scan.
 
-    Plain text by default. ``color=True`` paints the marks the way a terminal
-    does: green checks, an amber flag, and a colored dot per severity.
+    The lines are: how many records were scanned, how many were flagged,
+    a count per severity, then the files that were written.
+
+    Args:
+        report: The scan result to summarize.
+        report_path: HTML file that was written. Omitted from the text
+            when `None`.
+        json_path: JSON file that was written. Omitted when `None`.
+        color: When `True`, wrap marks in ANSI color: green checks, an
+            amber flag, and a colored dot per severity. When `False`,
+            return plain text.
+
+    Returns:
+        A multi-line string. Print it, or use `str(report)` for the
+        plain-text version.
     """
     check = _paint("✓", _GREEN, enabled=color)
     lines = [f"{check} Scanned {_records(report.total)}"]

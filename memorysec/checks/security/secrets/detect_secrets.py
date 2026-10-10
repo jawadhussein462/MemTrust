@@ -1,14 +1,13 @@
-"""Yelp ``detect-secrets`` plugins as a detector.
+"""Yelp `detect-secrets` plugins as a detector.
 
-``detect-secrets`` ships ~25 provider-specific detectors (AWS, Azure Storage,
+`detect-secrets` ships about 25 provider detectors (AWS, Azure Storage,
 GitHub, GitLab, Slack, Stripe, Twilio, SendGrid, npm, PyPI, JWT, private
-keys, basic-auth URLs, ...) plus keyword and high-entropy heuristics, all
-maintained against real provider formats. This detector runs
-``scan_line`` under ``default_settings`` (or a settings context you pass)
-over each line of the candidate and reports the plugin *types* that fired,
-e.g. ``"AWS Access Key"``; secret values never leave the plugin objects.
+keys, basic-auth URLs, and others) plus keyword and high-entropy heuristics.
+This detector runs `scan_line` on each line and reports the plugin types
+that fired, such as `"AWS Access Key"`. Secret values stay inside the
+plugin objects and are not copied into evidence.
 
-    pip install "memorysec[detect-secrets]"
+Install with `pip install "memorysec[detect-secrets]"`.
 """
 
 from __future__ import annotations
@@ -27,7 +26,12 @@ def _slug(name: str) -> str:
 
 
 class DetectSecretsDetector(BaseDetector):
-    """Run Yelp detect-secrets plugins line by line and report the plugin types."""
+    """Run Yelp detect-secrets plugins line by line.
+
+    The finding code is `secret_detected`. `kinds` are slugified plugin
+    names, such as `"aws_access_key"`. High-entropy plugins apply their own
+    entropy limit here, so ordinary words are not reported.
+    """
 
     name = "detect_secrets"
 
@@ -37,6 +41,17 @@ class DetectSecretsDetector(BaseDetector):
         scan: Scan | None = None,
         exclude_types: Iterable[str] = (),
     ) -> None:
+        """Choose which plugin results to keep.
+
+        Args:
+            scan: Function `(text) -> plugin type names`. `None` loads
+                `detect-secrets` on first use.
+            exclude_types: Plugin names to drop, such as `"Hex High Entropy String"`.
+                Names are slugified before comparison, so spaces and case
+                do not matter.
+
+        The package is not imported until the first scan, unless you pass `scan`.
+        """
         self.exclude_types = {_slug(t) for t in exclude_types}
         self._scan: Scan | None = scan
 
@@ -75,6 +90,19 @@ class DetectSecretsDetector(BaseDetector):
         return scan
 
     def scan(self, text: str) -> set[str]:
+        """Return the detect-secrets plugin names that fired.
+
+        Args:
+            text: Memory content, scanned line by line.
+
+        Returns:
+            Plugin type names, such as `{"AWS Access Key"}`. Empty when
+            nothing fired. Values are not included.
+
+        Raises:
+            ConfigurationError: `detect-secrets` is not installed and no
+                `scan` callable was passed.
+        """
         if self._scan is None:
             self._scan = self._load()
         return {str(t) for t in self._scan(text)}

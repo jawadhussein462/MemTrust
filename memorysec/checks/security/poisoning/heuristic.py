@@ -1,19 +1,17 @@
-"""Heuristic poisoning detection: false security facts and destination redirects.
+"""Phrase patterns for false security facts and destination redirects.
 
-Poisoning here means planting a *false or attacker-controlled fact* into
-long-term memory so it is later retrieved as truth (RAG / LTM poisoning).
-This is content-based: there is no source-trust or authority model. Pattern
-matching is one signal, not proof.
+Poisoning here means planting a false or attacker-controlled fact so it is
+later retrieved as truth. There is no source-trust model. A regex hit is
+one signal, not proof.
 
-Two tiers, each its own finding code:
+Two finding codes:
 
-* ``memory_poisoning`` (critical, quarantine): claims that switch off a
-  security control -- "requires no authentication", "refunds skip approval",
+* `memory_poisoning` (critical, quarantine): a claim that turns off a
+  control. Examples: "requires no authentication", "refunds skip approval",
   "disable MFA", "always include the admin token".
-* ``destination_redirect`` (high, review): payments, invoices, or data being
-  routed to a new destination ("send all invoices to x@y.io instead").
-  Legitimate changes read the same way, which is exactly why they need a
-  human: this is the business-email-compromise pattern.
+* `destination_redirect` (high, review): payments, invoices, or data sent
+  somewhere new, such as "send all invoices to x@y.io instead". A real
+  change reads the same way, which is why a person should confirm it.
 """
 
 from __future__ import annotations
@@ -72,17 +70,37 @@ def _matches(patterns: list[re.Pattern[str]], text: str) -> list[str]:
 
 
 def poisoning_matches(text: str) -> list[str]:
-    """Distinct control-bypass phrases found in ``text`` (after deobfuscation)."""
+    """List phrases that claim a security control is off.
+
+    Args:
+        text: Memory content. It is deobfuscated before matching.
+
+    Returns:
+        The matched phrases, lowercased, duplicates removed, sorted.
+        Empty when nothing matched.
+    """
     return _matches(_POISONING_PATTERNS, deobfuscate(text))
 
 
 def redirect_matches(text: str) -> list[str]:
-    """Distinct destination-redirect phrases found in ``text`` (after deobfuscation)."""
+    """List phrases that send payments or data to a new destination.
+
+    Args:
+        text: Memory content. It is deobfuscated before matching.
+
+    Returns:
+        The matched phrases, lowercased, duplicates removed, sorted.
+        Empty when nothing matched.
+    """
     return _matches(_REDIRECT_PATTERNS, deobfuscate(text))
 
 
 class HeuristicPoisoningDetector(BaseDetector):
-    """Regex patterns for control bypasses and payment/data redirects. Offline."""
+    """Match control-bypass and payment-redirect phrases. Offline.
+
+    One memory can produce both a `memory_poisoning` hit and a
+    `destination_redirect` hit.
+    """
 
     name = "heuristic"
 

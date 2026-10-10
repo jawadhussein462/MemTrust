@@ -1,9 +1,9 @@
-"""Labelled regression corpus for the built-in detectors.
+"""Labelled examples the built-in detectors are checked against.
 
-This is a regression set, not an independent benchmark: it was written
-alongside the detectors, so passing it shows the listed cases stay fixed,
-not how the detectors fare on unseen attacks. ``KNOWN_MISSES`` records
-attacks the heuristics are known not to catch; they need a model-based check.
+This is a regression set, not an independent benchmark. It was written
+alongside the detectors, so a pass means the listed cases stay fixed.
+It does not measure unseen attacks. `KNOWN_MISSES` lists attacks the
+phrase detectors are known to miss. Those need a model.
 """
 
 from __future__ import annotations

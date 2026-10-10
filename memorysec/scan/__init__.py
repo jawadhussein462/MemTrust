@@ -1,4 +1,8 @@
-"""Read-only scanners and the HTML report they produce."""
+"""Read-only scanners and the HTML report they produce.
+
+Each `*ScanSource` lists records from one store and never writes. `render_html`
+turns a `ScanReport` into a single file you can forward.
+"""
 
 from __future__ import annotations
 

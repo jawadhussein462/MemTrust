@@ -1,7 +1,8 @@
-"""Optional OpenTelemetry-backed tracer.
+"""Optional OpenTelemetry tracer.
 
-Requires ``pip install "memorysec[otel]"``. Inject the result into a MemorySec
-instance via ``MemorySec(tracer=otel_tracer())``.
+Install with `pip install "memorysec[otel]"`, then pass the tracer in:
+
+    MemorySec(tracer=otel_tracer())
 """
 
 from __future__ import annotations
@@ -14,9 +15,23 @@ from . import Span, Tracer
 
 
 class OtelTracer:
-    """Adapts an OpenTelemetry tracer to the MemorySec :class:`Tracer` protocol."""
+    """Send MemorySec spans to an OpenTelemetry tracer.
+
+    Attributes:
+        _tracer: The OpenTelemetry tracer. Created from the global provider
+            when you do not pass one in.
+    """
 
     def __init__(self, tracer: object | None = None) -> None:
+        """Wrap an OpenTelemetry tracer, or the process-global one.
+
+        Args:
+            tracer: An OpenTelemetry tracer. `None` uses
+                `opentelemetry.trace.get_tracer("memorysec")`.
+
+        Raises:
+            IntegrationError: The `opentelemetry` package is not installed.
+        """
         try:
             from opentelemetry import trace
         except ImportError as exc:  # pragma: no cover - only without the extra
@@ -27,6 +42,15 @@ class OtelTracer:
 
     @contextmanager
     def span(self, name: str, attributes: Mapping[str, object] | None = None) -> Iterator[Span]:
+        """Open an OpenTelemetry span for the duration of a `with` block.
+
+        Args:
+            name: Span name recorded by OpenTelemetry.
+            attributes: Metadata copied onto the span when it opens.
+
+        Returns:
+            A context manager that yields the OpenTelemetry span.
+        """
         with self._tracer.start_as_current_span(name) as span:  # type: ignore[union-attr]
             if attributes:
                 for key, value in attributes.items():
@@ -35,7 +59,18 @@ class OtelTracer:
 
 
 def otel_tracer(tracer: object | None = None) -> Tracer:
-    """Return a MemorySec-compatible tracer backed by OpenTelemetry."""
+    """Build a tracer you can pass to `MemorySec(tracer=...)`.
+
+    Args:
+        tracer: An existing OpenTelemetry tracer. `None` uses the
+            process-global tracer named `"memorysec"`.
+
+    Returns:
+        An `OtelTracer`.
+
+    Raises:
+        IntegrationError: OpenTelemetry is not installed.
+    """
     return OtelTracer(tracer)
 
 

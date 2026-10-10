@@ -1,23 +1,22 @@
-"""Secrets: credentials, keys, tokens, and (opt-in) personal data.
+"""Secrets: credentials, keys, tokens, and, if you opt in, personal data.
 
-:class:`SecretsCheck` runs one or more detectors:
+`SecretsCheck` runs one or more detectors:
 
-=========================  ================================================  ================
-Detector                   Method                                            Needs
-=========================  ================================================  ================
-HeuristicSecretsDetector   known key formats + stated credentials (default)  nothing
-EntropyDetector            high-entropy strings (detect-secrets approach)    nothing
-DetectSecretsDetector      Yelp detect-secrets provider plugins              [detect-secrets]
-PiiranhaDetector           iiiorg/piiranha-v1-detect-personal-information    [hf]
-StarPIIDetector            bigcode/starpii (PII/secrets in code)             [hf]
-GLiNER2PIIDetector         fastino/gliner2-privacy-filter-PII-multi          [gliner2]
-GLiNERPIIDetector          urchade/gliner_multi_pii-v1                       [gliner]
-PresidioDetector           Microsoft Presidio AnalyzerEngine                 [presidio]
-=========================  ================================================  ================
+* `HeuristicSecretsDetector` — known key formats and stated credentials.
+  Default. Needs nothing extra.
+* `EntropyDetector` — high-entropy strings, the detect-secrets approach.
+  Needs nothing extra.
+* `DetectSecretsDetector` — Yelp detect-secrets plugins. Needs
+  `[detect-secrets]`.
+* `PiiranhaDetector` — Piiranha-v1 personal-information tags. Needs `[hf]`.
+* `StarPIIDetector` — StarPII, for secrets inside code. Needs `[hf]`.
+* `GLiNER2PIIDetector` — GLiNER2 privacy filter. Needs `[gliner2]`.
+* `GLiNERPIIDetector` — GLiNER multi-PII. Needs `[gliner]`.
+* `PresidioDetector` — Microsoft Presidio. Needs `[presidio]`.
 
-Detectors backed by PII models default to credential-like labels only
-(``secret_detected``, delete). Each exposes ``*_ALL_LABELS`` to also report
-personal data as ``pii_detected`` (review).
+Personal-data models default to credential-like labels only, which emit
+`secret_detected` (delete). Each module also exports an `*_ALL_LABELS` map.
+Pass that as `labels=` to also report personal data as `pii_detected` (review).
 """
 
 from __future__ import annotations

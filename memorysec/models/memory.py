@@ -1,4 +1,4 @@
-"""Memory models: :class:`MemoryCandidate` (one record under scan) and :class:`MemoryRecord`."""
+"""The two memory objects: `MemoryCandidate` during a scan, `MemoryRecord` in a store."""
 
 from __future__ import annotations
 
@@ -14,7 +14,17 @@ def _utcnow() -> datetime:
 
 
 class MemoryCandidate(BaseModel):
-    """One stored record as a check sees it during a scan."""
+    """One memory as a check sees it during a scan.
+
+    Attributes:
+        content: The text to inspect.
+        metadata: Store fields copied onto the candidate. Checks may read
+            them. Do not put secrets here if a report will be forwarded.
+        id: Record id from the store. `None` when the input was only a string.
+        derived_from: Ids of records this one was built from, if the store
+            tracks that.
+        created_at: When the record was created. Defaults to now, in UTC.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -26,7 +36,18 @@ class MemoryCandidate(BaseModel):
 
 
 class MemoryRecord(BaseModel):
-    """A persisted memory and everything needed to reason about it later."""
+    """One memory as it sits in a store.
+
+    Attributes:
+        id: Store id. Required.
+        content: The text that will be scanned.
+        status: `active`, `revoked`, or `quarantined`. Defaults to active.
+            TrustRAG skips neighbours that are not active.
+        created_at: When the record was first stored. Defaults to now, in UTC.
+        updated_at: When the record last changed. Defaults to now, in UTC.
+        derived_from: Ids this record was built from.
+        metadata: Extra store fields. Empty by default.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

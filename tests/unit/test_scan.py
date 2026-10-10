@@ -1,4 +1,4 @@
-"""Store audit: MemorySec.scan, HTML/JSON reports, and ``memorysec scan``."""
+"""Tests for `MemorySec.scan`, the HTML and JSON reports, and `memorysec scan`."""
 
 from __future__ import annotations
 

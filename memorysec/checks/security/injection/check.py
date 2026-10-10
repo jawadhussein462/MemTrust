@@ -1,4 +1,4 @@
-"""The injection check: persistent instructions / prompt injection in memory content."""
+"""The injection check: instructions aimed at the agent, saved as memory."""
 
 from __future__ import annotations
 
@@ -10,12 +10,19 @@ from .heuristic import HeuristicInjectionDetector
 
 
 class InjectionCheck(SecurityCheck):
-    """Flag agent-directed instructions that should never be persisted.
+    """Flag instructions that tell the agent to ignore its rules.
 
-    Defaults to the offline heuristic detector. Stack model or hosted
-    detectors for recall on paraphrases and other languages::
+    Phrases like "ignore previous instructions" should not be stored as
+    memory. The default detector is the offline phrase list. Add a model
+    or a hosted API when you also want paraphrases and other languages.
 
-        InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()])
+    Example:
+        Require both the phrase list and Prompt Guard to agree::
+
+            InjectionCheck(
+                detectors=[HeuristicInjectionDetector(), PromptGuardDetector()],
+                min_detectors=2,
+            )
     """
 
     name = "injection"
@@ -30,6 +37,11 @@ class InjectionCheck(SecurityCheck):
 
     @classmethod
     def default_detectors(cls) -> list[Detector]:
+        """Return the offline phrase detector.
+
+        Returns:
+            A one-item list: `HeuristicInjectionDetector`.
+        """
         return [HeuristicInjectionDetector()]
 
 

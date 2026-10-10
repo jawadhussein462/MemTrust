@@ -1,8 +1,9 @@
 """A single self-contained HTML scan report.
 
-Meant to be forwarded: summary numbers first, then each finding with the
-record id, type, agreeing detectors, a masked snippet, the recommended
-action, and the OWASP ASI06 reference.
+Meant to be forwarded. Summary numbers come first, then each finding with
+the record id, type, agreeing detectors, a masked snippet, the recommended
+action, and the OWASP ASI06 reference. The CSS is inlined, so the file
+opens without a network.
 """
 
 from __future__ import annotations
@@ -150,11 +151,29 @@ h2 { font-size: 18px; margin: 8px 0 14px; }
 
 
 def finding_label(code: str) -> str:
+    """Turn a finding code into the short title shown in the HTML report.
+
+    Args:
+        code: A finding code such as `"secret_detected"`.
+
+    Returns:
+        A title such as `"Leaked secret"`. Unknown codes become the code
+        with underscores turned into spaces and the first letter capitalized.
+    """
     return _LABELS.get(code, code.replace("_", " ").capitalize())
 
 
 def render_html(report: ScanReport) -> str:
-    """Return a standalone HTML document for ``report``."""
+    """Build a standalone HTML document for `report`.
+
+    Args:
+        report: The scan result. Snippets are escaped. They are expected
+            to already be secret-masked.
+
+    Returns:
+        A complete HTML document, including the stylesheet, as one string.
+        Write it to a file and open it in a browser.
+    """
     when = report.generated_at or datetime.now(UTC)
     stamp = when.strftime("%Y-%m-%d %H:%M UTC")
     source = escape(report.source) if report.source else "memory store"

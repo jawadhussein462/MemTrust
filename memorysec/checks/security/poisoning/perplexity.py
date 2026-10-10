@@ -1,19 +1,19 @@
-"""Perplexity filtering: flag text a language model finds implausible.
+"""Flag text a language model finds implausible, using perplexity.
 
-The classic baseline defence (Jain et al., *Baseline Defenses for Adversarial
-Attacks Against Aligned Language Models*, 2023; Alon & Kamfonas, 2023).
-Gradient-optimised adversarial passages -- HotFlip / GCG-style suffixes,
-white-box PoisonedRAG -- read as gibberish to a causal LM and have far
-higher perplexity than natural text. Fluent, LLM-written poison does *not*
-(PoisonedRAG and TrustRAG both show clean/poisoned perplexity overlapping),
-so treat this as one voter for the adversarial-suffix case, never the only
+This is the baseline from Jain et al. (2023) and Alon and Kamfonas (2023).
+Gradient-built attack suffixes (HotFlip, GCG, white-box PoisonedRAG) look
+like gibberish to a causal language model and have much higher perplexity
+than normal text. Fluent poison written by a language model does not: both
+PoisonedRAG and TrustRAG show clean and poisoned perplexity overlapping.
+Use this as one voter for the gibberish-suffix case, not as the only
 poisoning detector.
 
-The perplexity function is injectable; the default loads a small causal LM
-through ``transformers`` (``gpt2`` unless ``model_id`` says otherwise) and
-computes ``exp(mean token NLL)``. ``threshold`` must be calibrated on your
-own clean memories: perplexities of ordinary English sentences under GPT-2
-are typically in the tens to low hundreds.
+Pass `perplexity=` to supply the score yourself. The default loads a small
+causal model through `transformers` (`gpt2` unless `model_id` says
+otherwise) and computes `exp(mean token negative log likelihood)`.
+
+Calibrate `threshold` on your own clean memories. Ordinary English under
+GPT-2 is often in the tens to low hundreds.
 """
 
 from __future__ import annotations
@@ -56,7 +56,11 @@ def _load_perplexity(model_id: str, device: str | None, max_length: int) -> Perp
 
 
 class PerplexityDetector(BaseDetector):
-    """Flag text whose causal-LM perplexity exceeds ``threshold``."""
+    """Flag text whose language-model perplexity is above `threshold`.
+
+    Short texts (fewer than `min_words`) are skipped, because a handful of
+    words is not a stable perplexity. The finding code is `adversarial_text`.
+    """
 
     name = "perplexity"
 
@@ -70,6 +74,24 @@ class PerplexityDetector(BaseDetector):
         max_length: int = 1024,
         min_words: int = 6,
     ) -> None:
+        """Store the threshold. The model is loaded on the first scan.
+
+        Args:
+            threshold: Flag text at or above this perplexity. Must be
+                greater than 1, because perplexity is at least 1. Default
+                `1000`. Calibrate it on clean memories.
+            perplexity: Function `(text) -> float`. `None` loads `model_id`
+                through `transformers` on first use.
+            model_id: Hugging Face causal language model. Default `gpt2`.
+            device: Device string passed to the model, such as `"cpu"` or
+                `"cuda"`. `None` leaves the model where it loaded.
+            max_length: Tokens kept before scoring. The rest are truncated.
+            min_words: Skip text with fewer than this many whitespace-separated
+                words. Values below 1 are raised to 1.
+
+        Raises:
+            ConfigurationError: `threshold` is 1 or less.
+        """
         if threshold <= 1.0:
             raise ConfigurationError("threshold must be greater than 1 (perplexity is >= 1).")
         self.threshold = threshold
@@ -80,6 +102,20 @@ class PerplexityDetector(BaseDetector):
         self._perplexity: Perplexity | None = perplexity
 
     def perplexity(self, text: str) -> float:
+        """Score how surprising `text` is to the language model.
+
+        Args:
+            text: Memory content. Truncated to `max_length` tokens by the
+                default model.
+
+        Returns:
+            Perplexity, a float of at least 1. Higher means the model found
+            the text less like normal language.
+
+        Raises:
+            ConfigurationError: The default model is used and `torch` or
+                `transformers` is not installed.
+        """
         if self._perplexity is None:
             self._perplexity = _load_perplexity(self.model_id, self.device, self.max_length)
         return self._perplexity(text)

@@ -1,4 +1,4 @@
-"""The secrets check: credentials, keys, tokens -- and, opt-in, personal data."""
+"""The secrets check: credentials, keys, tokens, and, if you opt in, personal data."""
 
 from __future__ import annotations
 
@@ -10,17 +10,24 @@ from .heuristic import HeuristicSecretsDetector
 
 
 class SecretsCheck(SecurityCheck):
-    """Refuse secret-bearing content; optionally flag personal data for review.
+    """Flag secret-bearing content, and optionally personal data for review.
 
-    Findings never contain the raw value -- only the kinds detected.
-    Defaults to the offline heuristic detector; stack entropy or model
-    detectors for formats it has no pattern for::
+    Findings never contain the raw value. They list the kinds detected.
+    The default detector is the offline pattern list. Add entropy or a model
+    for formats that list does not know.
 
-        SecretsCheck(detectors=[HeuristicSecretsDetector(), EntropyDetector(), PiiranhaDetector()])
+    Personal-data detectors map only credential-like labels to
+    `secret_detected` by default. Pass them an `*_ALL_LABELS` mapping to also
+    emit `pii_detected` (high, review).
 
-    PII detectors map only credential-like labels to ``secret_detected`` by
-    default; pass them an ``*_ALL_LABELS`` mapping to also emit
-    ``pii_detected`` (high, review).
+    Example:
+        Stack the pattern list, entropy, and Piiranha::
+
+            SecretsCheck(detectors=[
+                HeuristicSecretsDetector(),
+                EntropyDetector(),
+                PiiranhaDetector(),
+            ])
     """
 
     name = "secrets"
@@ -40,6 +47,11 @@ class SecretsCheck(SecurityCheck):
 
     @classmethod
     def default_detectors(cls) -> list[Detector]:
+        """Return the offline key-format detector.
+
+        Returns:
+            A one-item list: `HeuristicSecretsDetector`.
+        """
         return [HeuristicSecretsDetector()]
 
 

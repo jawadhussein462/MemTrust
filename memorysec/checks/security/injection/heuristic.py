@@ -1,12 +1,14 @@
-"""Heuristic injection detection: deobfuscation plus curated phrase patterns.
+"""Phrase patterns for prompt injection, after deobfuscation.
 
-Pattern matching is treated as **one signal**, not proof. Text is
-deobfuscated first (invisible characters, look-alike letters, diacritics,
-letter-by-letter spelling). Phrases are chosen to target agent hijacking
-rather than ordinary preferences: "always remember to CC finance" is a
-legitimate memory, "ignore previous instructions" is not. Novel phrasings,
-encodings, and most non-English text will still be missed; pair this with a
-model-based detector for those.
+A regex hit is one signal, not proof. The text is cleaned first: invisible
+characters, look-alike letters, accents, and letter-by-letter spelling
+(`"i-g-n-o-r-e"`).
+
+The phrases target hijacking, not ordinary preferences. "Always remember
+to CC finance" is a normal memory. "Ignore previous instructions" is not.
+
+New wording, encodings, and most non-English text are missed. Pair this
+detector with a model when you need those.
 """
 
 from __future__ import annotations
@@ -58,7 +60,16 @@ _INJECTION_PATTERNS: list[re.Pattern[str]] = [
 
 
 def injection_matches(text: str) -> list[str]:
-    """Distinct injection phrases found in ``text`` (after deobfuscation)."""
+    """List the injection phrases found in `text`.
+
+    Args:
+        text: Memory content. It is deobfuscated before matching, so hidden
+            characters do not hide a known phrase.
+
+    Returns:
+        The matched phrases, lowercased, with duplicates removed, sorted.
+        Empty when nothing matched. The full memory is not returned.
+    """
     clean = deobfuscate(text)
     matched = {
         m.group(0).strip(" \n.;").lower() for p in _INJECTION_PATTERNS if (m := p.search(clean))
@@ -67,7 +78,11 @@ def injection_matches(text: str) -> list[str]:
 
 
 class HeuristicInjectionDetector(BaseDetector):
-    """Regex phrase matching over deobfuscated text. Offline, deterministic, fast."""
+    """Match known injection phrases. Offline, deterministic, and fast.
+
+    No model is downloaded and no network call is made. The same text always
+    produces the same hit.
+    """
 
     name = "heuristic"
 

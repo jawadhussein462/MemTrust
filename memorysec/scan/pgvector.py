@@ -1,4 +1,4 @@
-"""Read-only pgvector / Postgres table scanner."""
+"""Read id and text from a Postgres table. The session is read-only."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ from .source import DEFAULT_BATCH_SIZE, missing_extra, quote_ident, take, to_rec
 
 
 class PgVectorScanSource:
-    """``SELECT`` id and text from a Postgres table. The session is read-only.
+    """`SELECT` an id column and a text column from a Postgres table.
 
-    ``connection`` is a psycopg-like connection (for tests). Otherwise
-    ``dsn`` is used to open a new connection with
-    ``default_transaction_read_only=on``.
+    The session is read-only. Pass `connection` in tests: it should look
+    like a psycopg connection. Otherwise `dsn` opens a new connection with
+    `default_transaction_read_only=on`.
     """
 
     def __init__(
@@ -27,6 +27,21 @@ class PgVectorScanSource:
         id_column: str = "id",
         connection: Any | None = None,
     ) -> None:
+        """Name the table and columns, and how to connect.
+
+        Args:
+            dsn: Postgres connection string. Required unless `connection`
+                is set.
+            table: Table name. `schema.table` is allowed. Quoted before use.
+            text_column: Column that holds the memory text. Quoted before use.
+            id_column: Column that holds the record id. Default `"id"`.
+            connection: An open connection. When set, `dsn` is not used and
+                the caller keeps ownership of the connection.
+
+        Raises:
+            ConfigurationError: `connection` is omitted and `dsn` is missing,
+                or a name is not a safe SQL identifier.
+        """
         if connection is None and not dsn:
             raise ConfigurationError("pgvector scan needs --dsn.")
         self._dsn = dsn
@@ -38,6 +53,20 @@ class PgVectorScanSource:
     def records(
         self, *, batch_size: int = DEFAULT_BATCH_SIZE, sample: int | None = None
     ) -> Iterator[MemoryRecord]:
+        """Yield each row as a `MemoryRecord`.
+
+        Args:
+            batch_size: Rows fetched per round trip when the cursor supports
+                `fetchmany`. Default 500.
+            sample: Stop after this many rows. Applied as `LIMIT` in SQL
+                when this object opened the connection.
+
+        Returns:
+            An iterator of records. A `None` text cell becomes an empty string.
+
+        Raises:
+            ConfigurationError: `psycopg` is not installed, or the query fails.
+        """
         if self._connection is not None:
             yield from take(
                 self._stream(self._connection, batch_size=batch_size, sample=sample),

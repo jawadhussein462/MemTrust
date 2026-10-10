@@ -1,31 +1,46 @@
-"""Exception hierarchy for MemorySec.
+"""Errors MemorySec raises.
 
-A scan returns a :class:`~memorysec.ScanReport` rather than raising.
-Exceptions are reserved for programmer errors, backend failures, and
-misconfiguration.
+A scan returns a `ScanReport`. It does not raise because a memory looked
+suspicious. These exceptions are for bad setup, a broken backend, or a
+programming mistake.
 """
 
 from __future__ import annotations
 
 
 class MemorySecError(Exception):
-    """Base class for all MemorySec errors."""
+    """Base class for every error this library raises."""
 
 
 class ConfigurationError(MemorySecError):
-    """Invalid or contradictory configuration."""
+    """The caller passed settings that cannot work.
+
+    Raised for an empty detector list, a bad threshold, a missing API key,
+    or a scan source that is not a source, a `.all()` object, or an iterable.
+    """
 
 
 class BackendError(MemorySecError):
-    """A wrapped memory backend raised or misbehaved."""
+    """A store or hosted API failed while MemorySec was calling it.
+
+    The message names the URL or operation. It does not include the memory
+    text that was sent.
+    """
 
 
 class IntegrationError(MemorySecError):
-    """An optional integration is unavailable or misconfigured."""
+    """An optional extra is not installed or is set up wrong.
+
+    Raised when OpenTelemetry is requested but `memorysec[otel]` is missing.
+    """
 
 
 class CheckError(MemorySecError):
-    """A check raised unexpectedly (surfaced when fail_closed is disabled)."""
+    """A check crashed, and the caller asked to see that crash.
+
+    With the default `fail_closed=True`, the engine records a `check_error`
+    finding instead of raising this.
+    """
 
 
 __all__ = [

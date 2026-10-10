@@ -1,4 +1,4 @@
-"""Poisoning detectors: heuristic, TrustRAG, perplexity."""
+"""Tests for the poisoning detectors: phrases, TrustRAG, and perplexity."""
 
 from __future__ import annotations
 

@@ -1,9 +1,9 @@
-"""Example 1 — Knowledge poisoning attempt (RAG / long-term memory).
+"""Example 1: a knowledge-poisoning attempt in long-term memory.
 
-A scraped page tries to persist a false security fact plus a persistent
-instruction. The scan recommends quarantine.
+A scraped page tries to save a false security fact and a hidden instruction.
+The scan recommends quarantine.
 
-Run:  python examples/01_poisoning_attempt.py
+Run it with `python examples/01_poisoning_attempt.py`.
 """
 
 from __future__ import annotations

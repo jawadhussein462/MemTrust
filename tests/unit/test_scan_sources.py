@@ -1,4 +1,4 @@
-"""Read-only scan sources: chroma, qdrant, pgvector, pinecone."""
+"""Tests for the read-only scan sources: Chroma, Qdrant, pgvector, and Pinecone."""
 
 from __future__ import annotations
 

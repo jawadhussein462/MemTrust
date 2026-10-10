@@ -1,15 +1,15 @@
-"""Microsoft Presidio analyzer (``presidio-analyzer``).
+"""Microsoft Presidio analyzer (`presidio-analyzer`).
 
-Presidio combines regex recognisers with checksums (Luhn for cards, IBAN
-mod-97), context words, and a spaCy/transformers NER model, and returns
-typed ``RecognizerResult`` spans with scores. Entity types such as
-``CREDIT_CARD``, ``IBAN_CODE``, ``US_SSN``, ``US_BANK_NUMBER``, ``CRYPTO``
-map to ``secret_detected`` by default; ``PRESIDIO_ALL_LABELS`` adds
-``PERSON``, ``EMAIL_ADDRESS``, ``PHONE_NUMBER``, ... as ``pii_detected``.
+Presidio mixes regex recognisers, checksums (Luhn for cards, IBAN mod-97),
+context words, and a spaCy or transformers NER model. It returns
+`RecognizerResult` spans with a type and a score. `CREDIT_CARD`,
+`IBAN_CODE`, `US_SSN`, `US_BANK_NUMBER`, and `CRYPTO` map to
+`secret_detected` by default. `PRESIDIO_ALL_LABELS` also maps `PERSON`,
+`EMAIL_ADDRESS`, `PHONE_NUMBER`, and similar types to `pii_detected`.
 
-Pass your own configured ``AnalyzerEngine`` as ``analyzer`` (custom
-recognisers, other languages); otherwise a default English engine is built
-on first use, which needs the ``en_core_web_lg`` spaCy model installed.
+Pass your own `AnalyzerEngine` as `analyzer` for custom recognisers or
+another language. Otherwise a default English engine is built on first use,
+which needs the `en_core_web_lg` spaCy model.
 
     pip install "memorysec[presidio]"
     python -m spacy download en_core_web_lg
@@ -52,7 +52,11 @@ Analyze = Callable[[str, list[str]], list[Any]]
 
 
 class PresidioDetector(BaseDetector):
-    """Presidio ``AnalyzerEngine`` results, scoped to credential entity types by default."""
+    """Read Presidio `AnalyzerEngine` results.
+
+    By default only credential entity types are kept, as `secret_detected`.
+    Pass `labels=PRESIDIO_ALL_LABELS` to also emit `pii_detected`.
+    """
 
     name = "presidio"
 
@@ -65,6 +69,22 @@ class PresidioDetector(BaseDetector):
         language: str = "en",
         analyze: Analyze | None = None,
     ) -> None:
+        """Store the engine settings. Presidio is imported on first use.
+
+        Args:
+            analyzer: A Presidio `AnalyzerEngine`. `None` builds a default
+                English engine on the first scan.
+            labels: Map of Presidio entity type to finding code. `None` uses
+                `PRESIDIO_SECRET_LABELS`. Keys are compared in uppercase.
+            threshold: Minimum Presidio score, from 0 to 1. Default `0.5`.
+            language: Language code passed to `analyze`. Default `"en"`.
+            analyze: Function `(text, entities) -> results with .entity_type
+                and .score`. Pass one in tests. `None` uses `analyzer`.
+
+        Raises:
+            ConfigurationError: `threshold` is outside 0 to 1, or `labels`
+                is empty.
+        """
         if not 0.0 <= threshold <= 1.0:
             raise ConfigurationError("threshold must be within [0, 1].")
         self.labels: dict[str, str] = {
@@ -99,6 +119,19 @@ class PresidioDetector(BaseDetector):
         )
 
     def analyze(self, text: str) -> list[Any]:
+        """Run Presidio on `text` for the labels this detector cares about.
+
+        Args:
+            text: Memory content.
+
+        Returns:
+            Presidio results. Each one has `entity_type` and `score`.
+            The matched substring is not copied into MemorySec evidence.
+
+        Raises:
+            ConfigurationError: Presidio is not installed and neither
+                `analyzer` nor `analyze` was passed.
+        """
         if self._analyze is None:
             self._analyze = self._load()
         return self._analyze(text, sorted(self.labels))

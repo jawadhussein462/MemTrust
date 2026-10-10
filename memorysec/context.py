@@ -1,8 +1,9 @@
-"""The :class:`CheckContext` passed to every check.
+"""The `CheckContext` handed to every check.
 
-Bundles everything a check needs to reason about a candidate without giving
-it the ability to mutate global state or perform I/O. Checks are pure:
-``(candidate, context) -> list[Finding]``.
+A check receives the memory plus this object and returns findings. It should
+not change global state or do I/O. The shape is:
+
+    (candidate, context) -> list[Finding]
 """
 
 from __future__ import annotations
@@ -16,16 +17,23 @@ from .models.memory import MemoryRecord
 
 @dataclass
 class CheckContext:
-    """Read-only context for scanning one record."""
+    """Extra facts a check may use while scanning one record.
+
+    Attributes:
+        config: Settings for this scan, including `fail_closed`.
+        now: Clock time captured when the scan started.
+        operation: What the engine is doing. Scans set this to `"scan"`.
+        existing: The other records in this batch, when the caller passed a
+            list or tuple. TrustRAG uses these as neighbours. A streaming
+            scan leaves this empty.
+        query: The retrieval question, when the caller passed
+            `MemorySec.scan(..., query=)`. Most checks ignore it.
+    """
 
     config: Config
     now: datetime
     operation: str = "scan"
-    # Other records in the scanned batch, when the caller passed a sequence.
-    # Retrieval-aware detectors (TrustRAG) use this; streaming scans leave it empty.
     existing: list[MemoryRecord] = field(default_factory=list)
-    # The retrieval query, when the caller passes ``MemorySec.scan(..., query=)``.
-    # Most checks ignore it.
     query: str | None = None
 
 

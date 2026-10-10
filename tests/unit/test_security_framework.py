@@ -1,4 +1,4 @@
-"""SecurityCheck framework: detectors -> detections -> findings, voting, errors."""
+"""Tests for `SecurityCheck`: detectors, votes, merged evidence, and errors."""
 
 from __future__ import annotations
 
@@ -25,7 +25,14 @@ from tests.factories import make_candidate, make_context
 
 
 class Always(BaseDetector):
-    """Emits a fixed detection for every text."""
+    """Detector that reports the same hit for every text.
+
+    Args:
+        name: Detector name, used as its vote.
+        code: Finding code to emit. `None` lets the check use its default.
+        score: Confidence stored on the hit. `None` omits a score.
+        **ev: Extra evidence fields, forwarded to `hit`.
+    """
 
     def __init__(self, name: str, code: str | None = None, score: float | None = None, **ev):
         self.name = name

@@ -1,10 +1,13 @@
-"""Example 7 — Scan for leaked secrets.
+"""Example 7: scan for leaked secrets.
 
-A JSONL export of agent memory is screened locally. Secret values never
-appear in the report.
+A JSONL export of agent memory is screened on this machine. Secret values
+do not appear in the report.
 
-Run:  python examples/07_secret_detection.py
-CLI:  memorysec scan jsonl export.jsonl --report report.html
+Run it with `python examples/07_secret_detection.py`.
+
+The same scan from the command line:
+
+    memorysec scan jsonl export.jsonl --report report.html
 """
 
 from __future__ import annotations

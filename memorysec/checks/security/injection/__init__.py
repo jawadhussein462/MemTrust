@@ -1,18 +1,15 @@
-"""Injection: agent-directed instructions persisted as memory.
+"""Injection: instructions aimed at the agent that were saved as memory.
 
-:class:`InjectionCheck` runs one or more detectors:
+`InjectionCheck` runs one or more detectors:
 
-=========================  ===============================================  ==========
-Detector                   Method                                           Needs
-=========================  ===============================================  ==========
-HeuristicInjectionDetector deobfuscation + phrase patterns (default)        nothing
-PromptGuardDetector        meta-llama/Llama-Prompt-Guard-2-86M              [hf]
-ProtectAIDeBERTaDetector   protectai/deberta-v3-base-prompt-injection-v2    [hf]
-DeepsetDeBERTaDetector     deepset/deberta-v3-base-injection                [hf]
-SentinelDetector           qualifire/prompt-injection-sentinel              [hf]
-PromptShieldDetector       Azure AI Content Safety Prompt Shields           API key
-LakeraGuardDetector        Lakera Guard /v2/guard                           API key
-=========================  ===============================================  ==========
+* `HeuristicInjectionDetector` — phrase patterns after deobfuscation. Default.
+  Needs nothing extra.
+* `PromptGuardDetector` — `meta-llama/Llama-Prompt-Guard-2-86M`. Needs `[hf]`.
+* `ProtectAIDeBERTaDetector` — Protect AI DeBERTa v2. Needs `[hf]`.
+* `DeepsetDeBERTaDetector` — deepset DeBERTa. Needs `[hf]`.
+* `SentinelDetector` — Qualifire Sentinel. Needs `[hf]`.
+* `PromptShieldDetector` — Azure Prompt Shields. Needs an API key.
+* `LakeraGuardDetector` — Lakera Guard. Needs an API key.
 """
 
 from __future__ import annotations

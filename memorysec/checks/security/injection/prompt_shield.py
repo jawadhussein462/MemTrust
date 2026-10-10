@@ -1,16 +1,15 @@
-"""Azure AI Content Safety **Prompt Shields** (hosted).
+"""Azure AI Content Safety Prompt Shields. Hosted.
 
-``POST {endpoint}/contentsafety/text:shieldPrompt?api-version=2024-09-01``
-analyses a ``userPrompt`` (direct attacks) and up to five ``documents``
-(indirect attacks: instructions hidden in third-party content). Memories are
-third-party content from the agent's point of view, so the candidate is sent
-as a *document* by default and the reply's
-``documentsAnalysis[0].attackDetected`` is used. The API returns a boolean,
-not a score.
+`POST {endpoint}/contentsafety/text:shieldPrompt?api-version=2024-09-01`
+analyses a `userPrompt` (a direct attack) and up to five `documents`
+(instructions hidden in third-party content). A stored memory is
+third-party content from the agent's point of view, so the candidate is
+sent as a document by default. The detector reads
+`documentsAnalysis[0].attackDetected`. The API returns yes or no, not a score.
 
-Credentials come from ``endpoint`` / ``key`` or the
-``AZURE_CONTENT_SAFETY_ENDPOINT`` / ``AZURE_CONTENT_SAFETY_KEY`` environment
-variables. Nothing beyond the candidate text is sent; nothing is logged.
+Credentials come from `endpoint` and `key`, or from
+`AZURE_CONTENT_SAFETY_ENDPOINT` and `AZURE_CONTENT_SAFETY_KEY`. Only the
+candidate text is sent. Nothing is logged.
 """
 
 from __future__ import annotations
@@ -28,7 +27,11 @@ MAX_DOCUMENT_CHARS = 10_000
 
 
 class PromptShieldDetector(BaseDetector):
-    """Azure Prompt Shields: document attack (indirect injection) detection."""
+    """Ask Azure Prompt Shields whether a document hides an attack.
+
+    Pass `as_user_prompt=True` to screen the text as a direct user prompt
+    instead. A hit has score `1.0` because the API returns a boolean.
+    """
 
     name = "prompt_shield"
 
@@ -42,6 +45,24 @@ class PromptShieldDetector(BaseDetector):
         transport: Transport | None = None,
         timeout: float = 10.0,
     ) -> None:
+        """Store the Azure endpoint and key.
+
+        Args:
+            endpoint: Content Safety endpoint URL. `None` reads
+                `AZURE_CONTENT_SAFETY_ENDPOINT`.
+            key: Subscription key. `None` reads `AZURE_CONTENT_SAFETY_KEY`.
+            as_user_prompt: When `False` (the default), send the memory as a
+                document and read `documentsAnalysis`. When `True`, send it
+                as `userPrompt` and read `userPromptAnalysis`.
+            api_version: Query-string version. Defaults to `2024-09-01`.
+            transport: Function `(url, headers, payload) -> parsed JSON`.
+                `None` uses `urllib`.
+            timeout: Seconds `urllib` waits. Ignored when you pass `transport`.
+
+        Raises:
+            ConfigurationError: `endpoint` or `key` is missing from both the
+                arguments and the environment.
+        """
         endpoint = endpoint or os.environ.get("AZURE_CONTENT_SAFETY_ENDPOINT")
         key = key or os.environ.get("AZURE_CONTENT_SAFETY_KEY")
         if not endpoint or not key:
@@ -57,7 +78,20 @@ class PromptShieldDetector(BaseDetector):
         self._transport = transport or urllib_transport(timeout)
 
     def shield(self, text: str) -> dict[str, Any]:
-        """Raw API response for ``text``."""
+        """Call Prompt Shields and return the parsed JSON.
+
+        Args:
+            text: Memory content. Cut to 10,000 characters, which is the
+                API's per-document limit.
+
+        Returns:
+            The response object. Look at `documentsAnalysis` or
+            `userPromptAnalysis`, depending on `as_user_prompt`.
+
+        Raises:
+            ConfigurationError: The response is not a JSON object.
+            BackendError: The HTTP call fails. Raised by the transport.
+        """
         text = text[:MAX_DOCUMENT_CHARS]
         payload: dict[str, Any] = (
             {"userPrompt": text, "documents": []}

@@ -1,4 +1,4 @@
-"""Read-only Chroma collection scanner."""
+"""Read every document in a Chroma collection. Never writes."""
 
 from __future__ import annotations
 
@@ -12,10 +12,13 @@ from .source import DEFAULT_BATCH_SIZE, missing_extra, take, text_from_payload, 
 
 
 class ChromaScanSource:
-    """List every document in a Chroma collection. Never upserts or deletes.
+    """List every document in a Chroma collection.
 
-    ``handle`` is a Chroma collection (for tests). Otherwise a persistent
-    client is opened at ``path`` and ``collection`` is fetched.
+    The methods used are `get` only. Nothing is upserted or deleted.
+
+    Pass `handle` in tests: it should look like a Chroma collection.
+    Otherwise a persistent client is opened at `path` and `collection`
+    is fetched.
     """
 
     def __init__(
@@ -25,6 +28,19 @@ class ChromaScanSource:
         collection: str | None = None,
         handle: Any | None = None,
     ) -> None:
+        """Point at a collection on disk, or at a collection object.
+
+        Args:
+            path: Directory of the Chroma database. Required unless `handle`
+                is set.
+            collection: Collection name. Required unless `handle` is set.
+            handle: An already-open collection. When set, `path` and
+                `collection` are not used to connect.
+
+        Raises:
+            ConfigurationError: `handle` is omitted and `path` or
+                `collection` is missing.
+        """
         if handle is None and (not path or not collection):
             raise ConfigurationError("chroma scan needs --path and --collection.")
         self._path = None if path is None else Path(path)
@@ -34,6 +50,21 @@ class ChromaScanSource:
     def records(
         self, *, batch_size: int = DEFAULT_BATCH_SIZE, sample: int | None = None
     ) -> Iterator[MemoryRecord]:
+        """Yield each document as a `MemoryRecord`.
+
+        Args:
+            batch_size: Documents requested per `get` call. Default 500.
+            sample: Stop after this many documents. `None` reads the
+                whole collection.
+
+        Returns:
+            An iterator. The first pull opens the database if `handle`
+            was not passed.
+
+        Raises:
+            ConfigurationError: The path or collection does not exist, or
+                Chroma is not installed.
+        """
         collection = self._handle if self._handle is not None else self._open()
         yield from take(self._pages(collection, batch_size=batch_size), sample=sample)
 

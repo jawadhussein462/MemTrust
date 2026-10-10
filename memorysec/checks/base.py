@@ -1,8 +1,8 @@
-"""Check framework: the :class:`MemoryCheck` base class.
+"""The `MemoryCheck` base class.
 
-Checks form a pipeline. Each check is independent and returns a list of
-findings; adding a new check never requires editing the engine. Every check
-runs when a store is scanned.
+Checks run one after another. Each check looks at one memory and returns
+its own list of findings. Adding a check does not require editing the engine.
+Every check runs when a store is scanned.
 """
 
 from __future__ import annotations
@@ -13,16 +13,34 @@ from ..models.memory import MemoryCandidate
 
 
 class MemoryCheck:
-    """Base class for a named check over a candidate memory.
+    """One named check over a single memory.
 
-    Subclasses set ``name`` and implement :meth:`check`. Built-in security
-    concerns subclass :class:`~memorysec.checks.security.SecurityCheck`, which
-    itself subclasses this.
+    Set `name` and implement `check`. The built-in security checks subclass
+    `SecurityCheck`, which subclasses this.
+
+    Attributes:
+        name: Label stored on each finding this check emits. The client uses
+            it to replace a default check: a custom check named `"injection"`
+            takes the place of the built-in injection check.
     """
 
     name: str = "base"
 
     def check(self, candidate: MemoryCandidate, context: CheckContext) -> list[Finding]:
+        """Inspect one memory and return every problem found.
+
+        Args:
+            candidate: The memory being scanned. Read `candidate.content`.
+            context: Scan settings, the clock, neighbouring records, and the
+                optional retrieval query.
+
+        Returns:
+            Findings for this memory. An empty list means this check found
+            nothing. Never return `None`.
+
+        Raises:
+            NotImplementedError: Always, unless a subclass implements this.
+        """
         raise NotImplementedError
 
 

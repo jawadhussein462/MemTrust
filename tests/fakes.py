@@ -1,10 +1,18 @@
-"""In-process fakes of provider SDKs used by scan-source tests."""
+"""In-process stand-ins for store SDKs used by scan-source tests.
+
+Each class copies the methods the scanner calls (`get`, `scroll`, `list`,
+`fetch`) and keeps data in a dict. No real database is contacted.
+"""
 
 from __future__ import annotations
 
 
 class FakeChroma:
-    """Chroma ``Collection`` shape (``query`` nests one list per query text)."""
+    """Stand-in for a Chroma collection.
+
+    `get` returns ids, documents, and metadatas. `add` skips ids that are
+    already stored. `upsert` replaces them.
+    """
 
     def __init__(self):
         self._d = {}
@@ -42,7 +50,11 @@ def _pid(point):
 
 
 class FakeQdrant:
-    """Qdrant client shape (accepts dict points)."""
+    """Stand-in for a Qdrant client.
+
+    `upsert` stores dict points. `scroll` returns one page and the next
+    offset, or `None` when the page is the last.
+    """
 
     def __init__(self):
         self._d = {}
@@ -93,7 +105,11 @@ class FakePgCursor:
 
 
 class FakePgConnection:
-    """psycopg-like connection used by PgVectorScanSource tests."""
+    """Stand-in for a psycopg connection.
+
+    `execute` records the SQL. `cursor` returns a cursor over the rows
+    passed to the constructor.
+    """
 
     def __init__(self, rows):
         self.rows = rows
@@ -107,7 +123,10 @@ class FakePgConnection:
 
 
 class FakePineconeIndex:
-    """Pinecone Index shape: ``list`` pages of ids, ``fetch`` by id."""
+    """Stand-in for a Pinecone index.
+
+    `list` yields pages of ids. `fetch` returns the vectors for those ids.
+    """
 
     def __init__(self, vectors):
         self._d = dict(vectors)

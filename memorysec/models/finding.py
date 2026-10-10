@@ -1,4 +1,4 @@
-"""A single :class:`Finding` produced by a check."""
+"""A `Finding`: one problem a check noticed in a memory."""
 
 from __future__ import annotations
 
@@ -8,19 +8,32 @@ from .enums import Action, Category, Severity
 
 
 class Finding(BaseModel):
-    """One thing a check noticed about a memory.
+    """One problem a check noticed about a memory.
 
-    A finding never decides the outcome on its own. A scan lists every
-    finding in the report.
+    A finding does not delete or quarantine by itself. The scan lists every
+    finding in the report, and each one carries a recommended action.
 
-    Example::
+    Attributes:
+        code: Stable id such as `"memory_poisoning"` or `"secret_detected"`.
+        category: Which family this belongs to. Built-in checks use security.
+        severity: How serious it is. Defaults to medium.
+        message: Sentence shown to the person reading the report.
+        evidence: Extra facts such as detector names and scores. Never the
+            raw secret or the full memory text.
+        check: Name of the check that raised this, such as `"injection"`.
+            `None` until the engine fills it in.
+        recommended_action: What this finding argues for (review, quarantine,
+            or delete). The report keeps this action.
 
-        Finding(
-            code="memory_poisoning",
-            category="security",
-            severity="critical",
-            message="Content looks like an attempt to plant a false security fact.",
-        )
+    Example:
+        A critical poisoning finding::
+
+            Finding(
+                code="memory_poisoning",
+                category="security",
+                severity="critical",
+                message="Content looks like an attempt to plant a false security fact.",
+            )
     """
 
     model_config = ConfigDict(extra="forbid")

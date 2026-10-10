@@ -1,4 +1,8 @@
-"""MemorySec domain models (Pydantic v2)."""
+"""The data objects MemorySec passes around.
+
+These are Pydantic v2 models and string enums: findings, memories, scan
+reports, and the labels for severity, risk, category, and action.
+"""
 
 from __future__ import annotations
 

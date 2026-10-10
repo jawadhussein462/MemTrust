@@ -1,13 +1,15 @@
-"""GLiNER PII (``urchade/gliner_multi_pii-v1``, Apache-2.0).
+"""GLiNER PII (`urchade/gliner_multi_pii-v1`, Apache-2.0).
 
-The original GLiNER zero-shot NER model fine-tuned for PII: any label can be
-requested at inference time, and it recognises 50+ types out of the box
-(``credit card number``, ``social security number``, ``iban``, ``password``,
-``passport number``, ...). Microsoft Presidio ships a ``GLiNERRecognizer``
-built on this model. Credential-like labels map to ``secret_detected`` by
-default; ``GLINER_ALL_LABELS`` adds contact/name labels as ``pii_detected``.
+The original GLiNER zero-shot NER model, fine-tuned for personal data. You
+choose the labels at inference time, and it recognises 50 or more types
+out of the box, including `credit card number`, `social security number`,
+`iban`, `password`, and `passport number`. Microsoft Presidio ships a
+`GLiNERRecognizer` built on this model.
 
-    pip install "memorysec[gliner]"      # the ``gliner`` package
+Credential-like labels map to `secret_detected` by default.
+`GLINER_ALL_LABELS` adds contact and name labels as `pii_detected`.
+
+Install with `pip install "memorysec[gliner]"` (the `gliner` package).
 """
 
 from __future__ import annotations
@@ -50,7 +52,11 @@ Predict = Callable[[str, list[str]], list[Mapping[str, Any]]]
 
 
 class GLiNERPIIDetector(BaseDetector):
-    """GLiNER zero-shot PII extraction, scoped to credential labels by default."""
+    """GLiNER zero-shot extraction, limited to credential labels by default.
+
+    Pass `labels=GLINER_ALL_LABELS` to also emit `pii_detected`. Evidence
+    lists label names, not the matched text.
+    """
 
     name = "gliner_pii"
 
@@ -62,6 +68,23 @@ class GLiNERPIIDetector(BaseDetector):
         threshold: float = 0.5,
         predict: Predict | None = None,
     ) -> None:
+        """Store the model id and label map. Weights load on first use.
+
+        Args:
+            model_id: Hugging Face model id. Default
+                `urchade/gliner_multi_pii-v1`.
+            labels: Map of GLiNER label to finding code. `None` uses
+                `GLINER_SECRET_LABELS`. Keys must match the label strings
+                you want the model to look for, including spaces.
+            threshold: Minimum entity score, from 0 to 1. Default `0.5`.
+            predict: Function `(text, labels) -> [{"label", "score", ...}]`.
+                Pass one in tests. `None` loads the `gliner` package on
+                first use.
+
+        Raises:
+            ConfigurationError: `threshold` is outside 0 to 1, or `labels`
+                is empty.
+        """
         if not 0.0 <= threshold <= 1.0:
             raise ConfigurationError("threshold must be within [0, 1].")
         self.model_id = model_id
@@ -84,6 +107,19 @@ class GLiNERPIIDetector(BaseDetector):
         )
 
     def predict(self, text: str) -> list[Mapping[str, Any]]:
+        """Ask GLiNER for entities in `text`.
+
+        Args:
+            text: Memory content. The model is asked only for the keys in
+                `labels`.
+
+        Returns:
+            Entity dicts with at least `label` and `score`.
+
+        Raises:
+            ConfigurationError: The `gliner` package is not installed and
+                no `predict` callable was passed.
+        """
         if self._predict is None:
             self._predict = self._load()
         return self._predict(text, sorted(self.labels))

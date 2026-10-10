@@ -1,4 +1,4 @@
-"""Async client: scan."""
+"""Tests for `AsyncMemorySec.scan`."""
 
 from __future__ import annotations
 

@@ -1,11 +1,14 @@
-"""Observability facade.
+"""Logging and tracing.
 
-* Logs with `loguru`. MemorySec does not add or remove sinks — configuring
-  loguru is the application's job.
-* Tracing is optional and injected (no globals): the default is a no-op
-  tracer; an OpenTelemetry-backed tracer can be supplied via
-  :func:`memorysec.telemetry.otel.otel_tracer`.
-* Raw memory content and secrets are never placed on spans by default.
+Logs go through loguru. MemorySec does not add or remove log sinks. The
+application configures loguru.
+
+Tracing is optional. Pass a tracer into `MemorySec`. The default tracer
+does nothing. `otel_tracer()` in `memorysec.telemetry.otel` builds one
+backed by OpenTelemetry.
+
+Spans get counts and operation names. They do not get the memory text or
+secret values.
 """
 
 from __future__ import annotations
@@ -28,20 +31,53 @@ ATTR_OPERATION = "memorysec.operation"
 
 
 def get_logger(name: str = "memorysec") -> Logger:
-    """Return a loguru logger bound to ``name``. The library never adds sinks."""
+    """Return a loguru logger tagged with `name`.
+
+    Args:
+        name: Value stored on the `name` field of each log record. The
+            default is `"memorysec"`.
+
+    Returns:
+        A loguru logger. This function does not add a log file or a console
+        sink. The application does that.
+    """
     return logger.bind(name=name)
 
 
 @runtime_checkable
 class Span(Protocol):
-    def set_attribute(self, key: str, value: object) -> None: ...
+    """One tracing span. The engine calls `set_attribute` while a scan runs."""
+
+    def set_attribute(self, key: str, value: object) -> None:
+        """Attach one piece of metadata to this span.
+
+        Args:
+            key: Attribute name.
+            value: A count or a short label. Not the memory text.
+        """
+        ...
 
 
 @runtime_checkable
 class Tracer(Protocol):
+    """Starts spans. Pass an implementation to `MemorySec(tracer=...)`.
+
+    `NullTracer` does nothing. `otel_tracer()` sends spans to OpenTelemetry.
+    """
+
     def span(
         self, name: str, attributes: Mapping[str, object] | None = None
-    ) -> AbstractContextManager[Span]: ...
+    ) -> AbstractContextManager[Span]:
+        """Open a span for the duration of a `with` block.
+
+        Args:
+            name: Span name, such as `"memorysec.scan"`.
+            attributes: Metadata set when the span opens. `None` means none.
+
+        Returns:
+            A context manager. Entering it yields a `Span`.
+        """
+        ...
 
 
 class _NullSpan:
@@ -50,10 +86,22 @@ class _NullSpan:
 
 
 class NullTracer:
-    """Default tracer: does nothing, allocates nothing meaningful."""
+    """Tracer used when the caller does not pass one.
+
+    `span` yields an object whose `set_attribute` ignores every call.
+    """
 
     @contextmanager
     def span(self, name: str, attributes: Mapping[str, object] | None = None) -> Iterator[Span]:
+        """Yield a span that discards attributes.
+
+        Args:
+            name: Ignored. Accepted so this matches the `Tracer` protocol.
+            attributes: Ignored.
+
+        Returns:
+            A context manager that yields a no-op span.
+        """
         yield _NullSpan()
 
 

@@ -1,17 +1,18 @@
-"""Lakera Guard / Check Point AI Guardrails (hosted).
+"""Lakera Guard, also called Check Point AI Guardrails. Hosted.
 
-``POST https://api.lakera.ai/v2/guard`` screens OpenAI-style ``messages``
-and returns ``flagged`` plus, with ``breakdown=true``, one entry per
-detector (``detector_type``, ``detected``). Lakera Guard tops the PINT
-prompt-injection benchmark (95.2%) and screens tool outputs and reference
-documents, so a memory is sent as a ``tool`` message by default (indirect
-content) -- set ``role="user"`` to screen it as a direct prompt.
+`POST https://api.lakera.ai/v2/guard` screens chat-style messages and
+returns `flagged`. With `breakdown=true` it also returns one entry per
+detector (`detector_type`, `detected`). Lakera Guard leads the PINT
+prompt-injection benchmark at 95.2% and can screen tool output, so a
+memory is sent as a `tool` message by default. Pass `role="user"` to
+screen it as a direct prompt.
 
-The API key comes from ``api_key`` or ``LAKERA_GUARD_API_KEY``. Only the
-candidate text is sent. With the project in *detect* mode Lakera forces
-``flagged`` to ``false``; this detector therefore also honours per-detector
-``detected`` flags in the breakdown when ``use_breakdown`` is on (default),
-restricted to prompt-attack detector types.
+The API key comes from `api_key` or the `LAKERA_GUARD_API_KEY` environment
+variable. Only the candidate text is sent.
+
+If the Lakera project is in detect mode, `flagged` is forced to false.
+This detector also reads per-detector `detected` flags in the breakdown
+when `use_breakdown` is on (the default), and only for prompt-attack types.
 """
 
 from __future__ import annotations
@@ -29,7 +30,12 @@ _ATTACK_TYPES = ("prompt_attack", "prompt_injection", "jailbreak")
 
 
 class LakeraGuardDetector(BaseDetector):
-    """Lakera Guard ``/v2/guard`` screening for prompt attacks."""
+    """Ask Lakera Guard `/v2/guard` whether the text is a prompt attack.
+
+    A hit means `flagged` is true, or a prompt-attack detector in the
+    breakdown set `detected`. The score on that hit is `1.0` because the
+    API returns a yes or no, not a probability.
+    """
 
     name = "lakera_guard"
 
@@ -44,6 +50,24 @@ class LakeraGuardDetector(BaseDetector):
         transport: Transport | None = None,
         timeout: float = 10.0,
     ) -> None:
+        """Store the API key and how the memory will be sent.
+
+        Args:
+            api_key: Bearer token. `None` reads `LAKERA_GUARD_API_KEY`.
+            project_id: Optional Lakera project id sent in the body.
+            role: Chat role for the memory text. `"tool"` (the default)
+                treats it as indirect content. `"user"` treats it as a prompt.
+            url: Endpoint. Defaults to `https://api.lakera.ai/v2/guard`.
+            use_breakdown: When `True` (the default), request the per-detector
+                breakdown and treat prompt-attack `detected` flags as hits.
+            transport: Function `(url, headers, payload) -> parsed JSON`.
+                `None` uses `urllib`.
+            timeout: Seconds `urllib` waits. Ignored when you pass `transport`.
+
+        Raises:
+            ConfigurationError: No API key was passed and the environment
+                variable is unset.
+        """
         api_key = api_key or os.environ.get("LAKERA_GUARD_API_KEY")
         if not api_key:
             raise ConfigurationError("LakeraGuardDetector needs api_key (or LAKERA_GUARD_API_KEY).")
@@ -55,7 +79,19 @@ class LakeraGuardDetector(BaseDetector):
         self._transport = transport or urllib_transport(timeout)
 
     def guard(self, text: str) -> dict[str, Any]:
-        """Raw API response for ``text``."""
+        """Call Lakera and return the parsed JSON.
+
+        Args:
+            text: Memory content. Sent as the only message.
+
+        Returns:
+            The response object. Typical keys are `flagged` and, when
+            breakdown was requested, `breakdown`.
+
+        Raises:
+            ConfigurationError: The response is not a JSON object.
+            BackendError: The HTTP call fails. Raised by the transport.
+        """
         payload: dict[str, Any] = {"messages": [{"role": self.role, "content": text}]}
         if self.project_id:
             payload["project_id"] = self.project_id

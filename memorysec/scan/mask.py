@@ -1,7 +1,7 @@
 """Masked snippets for scan reports.
 
-Reports are meant to be forwarded. They show enough context to act, and
-never the secret values that triggered the finding.
+Reports are meant to be forwarded. They show enough of the memory to act
+on, and they do not show the secret values that triggered the finding.
 """
 
 from __future__ import annotations
@@ -13,7 +13,16 @@ _DEFAULT_WIDTH = 160
 
 
 def mask_snippet(text: str, *, width: int = _DEFAULT_WIDTH) -> str:
-    """Secret-mask ``text`` and truncate to ``width`` characters."""
+    """Hide secrets in `text` and shorten it for a report line.
+
+    Args:
+        text: The full memory content.
+        width: Maximum characters in the result. Default 160.
+
+    Returns:
+        One line: secrets replaced with bullets, whitespace collapsed, cut
+        to `width` characters with a trailing ellipsis when it was longer.
+    """
     masked = " ".join(EntropyDetector().mask(mask_secrets(text)).split())
     if len(masked) <= width:
         return masked

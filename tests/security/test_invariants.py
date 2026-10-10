@@ -1,4 +1,4 @@
-"""Explicit tests for security invariants."""
+"""Tests that security rules stay true: no secret leakage, fail closed, read-only scans."""
 
 from __future__ import annotations
 

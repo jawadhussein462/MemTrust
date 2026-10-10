@@ -1,4 +1,4 @@
-"""Property-based round-trip serialization for core models."""
+"""Property tests: random models still match after a JSON round trip."""
 
 from __future__ import annotations
 

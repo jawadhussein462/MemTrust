@@ -1,11 +1,11 @@
-"""deepset DeBERTa-v3 injection classifier (``deepset/deberta-v3-base-injection``).
+"""deepset DeBERTa-v3 injection classifier (`deepset/deberta-v3-base-injection`).
 
-An earlier open classifier trained on the ``deepset/prompt-injections``
-dataset, labelling text ``LEGIT`` or ``INJECTION``. Weaker than the Protect
-AI v2 model on public benchmarks but cheap and permissively licensed; useful
-as a second voter with ``InjectionCheck(min_detectors=2)``.
+An earlier open classifier trained on `deepset/prompt-injections`. It labels
+text `LEGIT` or `INJECTION`. It scores lower than Protect AI v2 on public
+benchmarks, and it is cheap and permissively licensed. Use it as a second
+voter with `InjectionCheck(min_detectors=2)`.
 
-    pip install "memorysec[hf]"
+Install with `pip install "memorysec[hf]"`.
 """
 
 from __future__ import annotations
@@ -16,7 +16,12 @@ DEEPSET_DEBERTA = "deepset/deberta-v3-base-injection"
 
 
 class DeepsetDeBERTaDetector(HFTextClassifierDetector):
-    """deepset ``deberta-v3-base-injection`` (``INJECTION`` = positive)."""
+    """deepset `deberta-v3-base-injection`.
+
+    A hit is the label `INJECTION` (also accepted as `LABEL_1`) at or above
+    `threshold`. Constructor arguments are the ones on
+    `HFTextClassifierDetector`.
+    """
 
     name = "deepset_deberta"
     model_id = DEEPSET_DEBERTA

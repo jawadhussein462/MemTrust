@@ -1,8 +1,8 @@
-"""CLI: ``memorysec scan``.
+"""Command line: `memorysec scan`.
 
-Scan finds poisoned facts, hidden instructions, and leaked secrets in an
-existing store. The HTML report explains the recommended fix. Connections
-are read-only.
+Scan an existing store for poisoned facts, hidden instructions, and leaked
+secrets. The HTML report says what to do with each hit. Connections are
+read-only: the command lists and fetches, and it does not write to the store.
 """
 
 from __future__ import annotations
@@ -199,11 +199,14 @@ def _summary(
 
 
 def _color_enabled() -> bool:
-    """Scan summaries are colored unless the user opts out.
+    """Decide whether the scan summary may use terminal color.
 
-    ``NO_COLOR`` (any non-empty value) and ``TERM=dumb`` turn color off.
-    A missing TTY does not: IDE runners often fail ``isatty`` and would
-    otherwise print the summary in plain text.
+    Returns:
+        `False` when `NO_COLOR` is set to any non-empty value, or when
+        `TERM` is `dumb`. Otherwise `True`.
+
+        A missing TTY does not turn color off. IDE runners often fail
+        `isatty` and would otherwise print the summary in plain text.
     """
     if os.environ.get("NO_COLOR", "") != "":
         return False
@@ -211,6 +214,16 @@ def _color_enabled() -> bool:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the command-line tool.
+
+    Args:
+        argv: Arguments after the program name, such as
+            `["scan", "jsonl", "export.jsonl"]`. `None` reads `sys.argv`.
+
+    Returns:
+        `0` when the scan finished and any requested files were written.
+        `2` when the arguments, the store, or a file write failed.
+    """
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.command == "scan":

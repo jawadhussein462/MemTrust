@@ -1,14 +1,16 @@
-"""GLiNER2-PII (``fastino/gliner2-privacy-filter-PII-multi``).
+"""GLiNER2-PII (`fastino/gliner2-privacy-filter-PII-multi`).
 
-A 205M-parameter GLiNER2 fine-tune that extracts 42 PII entity types in
-seven languages in one forward pass, with the label schema given *at
-inference time* -- so the detector asks only for the labels it maps. Its
-"secrets / credentials" group (``password``, ``secret``, ``api_key``,
-``access_token``, ``recovery_code``) plus payment and government-ID labels
-map to ``secret_detected`` by default; contact and name labels are
-available as ``pii_detected`` through ``GLINER2_ALL_LABELS``.
+A 205M-parameter GLiNER2 model that extracts 42 personal-data types in
+seven languages in one pass. You give it the label list at inference time,
+so this detector asks only for the labels it maps.
 
-    pip install "memorysec[gliner2]"     # the ``gliner2`` package (CPU-friendly)
+The secrets group (`password`, `secret`, `api_key`, `access_token`,
+`recovery_code`) plus payment and government-id labels map to
+`secret_detected` by default. Contact and name labels are available as
+`pii_detected` through `GLINER2_ALL_LABELS`.
+
+Install with `pip install "memorysec[gliner2]"` (the `gliner2` package,
+which runs on CPU).
 """
 
 from __future__ import annotations
@@ -59,7 +61,11 @@ Extract = Callable[[str, list[str]], Mapping[str, Any]]
 
 
 class GLiNER2PIIDetector(BaseDetector):
-    """GLiNER2-PII schema-driven entity extraction, scoped to credential labels."""
+    """GLiNER2 entity extraction, limited to credential labels by default.
+
+    Pass `labels=GLINER2_ALL_LABELS` to also emit `pii_detected`. Long text
+    is split into overlapping chunks inside the model call.
+    """
 
     name = "gliner2_pii"
 
@@ -73,6 +79,26 @@ class GLiNER2PIIDetector(BaseDetector):
         chunk_size: int = 384,
         chunk_overlap: int = 64,
     ) -> None:
+        """Store the model id, labels, and chunking. Weights load on first use.
+
+        Args:
+            model_id: Hugging Face model id. Default
+                `fastino/gliner2-privacy-filter-PII-multi`.
+            labels: Map of GLiNER2 label to finding code. `None` uses
+                `GLINER2_SECRET_LABELS`.
+            threshold: Minimum confidence, from 0 to 1. Default `0.5`.
+            extract: Function `(text, labels) -> {"entities": {label: [...]}}`.
+                Pass one in tests. `None` loads the `gliner2` package on
+                first use.
+            chunk_size: Characters per chunk inside `extract_entities_long`.
+                Default `384`.
+            chunk_overlap: Characters shared by neighbouring chunks, so an
+                entity on a boundary is still seen. Default `64`.
+
+        Raises:
+            ConfigurationError: `threshold` is outside 0 to 1, or `labels`
+                is empty.
+        """
         if not 0.0 <= threshold <= 1.0:
             raise ConfigurationError("threshold must be within [0, 1].")
         self.model_id = model_id
@@ -107,6 +133,20 @@ class GLiNER2PIIDetector(BaseDetector):
         return extract
 
     def extract(self, text: str) -> Mapping[str, Any]:
+        """Ask GLiNER2 for entities in `text`.
+
+        Args:
+            text: Memory content. The model is asked only for the keys in
+                `labels`.
+
+        Returns:
+            A mapping shaped like `{"entities": {label: [{"text", "confidence"}]}}`.
+            An unexpected model result becomes an empty mapping.
+
+        Raises:
+            ConfigurationError: The `gliner2` package is not installed and
+                no `extract` callable was passed.
+        """
         if self._extract is None:
             self._extract = self._load()
         return self._extract(text, sorted(self.labels))

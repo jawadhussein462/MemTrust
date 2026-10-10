@@ -1,8 +1,7 @@
-"""Runtime configuration for a MemorySec instance.
+"""Settings for one `MemorySec` instance.
 
-Configuration is passed by dependency injection (constructor argument), never
-read from module-level globals. Every field has a safe default so that
-``MemorySec()`` works out of the box.
+Pass a `Config` into the constructor. Nothing here is read from a global.
+Every field has a default, so `MemorySec()` works with no arguments.
 """
 
 from __future__ import annotations
@@ -11,7 +10,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Config(BaseModel):
-    """Tunable behaviour for checks."""
+    """Settings a check can read while it runs.
+
+    Attributes:
+        fail_closed: When `True` (the default), a check that crashes becomes
+            a `check_error` finding instead of being skipped. When `False`,
+            the error is logged and that check contributes nothing.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

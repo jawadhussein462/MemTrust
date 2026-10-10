@@ -1,26 +1,28 @@
 """Security checks: injection, poisoning, and secrets.
 
-Layout::
+Layout:
 
     security/
-      base.py          SecurityCheck (father class), Detector, Detection, FindingSpec
-      injection/       InjectionCheck  + one detector per method
-      poisoning/       PoisoningCheck  + one detector per method
-      secrets/         SecretsCheck    + one detector per method
+      base.py       SecurityCheck, Detector, Detection, FindingSpec
+      injection/    InjectionCheck and one detector per method
+      poisoning/    PoisoningCheck and one detector per method
+      secrets/      SecretsCheck and one detector per method
 
-Each check runs a list of detectors and turns their detections into
-findings. The defaults are the offline heuristics; model and hosted
-detectors are opt-in::
+Each check runs detectors and turns their hits into findings. The defaults
+are offline heuristics. Model and hosted detectors are optional.
 
-    from memorysec import MemorySec
-    from memorysec.checks.security import InjectionCheck
-    from memorysec.checks.security.injection import (
-        HeuristicInjectionDetector, PromptGuardDetector,
-    )
+Example:
+    Replace the default injection check with heuristic plus Prompt Guard::
 
-    guard = MemorySec(checks=[
-        InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()]),
-    ])
+        from memorysec import MemorySec
+        from memorysec.checks.security import InjectionCheck
+        from memorysec.checks.security.injection import (
+            HeuristicInjectionDetector, PromptGuardDetector,
+        )
+
+        guard = MemorySec(checks=[
+            InjectionCheck(detectors=[HeuristicInjectionDetector(), PromptGuardDetector()]),
+        ])
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Read-only Pinecone index scanner."""
+"""List vector ids in a Pinecone index and read their metadata. Never writes."""
 
 from __future__ import annotations
 
@@ -13,10 +13,12 @@ _PINECONE_PAGE = 100
 
 
 class PineconeScanSource:
-    """List vector ids and fetch metadata. Never upserts or deletes.
+    """List vector ids and fetch metadata. Nothing is upserted or deleted.
 
-    ``index`` is a Pinecone Index handle (for tests). Otherwise the SDK is
-    opened with ``api_key`` / ``PINECONE_API_KEY`` and ``index`` name.
+    Pass `handle` in tests: it should look like a Pinecone index, with
+    `list` and `fetch`. Otherwise the SDK is opened with `api_key` (or
+    `PINECONE_API_KEY` from the environment, which the SDK reads itself)
+    and the `index` name.
     """
 
     def __init__(
@@ -29,6 +31,24 @@ class PineconeScanSource:
         text_field: str | None = None,
         handle: Any | None = None,
     ) -> None:
+        """Point at an index by name, host, or an already-open handle.
+
+        Args:
+            index: Index name. Required unless `handle` is set. Ignored
+                for the connection when `host` is set, because the host
+                already identifies the index.
+            api_key: Passed to the Pinecone client. `None` lets the SDK
+                read `PINECONE_API_KEY`.
+            host: Serverless index host. When set, the index is opened
+                by host instead of by name.
+            namespace: Pinecone namespace. Default `""`, the default namespace.
+            text_field: Metadata key that holds the memory text. `None`
+                tries common keys such as `content` and `text`.
+            handle: An already-open index. When set, no client is created.
+
+        Raises:
+            ConfigurationError: `handle` is omitted and `index` is missing.
+        """
         if handle is None and not index:
             raise ConfigurationError("pinecone scan needs --index.")
         self._index_name = index
@@ -41,6 +61,20 @@ class PineconeScanSource:
     def records(
         self, *, batch_size: int = _PINECONE_PAGE, sample: int | None = None
     ) -> Iterator[MemoryRecord]:
+        """Yield each vector's metadata text as a `MemoryRecord`.
+
+        Args:
+            batch_size: Ids requested per `list` page. Default 100.
+            sample: Stop after this many vectors. `None` reads the namespace.
+
+        Returns:
+            An iterator. Vectors whose metadata has no text field yield a
+            record with empty content.
+
+        Raises:
+            ConfigurationError: The Pinecone package is not installed, the
+                index cannot list ids, or a list or fetch call fails.
+        """
         index = self._handle if self._handle is not None else self._open()
         yield from take(self._pages(index, batch_size=batch_size), sample=sample)
 
