@@ -7,7 +7,8 @@ sometimes a coroutine and sometimes a normal function.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import asyncio
+from collections.abc import AsyncIterable, Iterable, Sequence
 from typing import Any
 
 from ._coerce import coerce_record
@@ -167,22 +168,33 @@ class MemorySec(_ClientBase):
 class AsyncMemorySec(_ClientBase):
     """Asynchronous client. Same arguments as `MemorySec`.
 
-    `scan` is a coroutine so it can be awaited. The work inside is the same
-    synchronous scan; it does not talk to the network by itself.
+    `scan` runs the scan in a worker thread (`asyncio.to_thread`), so the
+    event loop keeps serving other tasks while detectors run and while a
+    scan source fetches pages from its store. Async iterables (an async
+    generator, or a source whose `records()` is one) are read on the loop
+    first, then scanned in the thread.
     """
 
-    async def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
+    async def scan(
+        self, source: Iterable[Any] | AsyncIterable[Any], *, query: str | None = None
+    ) -> ScanReport:
         """Scan records and return the report. See `MemorySec.scan`.
 
         Args:
-            source: A scan source, an object with `.all()`, or an iterable
-                of records or dicts.
+            source: A scan source, an object with `.all()`, an iterable of
+                records or dicts, or an async iterable of them.
             query: The retrieval question for this batch, if you have one.
 
         Returns:
             The same `ScanReport` the synchronous client would return.
         """
-        return self._scan(source, query=query)
+        records_fn = getattr(source, "records", None)
+        if callable(records_fn) and not isinstance(source, AsyncIterable):
+            # Called once here; a sync iterator is handed to the thread as is.
+            source = records_fn()
+        if isinstance(source, AsyncIterable):
+            source = [item async for item in source]
+        return await asyncio.to_thread(self._scan, source, query=query)
 
 
 __all__ = [

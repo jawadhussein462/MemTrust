@@ -21,9 +21,9 @@ jobs:
       - name: Install
         run: uv sync --extra dev
       - name: Ruff (lint)
-        run: uv run ruff check memorysec tests examples
+        run: uv run ruff check memorysec tests examples benchmarks
       - name: Ruff (format check)
-        run: uv run ruff format --check memorysec tests examples
+        run: uv run ruff format --check memorysec tests examples benchmarks
       - name: mypy
         run: uv run mypy memorysec
 
@@ -39,9 +39,9 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install (core + dev only, no provider SDKs)
+      - name: Install (core + dev only, no provider SDKs, no numpy)
         run: uv sync --extra dev
-      - name: Run tests
+      - name: Run tests (pure-Python vector index; integration tests skip)
         run: uv run pytest -ra
       - name: Run examples (smoke)
         run: |
@@ -51,19 +51,23 @@ jobs:
           done
 
   backends:
-    # The same conformance suite, against real provider clients running
-    # in-process (Chroma ephemeral, Qdrant :memory:, LlamaIndex, LangChain,
-    # LangGraph). No services or API keys needed.
+    # Scan sources against real store clients running in-process:
+    # Chroma ephemeral, Qdrant :memory:, LangChain InMemoryVectorStore,
+    # LangGraph InMemoryStore, and mem0's own Qdrant store (tests/integration).
+    # The full suite runs again with numpy, so the numpy vector index is
+    # tested too. No services or API keys needed.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           python-version: "3.12"
-      - name: Install (core + dev + all provider SDKs)
+      - name: Install (core + dev + all store clients + numpy)
         run: uv sync --extra dev --extra all
-      - name: Backend conformance (real clients)
+      - name: Scan sources against real clients
         run: uv run pytest -ra tests/integration
+      - name: Full suite with numpy
+        run: uv run pytest -ra
 
   build:
     runs-on: ubuntu-latest
