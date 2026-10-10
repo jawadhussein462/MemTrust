@@ -64,7 +64,22 @@ def _iter_jsonl(stream: IO[str]) -> Iterator[MemoryRecord]:
             raise ConfigurationError(f"line {lineno}: invalid JSON ({exc.msg})") from exc
         if not isinstance(item, dict) or not isinstance(item.get("content"), str):
             raise ConfigurationError(f"line {lineno}: expected an object with a 'content' string")
-        yield to_record(item.get("id") or f"line_{lineno}", item["content"])
+        meta = item.get("metadata")
+        extra = {
+            key: item[key]
+            for key in ("source", "user", "namespace", "created_at", "updated_at")
+            if key in item and key != "metadata"
+        }
+        merged = {**extra, **meta} if isinstance(meta, dict) else extra
+        yield to_record(
+            item.get("id") or f"line_{lineno}",
+            item["content"],
+            metadata=merged,
+            embedding=item.get("embedding"),
+            created_at=item.get("created_at"),
+            updated_at=item.get("updated_at"),
+            namespace=item.get("namespace") if isinstance(item.get("namespace"), str) else None,
+        )
 
 
 __all__ = ["JsonlScanSource"]

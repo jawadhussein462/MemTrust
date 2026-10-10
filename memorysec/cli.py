@@ -66,6 +66,16 @@ def _build_parser() -> argparse.ArgumentParser:
     pgvector.add_argument("--table", required=True, help="Table name (schema.table allowed).")
     pgvector.add_argument("--text-column", required=True, help="Column that holds memory text.")
     pgvector.add_argument("--id-column", default="id", help="Column that holds the record id.")
+    pgvector.add_argument(
+        "--embedding-column",
+        default=None,
+        help="Column that holds the stored vector (enables hubness and TrustRAG NN).",
+    )
+    pgvector.add_argument(
+        "--created-at-column",
+        default=None,
+        help="Column that holds the insert time (enables temporal NLI).",
+    )
     _add_scan_output_flags(pgvector)
 
     pinecone = sources.add_parser("pinecone", help="Scan a Pinecone index.")
@@ -135,6 +145,8 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
             table=args.table,
             text_column=args.text_column,
             id_column=args.id_column,
+            embedding_column=args.embedding_column,
+            created_at_column=args.created_at_column,
         )
         return src.records(batch_size=batch, sample=sample), f"pgvector:{args.table}"
     if source == "pinecone":

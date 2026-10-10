@@ -25,6 +25,8 @@ class PgVectorScanSource:
         table: str,
         text_column: str,
         id_column: str = "id",
+        embedding_column: str | None = None,
+        created_at_column: str | None = None,
         connection: Any | None = None,
     ) -> None:
         """Name the table and columns, and how to connect.
@@ -35,6 +37,8 @@ class PgVectorScanSource:
             table: Table name. `schema.table` is allowed. Quoted before use.
             text_column: Column that holds the memory text. Quoted before use.
             id_column: Column that holds the record id. Default `"id"`.
+            embedding_column: Optional column that holds the stored vector.
+            created_at_column: Optional column that holds the insert time.
             connection: An open connection. When set, `dsn` is not used and
                 the caller keeps ownership of the connection.
 
@@ -48,6 +52,8 @@ class PgVectorScanSource:
         self._table = quote_ident(table)
         self._text_column = quote_ident(text_column)
         self._id_column = quote_ident(id_column)
+        self._embedding_column = quote_ident(embedding_column) if embedding_column else None
+        self._created_at_column = quote_ident(created_at_column) if created_at_column else None
         self._connection = connection
 
     def records(
@@ -92,7 +98,12 @@ class PgVectorScanSource:
             raise ConfigurationError(f"Postgres scan failed: {exc}") from exc
 
     def _stream(self, conn: Any, *, batch_size: int, sample: int | None) -> Iterator[MemoryRecord]:
-        sql = f"SELECT {self._id_column}, {self._text_column} FROM {self._table}"
+        columns = [self._id_column, self._text_column]
+        if self._embedding_column:
+            columns.append(self._embedding_column)
+        if self._created_at_column:
+            columns.append(self._created_at_column)
+        sql = f"SELECT {', '.join(columns)} FROM {self._table}"
         params: tuple[Any, ...] = ()
         if sample is not None:
             sql += " LIMIT %s"
@@ -120,20 +131,29 @@ class PgVectorScanSource:
                     if not rows:
                         break
                     for row in rows:
-                        yield _row_to_record(row)
+                        yield self._row_to_record(row)
                 return
             for row in cur:
-                yield _row_to_record(row)
+                yield self._row_to_record(row)
 
-
-def _row_to_record(row: Any) -> MemoryRecord:
-    if isinstance(row, dict):
-        memory_id = next(iter(row.values()))
-        content = list(row.values())[1] if len(row) > 1 else ""
-    else:
-        memory_id = row[0]
-        content = row[1] if len(row) > 1 else ""
-    return to_record(memory_id, "" if content is None else str(content))
+    def _row_to_record(self, row: Any) -> MemoryRecord:
+        values = list(row.values()) if isinstance(row, dict) else list(row)
+        memory_id = values[0] if values else "pgvector_unknown"
+        content = values[1] if len(values) > 1 else ""
+        extra = values[2:]
+        embedding = None
+        created_at = None
+        if self._embedding_column:
+            embedding = extra[0] if extra else None
+            extra = extra[1:]
+        if self._created_at_column:
+            created_at = extra[0] if extra else None
+        return to_record(
+            memory_id,
+            "" if content is None else str(content),
+            embedding=embedding,
+            created_at=created_at,
+        )
 
 
 __all__ = ["PgVectorScanSource"]

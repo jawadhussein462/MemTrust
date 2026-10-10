@@ -15,8 +15,8 @@ _QDRANT_PAGE = 256
 class QdrantScanSource:
     """Scroll every point in a Qdrant collection.
 
-    Uses `scroll` with payloads and without vectors. Nothing is upserted
-    or deleted. Text is taken from the payload.
+    Uses `scroll` with payloads and vectors. Nothing is upserted or
+    deleted. Text is taken from the payload.
     """
 
     def __init__(
@@ -87,7 +87,7 @@ class QdrantScanSource:
                     limit=batch_size,
                     offset=offset,
                     with_payload=True,
-                    with_vectors=False,
+                    with_vectors=True,
                 )
             except Exception as exc:
                 raise ConfigurationError(f"Qdrant scroll failed: {exc}") from exc
@@ -100,13 +100,21 @@ class QdrantScanSource:
         if isinstance(point, dict):
             payload = point.get("payload") or {}
             raw_id = point.get("id")
+            vector = point.get("vector")
         else:
             payload = getattr(point, "payload", None) or {}
             raw_id = getattr(point, "id", None)
+            vector = getattr(point, "vector", None)
         payload = payload if isinstance(payload, dict) else {}
         memory_id = payload.get("memorysec_id") or payload.get("id") or raw_id or "qdrant_unknown"
         content = text_from_payload(payload.get("content"), payload, field=self._text_field)
-        return to_record(memory_id, content)
+        return to_record(
+            memory_id,
+            content,
+            metadata=payload,
+            embedding=vector,
+            namespace=self._collection,
+        )
 
 
 __all__ = ["QdrantScanSource"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..owasp import ASI06_REF
 from .enums import Action, Category, Severity
 
 
@@ -24,6 +25,8 @@ class Finding(BaseModel):
             `None` until the engine fills it in.
         recommended_action: What this finding argues for (review, quarantine,
             or delete). The report keeps this action.
+        owasp: OWASP reference for this finding. Poisoning uses ASI06,
+            injection uses LLM01, secrets and PII use LLM02.
 
     Example:
         A critical poisoning finding::
@@ -50,6 +53,10 @@ class Finding(BaseModel):
     recommended_action: Action | None = Field(
         default=None,
         description="Action this finding argues for; the engine aggregates across findings.",
+    )
+    owasp: str = Field(
+        default=ASI06_REF,
+        description="OWASP item this finding maps to, e.g. ASI06 or LLM02.",
     )
 
     def __str__(self) -> str:

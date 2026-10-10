@@ -143,4 +143,8 @@ def test_poisoning_check_maps_every_detector_code():
         "destination_redirect",
         "poisoning_cluster",
         "adversarial_text",
+        "hub_record",
+        "embedding_mismatch",
+        "temporal_contradiction",
+        "retrieval_flip",
     }

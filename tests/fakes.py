@@ -17,7 +17,7 @@ class FakeChroma:
     def __init__(self):
         self._d = {}
 
-    def add(self, ids, documents, metadatas=None):
+    def add(self, ids, documents, metadatas=None, embeddings=None):
         for i, mid in enumerate(ids):
             if mid in self._d:
                 continue
@@ -25,12 +25,13 @@ class FakeChroma:
                 "id": mid,
                 "document": documents[i],
                 "metadata": (metadatas or [None] * len(ids))[i],
+                "embedding": (embeddings or [None] * len(ids))[i],
             }
 
-    def upsert(self, ids, documents, metadatas=None):
+    def upsert(self, ids, documents, metadatas=None, embeddings=None):
         for mid in ids:
             self._d.pop(mid, None)
-        self.add(ids, documents, metadatas)
+        self.add(ids, documents, metadatas, embeddings)
 
     def get(self, ids=None, limit=None, offset=None, include=None):
         if ids is not None:
@@ -38,11 +39,14 @@ class FakeChroma:
         else:
             start = offset or 0
             items = list(self._d.values())[start : start + limit if limit else None]
-        return {
+        out = {
             "ids": [v["id"] for v in items],
             "documents": [v["document"] for v in items],
             "metadatas": [v["metadata"] for v in items],
         }
+        if include is None or "embeddings" in include:
+            out["embeddings"] = [v.get("embedding") for v in items]
+        return out
 
 
 def _pid(point):
@@ -62,7 +66,12 @@ class FakeQdrant:
     def upsert(self, collection_name, points):
         for point in points:
             payload = point["payload"] if isinstance(point, dict) else point.payload
-            self._d[_pid(point)] = {"id": _pid(point), "payload": dict(payload)}
+            vector = point.get("vector") if isinstance(point, dict) else getattr(point, "vector", None)
+            self._d[_pid(point)] = {
+                "id": _pid(point),
+                "payload": dict(payload),
+                "vector": vector,
+            }
 
     def scroll(self, collection_name, scroll_filter=None, limit=10, offset=None, **kw):
         items = list(self._d.values())

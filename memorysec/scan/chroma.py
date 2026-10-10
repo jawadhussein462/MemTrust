@@ -87,19 +87,34 @@ class ChromaScanSource:
         while True:
             try:
                 res = collection.get(
-                    limit=batch_size, offset=offset, include=["documents", "metadatas"]
+                    limit=batch_size,
+                    offset=offset,
+                    include=["documents", "metadatas", "embeddings"],
                 )
-            except Exception as exc:
-                raise ConfigurationError(f"Chroma get failed: {exc}") from exc
+            except Exception:
+                try:
+                    res = collection.get(
+                        limit=batch_size, offset=offset, include=["documents", "metadatas"]
+                    )
+                except Exception as exc:
+                    raise ConfigurationError(f"Chroma get failed: {exc}") from exc
             ids = list(res.get("ids") or []) if isinstance(res, dict) else []
             docs = list(res.get("documents") or []) if isinstance(res, dict) else []
             metas = list(res.get("metadatas") or []) if isinstance(res, dict) else []
+            embs = list(res.get("embeddings") or []) if isinstance(res, dict) else []
             if not ids:
                 return
             for i, memory_id in enumerate(ids):
                 doc = docs[i] if i < len(docs) else None
                 meta = metas[i] if i < len(metas) else None
-                yield to_record(memory_id, text_from_payload(doc, meta))
+                embedding = embs[i] if i < len(embs) else None
+                yield to_record(
+                    memory_id,
+                    text_from_payload(doc, meta),
+                    metadata=meta,
+                    embedding=embedding,
+                    namespace=self._name,
+                )
             if len(ids) < batch_size:
                 return
             offset += batch_size

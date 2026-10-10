@@ -9,7 +9,7 @@ Both `MemorySec` and `AsyncMemorySec` use this engine.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from .checks.base import MemoryCheck
@@ -19,8 +19,8 @@ from .models.enums import Action, Category, Severity
 from .models.finding import Finding
 from .models.memory import MemoryCandidate, MemoryRecord
 from .models.results import ScanFinding, ScanReport
+from .owasp import ASI06_REF
 from .scan.mask import mask_snippet
-from .scan.owasp import ASI06_REF
 from .telemetry import (
     ATTR_FINDING_COUNT,
     ATTR_OPERATION,
@@ -65,11 +65,13 @@ class Evaluator:
         """Audit stored records for poisoned facts, hidden instructions, and secrets.
 
         Args:
-            records: Memories to scan. A list or tuple is one batch, so each
-                check sees the other records as `context.existing`. A streaming
-                iterable is not stored first, so `context.existing` stays empty.
+            records: Memories to scan. The iterable is always materialised,
+                so every check sees the full batch as `context.existing`.
+                Corpus methods (TrustRAG, hubness, NLI) need that view.
+                Use `--sample` on the CLI to cap a large store.
             query: The retrieval question for this batch. Passed through as
-                `context.query`. Most checks ignore it.
+                `context.query`. A store scan has none; probe-query
+                detectors generate one when they need it.
 
         Returns:
             A `ScanReport`. `total` is how many records were read. `findings`
@@ -77,19 +79,18 @@ class Evaluator:
             is masked.
         """
         now = datetime.now(UTC)
-        batch = list(records) if isinstance(records, Sequence) else None
-        stream: Iterable[MemoryRecord] = batch if batch is not None else records
+        batch = list(records)
         ctx = CheckContext(
             config=self.config,
             now=now,
             operation="scan",
-            existing=list(batch) if batch is not None else [],
+            existing=batch,
             query=query,
         )
         report = ScanReport(generated_at=now)
         with self.tracer.span(SPAN_SCAN, {ATTR_OPERATION: "scan"}) as span:
             finding_count = 0
-            for record in stream:
+            for record in batch:
                 report.total += 1
                 candidate = MemoryCandidate(
                     content=record.content,
@@ -97,6 +98,7 @@ class Evaluator:
                     id=record.id,
                     derived_from=list(record.derived_from),
                     created_at=record.created_at,
+                    embedding=list(record.embedding) if record.embedding is not None else None,
                 )
                 findings = self._run_checks(candidate, ctx)
                 finding_count += len(findings)
@@ -110,7 +112,7 @@ class Evaluator:
                             detectors=_detectors(finding),
                             snippet=snippet,
                             action=_report_action(finding.recommended_action, finding.severity),
-                            owasp=ASI06_REF,
+                            owasp=finding.owasp or ASI06_REF,
                             message=finding.message,
                         )
                     )

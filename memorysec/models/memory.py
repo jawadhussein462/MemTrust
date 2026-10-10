@@ -19,11 +19,15 @@ class MemoryCandidate(BaseModel):
     Attributes:
         content: The text to inspect.
         metadata: Store fields copied onto the candidate. Checks may read
-            them. Do not put secrets here if a report will be forwarded.
+            them. Typical keys: `source`, `user`, `namespace`, timestamps.
+            Do not put secrets here if a report will be forwarded.
         id: Record id from the store. `None` when the input was only a string.
         derived_from: Ids of records this one was built from, if the store
             tracks that.
         created_at: When the record was created. Defaults to now, in UTC.
+        embedding: The vector stored with this memory, when the scanner
+            fetched it. Needed by hubness, TrustRAG, and embedding-text
+            consistency. `None` when the store did not return one.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -33,6 +37,10 @@ class MemoryCandidate(BaseModel):
     id: str | None = Field(default=None, description="Record id, when the store has one.")
     derived_from: list[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_utcnow)
+    embedding: list[float] | None = Field(
+        default=None,
+        description="Stored embedding, when the scanner fetched it.",
+    )
 
 
 class MemoryRecord(BaseModel):
@@ -44,9 +52,13 @@ class MemoryRecord(BaseModel):
         status: `active`, `revoked`, or `quarantined`. Defaults to active.
             TrustRAG skips neighbours that are not active.
         created_at: When the record was first stored. Defaults to now, in UTC.
+            Prefer the store's timestamp when the scanner can read one.
         updated_at: When the record last changed. Defaults to now, in UTC.
         derived_from: Ids this record was built from.
-        metadata: Extra store fields. Empty by default.
+        metadata: Extra store fields (source, user, namespace, provenance).
+            Empty by default.
+        embedding: The vector the store holds for this text. `None` when
+            the scanner did not fetch embeddings.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -58,6 +70,10 @@ class MemoryRecord(BaseModel):
     updated_at: datetime = Field(default_factory=_utcnow)
     derived_from: list[str] = Field(default_factory=list)
     metadata: dict[str, object] = Field(default_factory=dict)
+    embedding: list[float] | None = Field(
+        default=None,
+        description="Stored embedding, when the scanner fetched it.",
+    )
 
 
 __all__ = ["MemoryCandidate", "MemoryRecord"]

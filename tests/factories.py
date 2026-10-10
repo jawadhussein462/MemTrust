@@ -55,6 +55,7 @@ def make_context(
     existing: list[MemoryRecord] | None = None,
     config: Config | None = None,
     now_value: datetime | None = None,
+    query: str | None = None,
 ) -> CheckContext:
     """Build the `CheckContext` a check receives.
 
@@ -63,6 +64,7 @@ def make_context(
         config: Scan settings. `None` uses a default `Config`.
         now_value: Clock time stored on the context. `None` uses the
             current UTC time.
+        query: Optional retrieval question.
 
     Returns:
         A context whose `operation` is `"scan"`.
@@ -72,4 +74,5 @@ def make_context(
         now=now_value or datetime.now(UTC),
         operation="scan",
         existing=existing or [],
+        query=query,
     )

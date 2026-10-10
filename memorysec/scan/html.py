@@ -23,6 +23,12 @@ _LABELS: dict[str, str] = {
     "destination_redirect": "Destination redirect",
     "poisoning_cluster": "Poisoning cluster",
     "adversarial_text": "Adversarial text",
+    "hub_record": "Retrieval hub",
+    "embedding_mismatch": "Tampered vector",
+    "temporal_contradiction": "Contradicts older memory",
+    "retrieval_flip": "Answer flip",
+    "known_answer": "Canary instruction dropped",
+    "embedding_injection": "Injection embedding",
     "check_error": "Check error",
 }
 

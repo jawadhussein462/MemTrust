@@ -8,14 +8,21 @@ how `--sample` caps a large store.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
+from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 from ..exceptions import ConfigurationError
 from ..models.memory import MemoryRecord
+from ..vectors import as_floats
 
 DEFAULT_BATCH_SIZE = 500
 _TEXT_KEYS = ("content", "text", "page_content", "document", "memory", "pageContent")
+_CREATED_KEYS = ("created_at", "createdAt", "timestamp", "created", "inserted_at", "created_time")
+_UPDATED_KEYS = ("updated_at", "updatedAt", "updated", "modified_at", "modified")
+_SOURCE_KEYS = ("source", "provenance", "origin", "url", "uri")
+_USER_KEYS = ("user", "user_id", "userId", "author", "owner")
+_NS_KEYS = ("namespace", "collection", "tenant")
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -137,24 +144,116 @@ def missing_extra(name: str, extra: str) -> ConfigurationError:
     return ConfigurationError(f'{name} support requires `pip install "memorysec[{extra}]"`.')
 
 
-def to_record(memory_id: Any, content: str) -> MemoryRecord:
-    """Build a `MemoryRecord` from a store id and a text string.
+def parse_datetime(value: object) -> datetime | None:
+    """Parse a store timestamp into an aware UTC `datetime`.
+
+    Args:
+        value: A `datetime`, a Unix timestamp (seconds or milliseconds),
+            or an ISO-8601 string. Anything else is ignored.
+
+    Returns:
+        An aware UTC datetime, or `None` when `value` cannot be parsed.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        ts = float(value)
+        if ts > 1e12:
+            ts /= 1000.0
+        try:
+            return datetime.fromtimestamp(ts, tz=UTC)
+        except (OSError, OverflowError, ValueError):
+            return None
+    if isinstance(value, str) and value.strip():
+        text = value.strip().replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(text)
+        except ValueError:
+            return None
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return None
+
+
+def _first(meta: Mapping[str, Any], keys: tuple[str, ...]) -> object | None:
+    for key in keys:
+        if key in meta and meta[key] not in (None, ""):
+            return meta[key]
+    return None
+
+
+def _as_metadata(metadata: object | None) -> dict[str, object]:
+    if isinstance(metadata, Mapping):
+        return {str(k): v for k, v in metadata.items()}
+    return {}
+
+
+def to_record(
+    memory_id: Any,
+    content: str,
+    *,
+    metadata: object | None = None,
+    embedding: object | None = None,
+    created_at: object | None = None,
+    updated_at: object | None = None,
+    namespace: str | None = None,
+) -> MemoryRecord:
+    """Build a `MemoryRecord` from a store row.
 
     Args:
         memory_id: Whatever the store uses as an id. It is converted with
             `str`.
         content: The memory text.
+        metadata: Payload fields from the store. Source, user, and
+            namespace are copied in when present. Timestamps in this
+            mapping fill `created_at` / `updated_at` when those arguments
+            are omitted.
+        embedding: Stored vector. Lists, tuples, and arrays with
+            `.tolist()` are accepted.
+        created_at: Creation time, when the store has a dedicated field.
+        updated_at: Last-update time, when the store has a dedicated field.
+        namespace: Collection or namespace label. Stored under
+            `metadata["namespace"]` when that key is not already set.
 
     Returns:
-        A record with status `active` and timestamps set to now.
+        A record with status `active`. Missing timestamps default to now.
     """
-    return MemoryRecord(id=str(memory_id), content=content)
+    meta = _as_metadata(metadata)
+    if namespace and "namespace" not in meta:
+        meta["namespace"] = namespace
+    if "source" not in meta:
+        source = _first(meta, _SOURCE_KEYS)
+        if source is not None:
+            meta["source"] = source
+    if "user" not in meta:
+        user = _first(meta, _USER_KEYS)
+        if user is not None:
+            meta["user"] = user
+    if "namespace" not in meta:
+        stored_ns = _first(meta, _NS_KEYS)
+        if stored_ns is not None:
+            meta["namespace"] = stored_ns
+    created = parse_datetime(created_at) or parse_datetime(_first(meta, _CREATED_KEYS))
+    updated = parse_datetime(updated_at) or parse_datetime(_first(meta, _UPDATED_KEYS))
+    fields: dict[str, object] = {
+        "id": str(memory_id),
+        "content": content,
+        "metadata": meta,
+        "embedding": as_floats(embedding),
+    }
+    if created is not None:
+        fields["created_at"] = created
+    if updated is not None:
+        fields["updated_at"] = updated
+    return MemoryRecord.model_validate(fields)
 
 
 __all__ = [
     "DEFAULT_BATCH_SIZE",
     "ScanSource",
     "missing_extra",
+    "parse_datetime",
     "quote_ident",
     "take",
     "text_from_payload",

@@ -24,6 +24,7 @@ from __future__ import annotations
 from .check import SecretsCheck
 from .detect_secrets import DetectSecretsDetector
 from .entropy import EntropyDetector, shannon_entropy
+from .gitleaks import GitleaksDetector, gitleaks_kinds
 from .gliner2_pii import (
     GLINER2_ALL_LABELS,
     GLINER2_PII_LABELS,
@@ -50,6 +51,7 @@ from .presidio import (
     PresidioDetector,
 )
 from .starpii import STARPII_ALL_LABELS, STARPII_PII_LABELS, STARPII_SECRET_LABELS, StarPIIDetector
+from .verify import SecretVerificationDetector
 
 __all__ = [
     "GLINER2_ALL_LABELS",
@@ -71,11 +73,14 @@ __all__ = [
     "EntropyDetector",
     "GLiNER2PIIDetector",
     "GLiNERPIIDetector",
+    "GitleaksDetector",
     "HeuristicSecretsDetector",
     "PiiranhaDetector",
     "PresidioDetector",
+    "SecretVerificationDetector",
     "SecretsCheck",
     "StarPIIDetector",
+    "gitleaks_kinds",
     "secret_kinds",
     "shannon_entropy",
 ]

@@ -9,7 +9,20 @@ from __future__ import annotations
 from .chroma import ChromaScanSource
 from .html import render_html
 from .jsonl import JsonlScanSource
-from .owasp import ASI06_ID, ASI06_REF, ASI06_TITLE, ASI06_URL
+from .owasp import (
+    ASI06_ID,
+    ASI06_REF,
+    ASI06_TITLE,
+    ASI06_URL,
+    LLM01_ID,
+    LLM01_REF,
+    LLM01_TITLE,
+    LLM01_URL,
+    LLM02_ID,
+    LLM02_REF,
+    LLM02_TITLE,
+    LLM02_URL,
+)
 from .pgvector import PgVectorScanSource
 from .pinecone import PineconeScanSource
 from .qdrant import QdrantScanSource
@@ -19,6 +32,14 @@ __all__ = [
     "ASI06_REF",
     "ASI06_TITLE",
     "ASI06_URL",
+    "LLM01_ID",
+    "LLM01_REF",
+    "LLM01_TITLE",
+    "LLM01_URL",
+    "LLM02_ID",
+    "LLM02_REF",
+    "LLM02_TITLE",
+    "LLM02_URL",
     "ChromaScanSource",
     "JsonlScanSource",
     "PgVectorScanSource",

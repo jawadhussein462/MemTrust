@@ -73,8 +73,8 @@ def test_hierarchy():
 
 def test_default_detectors_are_heuristic():
     assert [d.name for d in InjectionCheck().detectors] == ["heuristic"]
-    assert [d.name for d in PoisoningCheck().detectors] == ["heuristic"]
-    assert [d.name for d in SecretsCheck().detectors] == ["heuristic"]
+    assert [d.name for d in PoisoningCheck().detectors] == ["heuristic", "trustrag", "hubness"]
+    assert [d.name for d in SecretsCheck().detectors] == ["heuristic", "gitleaks"]
 
 
 def test_detection_maps_to_check_spec():

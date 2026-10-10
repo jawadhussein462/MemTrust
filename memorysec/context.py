@@ -27,7 +27,11 @@ class CheckContext:
             list or tuple. TrustRAG uses these as neighbours. A streaming
             scan leaves this empty.
         query: The retrieval question, when the caller passed
-            `MemorySec.scan(..., query=)`. Most checks ignore it.
+            `MemorySec.scan(..., query=)`. Most checks ignore it. A store
+            scan has no query; probe-query detectors generate one.
+        cache: Scratch space shared by detectors on this scan. Hubness
+            stores the k-occurrence table here so it is not recomputed
+            for every record.
     """
 
     config: Config
@@ -35,6 +39,7 @@ class CheckContext:
     operation: str = "scan"
     existing: list[MemoryRecord] = field(default_factory=list)
     query: str | None = None
+    cache: dict[str, object] = field(default_factory=dict)
 
 
 __all__ = ["CheckContext"]

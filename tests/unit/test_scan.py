@@ -53,8 +53,8 @@ def test_scan_reports_security_findings_not_duplicates():
     assert report.by_severity["critical"] >= 1
     secret = next(f for f in report.findings if f.id == "secret")
     assert secret.action.value == "delete"
-    assert secret.detectors == ["heuristic"]
-    assert secret.owasp.startswith("ASI06")
+    assert "heuristic" in secret.detectors
+    assert secret.owasp.startswith("LLM02")
     assert AWS_KEY not in secret.snippet
     assert not report.clean
 

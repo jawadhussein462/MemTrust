@@ -117,7 +117,13 @@ class PineconeScanSource:
             for memory_id, vector in _vectors(fetched).items():
                 metadata = _metadata(vector)
                 content = text_from_payload(None, metadata, field=self._text_field)
-                yield to_record(memory_id, content)
+                yield to_record(
+                    memory_id,
+                    content,
+                    metadata=metadata,
+                    embedding=_values(vector),
+                    namespace=self._namespace or None,
+                )
 
 
 def _vectors(fetched: Any) -> dict[str, Any]:
@@ -136,6 +142,12 @@ def _metadata(vector: Any) -> dict[str, Any]:
     else:
         meta = getattr(vector, "metadata", None) or {}
     return meta if isinstance(meta, dict) else {}
+
+
+def _values(vector: Any) -> Any:
+    if isinstance(vector, dict):
+        return vector.get("values") or vector.get("embedding")
+    return getattr(vector, "values", None) or getattr(vector, "embedding", None)
 
 
 __all__ = ["PineconeScanSource"]

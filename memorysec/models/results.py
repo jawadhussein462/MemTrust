@@ -21,7 +21,8 @@ class ScanFinding(BaseModel):
         detectors: Names of the detectors that agreed on it.
         snippet: A short, masked excerpt of the record.
         action: Recommended next step: review, quarantine, or delete.
-        owasp: OWASP reference. Defaults to ASI06, memory and context poisoning.
+        owasp: OWASP reference. Secrets and PII use LLM02; injection uses
+            LLM01; poisoning uses ASI06.
         message: The sentence from the check, explaining the hit.
     """
 

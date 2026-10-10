@@ -32,6 +32,7 @@ from ...exceptions import ConfigurationError
 from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
+from ...owasp import ASI06_REF
 from ...telemetry import get_logger
 from ..base import MemoryCheck
 
@@ -179,11 +180,13 @@ class FindingSpec:
         action: What the scan recommends doing with the stored record, such as
             review, quarantine, or delete.
         message: Short sentence shown to the person reading the report.
+        owasp: OWASP item this finding maps to. Defaults to ASI06.
     """
 
     severity: Severity
     action: Action
     message: str
+    owasp: str = ASI06_REF
 
 
 class SecurityCheck(MemoryCheck):
@@ -362,6 +365,7 @@ class SecurityCheck(MemoryCheck):
             evidence=merge_evidence(detections),
             check=self.name,
             recommended_action=spec.action,
+            owasp=spec.owasp,
         )
 
     def __repr__(self) -> str:

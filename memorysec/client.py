@@ -16,7 +16,6 @@ from .checks.base import MemoryCheck
 from .config import Config
 from .engine import Evaluator
 from .exceptions import ConfigurationError
-from .models.memory import MemoryRecord
 from .models.results import ScanReport
 from .telemetry import Tracer
 
@@ -95,9 +94,8 @@ class _ClientBase:
                 * an object with `.all()`, such as some vector-store wrappers
                 * an iterable of `MemoryRecord` objects or dicts
 
-                A list or tuple is one batch: detectors that look at neighbours
-                can see the other records. A streaming source is not stored
-                in memory first, so those detectors see no neighbours.
+                Any iterable is materialised into one batch so corpus
+                detectors (TrustRAG, hubness) can see the other records.
             query: The question that retrieved this batch, when you have one.
                 Most checks ignore it. Cluster detectors can use it.
 
@@ -121,10 +119,7 @@ class _ClientBase:
                 f"Cannot scan {type(source).__name__}: pass a scan source, "
                 "an object with .all(), or an iterable of records."
             )
-        if isinstance(items, Sequence) and not isinstance(items, str | bytes):
-            records: Iterable[MemoryRecord] = [coerce_record(item) for item in items]
-        else:
-            records = (coerce_record(item) for item in items)
+        records = [coerce_record(item) for item in items]
         return self._evaluator.scan(records, query=query)
 
 

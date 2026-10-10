@@ -1,15 +1,37 @@
-"""OWASP Agentic Top 10, item ASI06: Memory and Context Poisoning.
+"""OWASP references used by the HTML report and scan findings.
 
-Every MemorySec finding is a stored-memory issue under ASI06: poisoned facts,
-hidden instructions, and leaked secrets that stay in memory across turns.
-The constants here are the id, title, and URL written on reports.
+Canonical constants live in `memorysec.owasp`. This module re-exports them
+so existing `memorysec.scan.owasp` imports keep working.
 """
 
 from __future__ import annotations
 
-ASI06_ID = "ASI06"
-ASI06_TITLE = "Memory & Context Poisoning"
-ASI06_REF = "ASI06: Memory & Context Poisoning"
-ASI06_URL = "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications/"
+from ..owasp import (
+    ASI06_ID,
+    ASI06_REF,
+    ASI06_TITLE,
+    ASI06_URL,
+    LLM01_ID,
+    LLM01_REF,
+    LLM01_TITLE,
+    LLM01_URL,
+    LLM02_ID,
+    LLM02_REF,
+    LLM02_TITLE,
+    LLM02_URL,
+)
 
-__all__ = ["ASI06_ID", "ASI06_REF", "ASI06_TITLE", "ASI06_URL"]
+__all__ = [
+    "ASI06_ID",
+    "ASI06_REF",
+    "ASI06_TITLE",
+    "ASI06_URL",
+    "LLM01_ID",
+    "LLM01_REF",
+    "LLM01_TITLE",
+    "LLM01_URL",
+    "LLM02_ID",
+    "LLM02_REF",
+    "LLM02_TITLE",
+    "LLM02_URL",
+]
