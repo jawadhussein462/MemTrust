@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from memorysec import MemoryRecord, MemorySec
-from memorysec.checks.security import PoisoningCheck
-from memorysec.checks.security.injection import (
+from mimvo import MemoryRecord, Mimvo
+from mimvo.checks.security import PoisoningCheck
+from mimvo.checks.security.injection import (
     AttentionTrackerDetector,
     DataSentinelDetector,
     EmbeddingInjectionDetector,
     KnownAnswerDetector,
 )
-from memorysec.checks.security.poisoning import (
+from mimvo.checks.security.poisoning import (
     EmbeddingConsistencyDetector,
     HubnessDetector,
     ProbeQueryDetector,
@@ -21,17 +21,17 @@ from memorysec.checks.security.poisoning import (
     TemporalNLIDetector,
     TrustRAGDetector,
 )
-from memorysec.checks.security.secrets import GitleaksDetector, SecretVerificationDetector
-from memorysec.cli import main
-from memorysec.integrations import RetrieveGuard, WriteGuard
-from memorysec.models.enums import Severity
+from mimvo.checks.security.secrets import GitleaksDetector, SecretVerificationDetector
+from mimvo.cli import main
+from mimvo.integrations import RetrieveGuard, WriteGuard
+from mimvo.models.enums import Severity
 from tests.factories import make_candidate, make_context, make_record
 from tests.unit.test_poisoning_detectors import PARAPHRASES
 
 
 def test_scan_materialises_a_generator_so_trustrag_sees_neighbours():
     records = (MemoryRecord(id=f"p{i}", content=text) for i, text in enumerate(PARAPHRASES))
-    guard = MemorySec(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
+    guard = Mimvo(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
     report = guard.scan(records)
     assert {f.id for f in report.findings} == {"p0", "p1", "p2"}
     assert {f.type for f in report.findings} == {"poisoning_cluster"}
@@ -217,7 +217,7 @@ def test_retrieve_guard_drops_flagged_hits():
 
 
 def test_secret_finding_is_llm02_injection_is_llm01():
-    report = MemorySec().scan(
+    report = Mimvo().scan(
         [
             MemoryRecord(id="s", content="AWS key AKIAABCDEFGHIJKLMNOP"),
             MemoryRecord(

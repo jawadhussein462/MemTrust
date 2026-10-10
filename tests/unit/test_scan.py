@@ -1,4 +1,4 @@
-"""Tests for `MemorySec.scan`, the HTML and JSON reports, and `memorysec scan`."""
+"""Tests for `Mimvo.scan`, the HTML and JSON reports, and `mimvo scan`."""
 
 from __future__ import annotations
 
@@ -7,13 +7,13 @@ import re
 
 import pytest
 
-from memorysec import Action, MemoryRecord, MemorySec, Severity
-from memorysec.cli import main
-from memorysec.exceptions import ConfigurationError
-from memorysec.models.results import ScanFinding, ScanReport, format_scan_summary
-from memorysec.scan import render_html
-from memorysec.scan.jsonl import JsonlScanSource
-from memorysec.scan.mask import mask_snippet
+from mimvo import Action, MemoryRecord, Mimvo, Severity
+from mimvo.cli import main
+from mimvo.exceptions import ConfigurationError
+from mimvo.models.results import ScanFinding, ScanReport, format_scan_summary
+from mimvo.scan import render_html
+from mimvo.scan.jsonl import JsonlScanSource
+from mimvo.scan.mask import mask_snippet
 
 AWS_KEY = "AKIAABCDEFGHIJKLMNOP"
 _ANSI = re.compile(r"\033\[[0-9;]*m")
@@ -40,7 +40,7 @@ def _store() -> list[MemoryRecord]:
 
 
 def test_scan_reports_security_findings_not_duplicates():
-    report = MemorySec().scan(_store())
+    report = Mimvo().scan(_store())
     assert report.total == 8
     types_by_id = {f.id: f.type for f in report.findings}
     assert types_by_id["poison"] == "memory_poisoning"
@@ -60,23 +60,23 @@ def test_scan_reports_security_findings_not_duplicates():
 
 
 def test_scan_never_includes_raw_secrets():
-    report = MemorySec().scan(_store())
+    report = Mimvo().scan(_store())
     blob = report.model_dump_json() + str(report) + render_html(report)
     assert AWS_KEY not in blob
 
 
 def test_scan_accepts_records_and_dicts():
-    report = MemorySec().scan([{"id": "a", "content": "Alice likes tea."}])
+    report = Mimvo().scan([{"id": "a", "content": "Alice likes tea."}])
     assert report.total == 1 and report.clean
 
 
 def test_scan_rejects_non_iterables():
     with pytest.raises(ConfigurationError):
-        MemorySec().scan("not a store")
+        Mimvo().scan("not a store")
 
 
 def test_html_report_has_summary_and_asi06(tmp_path):
-    report = MemorySec().scan(_store())
+    report = Mimvo().scan(_store())
     html = render_html(report)
     assert "3 of 8 records need action" in html
     assert "37.5% of the records scanned" in html
@@ -233,5 +233,5 @@ def test_scan_source_object():
     source = JsonlScanSource(
         __import__("io").StringIO('{"id": "a", "content": "Alice likes tea."}\n')
     )
-    report = MemorySec().scan(source)
+    report = Mimvo().scan(source)
     assert report.total == 1 and report.clean

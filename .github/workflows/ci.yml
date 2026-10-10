@@ -21,11 +21,11 @@ jobs:
       - name: Install
         run: uv sync --extra dev
       - name: Ruff (lint)
-        run: uv run ruff check memorysec tests examples benchmarks
+        run: uv run ruff check mimvo tests examples benchmarks
       - name: Ruff (format check)
-        run: uv run ruff format --check memorysec tests examples benchmarks
+        run: uv run ruff format --check mimvo tests examples benchmarks
       - name: mypy
-        run: uv run mypy memorysec
+        run: uv run mypy mimvo
 
   test:
     runs-on: ${{ matrix.os }}
@@ -83,4 +83,4 @@ jobs:
         run: |
           uv venv /tmp/clean
           uv pip install --python /tmp/clean/bin/python dist/*.whl
-          /tmp/clean/bin/python -c "import memorysec; print(memorysec.__version__)"
+          /tmp/clean/bin/python -c "import mimvo; print(mimvo.__version__)"

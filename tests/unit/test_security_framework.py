@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from memorysec import MemorySec
-from memorysec.checks import default_checks
-from memorysec.checks.base import MemoryCheck
-from memorysec.checks.security import (
+from mimvo import Mimvo
+from mimvo.checks import default_checks
+from mimvo.checks.base import MemoryCheck
+from mimvo.checks.security import (
     BaseDetector,
     Detection,
     Detector,
@@ -17,10 +17,10 @@ from memorysec.checks.security import (
     SecretsCheck,
     SecurityCheck,
 )
-from memorysec.checks.security.base import merge_evidence
-from memorysec.checks.security.injection import HeuristicInjectionDetector
-from memorysec.exceptions import ConfigurationError
-from memorysec.models.enums import Action, Severity
+from mimvo.checks.security.base import merge_evidence
+from mimvo.checks.security.injection import HeuristicInjectionDetector
+from mimvo.exceptions import ConfigurationError
+from mimvo.models.enums import Action, Severity
 from tests.factories import make_candidate, make_context
 
 
@@ -162,7 +162,7 @@ def test_failing_detector_never_becomes_a_finding_or_an_action():
     # A broken model or bad API key used to turn every record into a
     # critical check_error with action "delete". It must only mark the scan
     # incomplete.
-    guard = MemorySec(checks=[InjectionCheck(detectors=[Boom()])], use_default_checks=False)
+    guard = Mimvo(checks=[InjectionCheck(detectors=[Boom()])], use_default_checks=False)
     report = guard.scan(
         [{"id": "a", "content": "Alice prefers annual billing."}, {"id": "b", "content": "hi"}]
     )
@@ -175,7 +175,7 @@ def test_failing_detector_never_becomes_a_finding_or_an_action():
 
 
 def test_failing_detector_is_skipped_when_fail_open():
-    from memorysec.config import Config
+    from mimvo.config import Config
 
     chk = InjectionCheck(detectors=[Boom(), Always("ok")])
     findings = chk.check(make_candidate("x"), make_context(config=Config(fail_closed=False)))
@@ -183,7 +183,7 @@ def test_failing_detector_is_skipped_when_fail_open():
 
 
 def test_configured_check_replaces_default_of_same_name():
-    guard = MemorySec(checks=[InjectionCheck(detectors=[Never()])])
+    guard = Mimvo(checks=[InjectionCheck(detectors=[Never()])])
     names = [c.name for c in guard._evaluator.checks]
     assert names == [c.name for c in default_checks()]  # same pipeline shape
     # The heuristic would have flagged this; the replacement does not.
@@ -195,7 +195,7 @@ def test_configured_check_replaces_default_of_same_name():
 
 def test_non_check_is_rejected():
     with pytest.raises(ConfigurationError):
-        MemorySec(checks=[lambda candidate, context: None])  # type: ignore[list-item]
+        Mimvo(checks=[lambda candidate, context: None])  # type: ignore[list-item]
 
 
 def test_other_checks_still_append():
@@ -205,7 +205,7 @@ def test_other_checks_still_append():
         def check(self, candidate, context):
             return []
 
-    guard = MemorySec(checks=[InjectionCheck(detectors=[Never()]), Extra()])
+    guard = Mimvo(checks=[InjectionCheck(detectors=[Never()]), Extra()])
     names = [c.name for c in guard._evaluator.checks]
     assert names.count("injection") == 1 and names[-1] == "extra"
 

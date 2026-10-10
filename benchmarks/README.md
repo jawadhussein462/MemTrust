@@ -34,7 +34,7 @@ Each source is pinned to a commit in `datasets.py`.
 
 ## Method
 
-- Each sample is scanned on its own, as one record, with `MemorySec()`
+- Each sample is scanned on its own, as one record, with `Mimvo()`
   defaults. A benign sample is a false positive when any finding is raised.
   An attack is caught when any finding is raised; the last column narrows
   that to the check the dataset targets.

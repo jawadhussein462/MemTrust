@@ -13,8 +13,8 @@ import uuid
 
 import pytest
 
-from memorysec import MemorySec
-from memorysec.scan import (
+from mimvo import Mimvo
+from mimvo.scan import (
     ChromaScanSource,
     LangChainScanSource,
     LangGraphStoreScanSource,
@@ -34,7 +34,7 @@ def _types(report):
 def test_chroma_ephemeral_collection():
     chromadb = pytest.importorskip("chromadb")
     client = chromadb.EphemeralClient()
-    collection = client.create_collection(f"memorysec-{uuid.uuid4().hex[:8]}")
+    collection = client.create_collection(f"mimvo-{uuid.uuid4().hex[:8]}")
     collection.add(
         ids=["clean", "inject", "secret"],
         documents=[CLEAN, INJECTION, SECRET],
@@ -45,7 +45,7 @@ def test_chroma_ephemeral_collection():
     records = list(source.records(batch_size=2))
     assert [r.id for r in records] == ["clean", "inject", "secret"]
     assert records[0].embedding == pytest.approx([1.0, 0.0, 0.0])
-    report = MemorySec().scan(source)
+    report = Mimvo().scan(source)
     assert _types(report) == {"inject": "persistent_instruction", "secret": "secret_detected"}
     assert report.complete
 
@@ -67,7 +67,7 @@ def test_qdrant_in_memory_collection():
         ],
     )
     source = QdrantScanSource(client=client, collection="memories")
-    report = MemorySec().scan(source.records(batch_size=1))
+    report = Mimvo().scan(source.records(batch_size=1))
     assert report.total == 2
     assert _types(report) == {"2": "persistent_instruction"}
 
@@ -84,7 +84,7 @@ def test_langchain_in_memory_vector_store():
     records = list(source.records())
     assert {r.id for r in records} == {"clean", "inject"}
     assert all(r.embedding is not None and len(r.embedding) == 8 for r in records)
-    report = MemorySec().scan(source)
+    report = Mimvo().scan(source)
     assert _types(report) == {"inject": "persistent_instruction"}
 
 
@@ -97,7 +97,7 @@ def test_langgraph_in_memory_store():
     store.put(("memories", "mallory"), "m2", {"kind": "Memory", "content": INJECTION})
     store.put(("profiles", "bob"), "p1", {"text": SECRET})
     everything = LangGraphStoreScanSource(store)
-    report = MemorySec().scan(everything.records(batch_size=1))
+    report = Mimvo().scan(everything.records(batch_size=1))
     assert report.total == 3
     assert _types(report) == {
         "memories/mallory/m2": "persistent_instruction",
@@ -141,6 +141,6 @@ def test_mem0_memory_backed_by_its_qdrant_store():
     records = list(source.records())
     assert {r.metadata["user_id"] for r in records} == {"alice", "mallory"}
     assert all(r.embedding is not None for r in records)
-    report = MemorySec().scan(source)
+    report = Mimvo().scan(source)
     (finding,) = report.findings
     assert finding.type == "persistent_instruction"

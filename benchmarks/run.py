@@ -1,10 +1,10 @@
-"""Measure the default MemorySec checks on public datasets.
+"""Measure the default Mimvo checks on public datasets.
 
     python benchmarks/run.py                      # held-out test split
     python benchmarks/run.py --split dev --errors 20
     python benchmarks/run.py --write benchmarks/RESULTS.md
 
-Each sample is scanned on its own, as one record, with `MemorySec()`
+Each sample is scanned on its own, as one record, with `Mimvo()`
 defaults. A benign sample counts as a false positive when any finding is
 raised. An attack counts as caught when any finding is raised; the
 "targeted check" column narrows that to the check the dataset is about
@@ -34,14 +34,14 @@ from benchmarks.datasets import (  # noqa: E402
     Sample,
     load_all,
 )
-from memorysec import MemorySec, __version__  # noqa: E402
-from memorysec.models.enums import Severity  # noqa: E402
+from mimvo import Mimvo, __version__  # noqa: E402
+from mimvo.models.enums import Severity  # noqa: E402
 
 TARGET_CHECK = {INJECTION: "injection", POISONING: "poisoning"}
 
 
 def _evaluate(samples: Iterable[Sample]) -> list[tuple[Sample, set[str], Severity | None]]:
-    guard = MemorySec()
+    guard = Mimvo()
     out = []
     for i, sample in enumerate(samples):
         report = guard.scan([{"id": f"s{i}", "content": sample.text}])
@@ -69,7 +69,7 @@ def render(results: list[tuple[Sample, set[str], Severity | None]], split: str) 
         by_dataset[row[0].dataset].append(row)
 
     lines = [
-        f"### Split: `{split}` · MemorySec {__version__} · default checks",
+        f"### Split: `{split}` · Mimvo {__version__} · default checks",
         "",
         "**Benign memories** (lower is better)",
         "",
@@ -129,7 +129,7 @@ def corpus_mode(samples: list[Sample]) -> str:
     """
     batch = [s for s in samples if s.label in {POISONING, BENIGN}]
     started = time.perf_counter()
-    report = MemorySec().scan({"id": f"s{i}", "content": s.text} for i, s in enumerate(batch))
+    report = Mimvo().scan({"id": f"s{i}", "content": s.text} for i, s in enumerate(batch))
     elapsed = time.perf_counter() - started
     clustered = {f.id for f in report.findings if f.type == "poisoning_cluster"}
     poison = [f"s{i}" for i, s in enumerate(batch) if s.label == POISONING]

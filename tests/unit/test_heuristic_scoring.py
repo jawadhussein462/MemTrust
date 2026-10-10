@@ -6,12 +6,12 @@ import base64
 
 import pytest
 
-from memorysec.checks.security.injection import HeuristicInjectionDetector
-from memorysec.checks.security.injection.heuristic import injection_hits
-from memorysec.checks.security.poisoning import HeuristicPoisoningDetector
-from memorysec.checks.security.poisoning.heuristic import poisoning_hits
-from memorysec.checks.security.secrets import HeuristicSecretsDetector
-from memorysec.text import correct_keywords, decoded_views, sentence_around
+from mimvo.checks.security.injection import HeuristicInjectionDetector
+from mimvo.checks.security.injection.heuristic import injection_hits
+from mimvo.checks.security.poisoning import HeuristicPoisoningDetector
+from mimvo.checks.security.poisoning.heuristic import poisoning_hits
+from mimvo.checks.security.secrets import HeuristicSecretsDetector
+from mimvo.text import correct_keywords, decoded_views, sentence_around
 
 # -- text helpers ------------------------------------------------------------------------------
 

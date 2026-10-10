@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import pytest
 
-from memorysec import MemoryRecord, MemorySec
-from memorysec.checks.security import PoisoningCheck
-from memorysec.checks.security.poisoning import (
+from mimvo import MemoryRecord, Mimvo
+from mimvo.checks.security import PoisoningCheck
+from mimvo.checks.security.poisoning import (
     HeuristicPoisoningDetector,
     PerplexityDetector,
     TrustRAGDetector,
 )
-from memorysec.exceptions import ConfigurationError
-from memorysec.text import cosine, rouge_l
+from mimvo.exceptions import ConfigurationError
+from mimvo.text import cosine, rouge_l
 from tests.factories import make_candidate, make_context, make_record
 
 # -- heuristic ------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ def test_trustrag_skips_self_in_a_scan_batch():
 def test_trustrag_flags_coordinated_records_on_scan():
     records = [MemoryRecord(id=f"p{i}", content=text) for i, text in enumerate(PARAPHRASES)]
     records.append(MemoryRecord(id="clean", content="Alice prefers annual billing."))
-    guard = MemorySec(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
+    guard = Mimvo(checks=[PoisoningCheck(detectors=[TrustRAGDetector(cosine_threshold=0.6)])])
     report = guard.scan(records)
     assert {f.id for f in report.findings} == {"p0", "p1", "p2"}
     assert {f.type for f in report.findings} == {"poisoning_cluster"}

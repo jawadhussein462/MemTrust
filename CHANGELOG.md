@@ -6,7 +6,31 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-MemorySec 0.1.0 was an SDK that sat between an agent and its memory backend
+### Renamed: MemorySec is now Mimvo
+
+The project, the PyPI distribution, the import package, and the CLI are now
+called **Mimvo** ([mimvo.dev](https://mimvo.dev)). Nothing else about
+scanning behaviour changed. To upgrade:
+
+| Before | After |
+|---|---|
+| `pip install memorysec` | `pip install mimvo` |
+| `memorysec scan ...` | `mimvo scan ...` |
+| `import memorysec` / `from memorysec import ...` | `import mimvo` / `from mimvo import ...` |
+| `MemorySec`, `AsyncMemorySec` | `Mimvo`, `AsyncMimvo` |
+| `MemorySecError` | `MimvoError` |
+| `ScanReport.memorysec_version` (JSON `memorysec_version`) | `ScanReport.mimvo_version` (JSON `mimvo_version`) |
+| JSON `schema_version` `1.2` | `2.0` (only the field rename above) |
+| SARIF `partialFingerprints.memorysecFingerprint`, tool name `MemorySec` | `mimvoFingerprint`, tool name `Mimvo` |
+| OpenTelemetry span `memorysec.scan` | `mimvo.scan` |
+
+Fingerprint values are unchanged (they hash the rule id and record id only),
+so existing tickets and suppression lists still match. GitHub code scanning
+will treat the renamed SARIF fingerprint key as new alerts once.
+
+### Since 0.1.0
+
+Version 0.1.0 was an SDK that sat between an agent and its memory backend
 (the project was called MemTrust then). Since then it has become a scanner:
 it reads a memory store, reports poisoned facts, hidden instructions, and
 leaked secrets, and recommends what to do with each record. It never writes
@@ -14,7 +38,7 @@ to the store. Everything below is relative to 0.1.0.
 
 ### Added
 
-- **Store scanning.** `MemorySec().scan(source)` and `memorysec scan
+- **Store scanning.** `Mimvo().scan(source)` and `mimvo scan
   chroma|qdrant|pgvector|pinecone|jsonl|langchain|mem0`. Sources are
   read-only and stream records in batches; `--sample N` caps a scan.
 - **LangChain, LangGraph, and mem0 sources.** `LangChainScanSource` reads
@@ -28,9 +52,9 @@ to the store. Everything below is relative to 0.1.0.
   `langgraph`, `mem0`.
 - **Reports.** A self-contained HTML report (verdict, triage plan,
   findings with masked excerpts, fix steps, OWASP and CWE links), JSON
-  (`--json`, schema `1.2`), SARIF 2.1.0 (`--sarif`) for GitHub code
+  (`--json`, schema `2.0`), SARIF 2.1.0 (`--sarif`) for GitHub code
   scanning, and Markdown (`--markdown`) for job summaries and PR comments.
-  Every format uses the rule catalogue in `memorysec.rules` and stable
+  Every format uses the rule catalogue in `mimvo.rules` and stable
   per-finding `fingerprint`s.
 - **CI gates.** `--fail-on SEVERITY` exits `1` when a finding reaches that
   severity; `--min-confidence SCORE` ignores weaker findings for that gate;
@@ -48,17 +72,17 @@ to the store. Everything below is relative to 0.1.0.
 - **Scan errors.** `ScanReport.errors`, `complete`, and
   `records_with_errors` say which checks or detectors failed and on how
   many records.
-- **`WriteGuard` and `RetrieveGuard`** (`memorysec.integrations`): run the
+- **`WriteGuard` and `RetrieveGuard`** (`mimvo.integrations`): run the
   scan on a memory before it is written, or on records just retrieved for a
   query. They replace 0.1.0's `check_write` / `check_read`.
 - **Accuracy benchmark** (`benchmarks/`): the default detectors measured on
   public datasets they were not written against (GitHub's help articles,
   AgentDojo, BIPIA, InjecAgent, PoisonedRAG), with a held-out test split.
   Results are in `benchmarks/RESULTS.md`.
-- **`memorysec.corpus`**: the packed record store and shared
+- **`mimvo.corpus`**: the packed record store and shared
   nearest-neighbour table corpus detectors use, with a pluggable
   `NeighbourIndex`. The `fast` extra installs numpy for the exact index.
-- OpenTelemetry tracing (`memorysec[otel]`) and loguru logging; MemorySec
+- OpenTelemetry tracing (`mimvo[otel]`) and loguru logging; Mimvo
   never adds or removes log sinks.
 
 ### Changed
@@ -96,9 +120,9 @@ to the store. Everything below is relative to 0.1.0.
   seconds and 1.1 GB. TrustRAG's `embed=` path embeds each text once per
   scan, and its lexical fallback compares records that share rare word
   pairs instead of every pair.
-- `AsyncMemorySec.scan` runs in a worker thread so it no longer blocks the
+- `AsyncMimvo.scan` runs in a worker thread so it no longer blocks the
   event loop, and accepts async iterables.
-- `MemorySec(checks=[...])` replaces a default check with the same name.
+- `Mimvo(checks=[...])` replaces a default check with the same name.
 
 ### Removed
 
@@ -106,8 +130,8 @@ to the store. Everything below is relative to 0.1.0.
   `ProtectedMemory`, `AsyncProtectedMemory`, `revoke_source`, `Decision`,
   `ReadResult`, `SafeMemory`, `FilteredMemory`, `RevocationReport`, gate
   actions (`allow`, `allow_with_warning`, `block`), modes (`observe`,
-  `warn`, `enforce`), and the `memorysec check` and `memorysec audit`
-  commands. Use `MemorySec.scan`, or `WriteGuard` / `RetrieveGuard` on the
+  `warn`, `enforce`), and the `mimvo check` and `mimvo audit`
+  commands. Use `Mimvo.scan`, or `WriteGuard` / `RetrieveGuard` on the
   write and read paths.
 - Backends and adapters: `MemoryBackend`, `InMemoryBackend`,
   `FunctionBackend`, the Mem0 and LangGraph adapters, and the `zep`
@@ -120,7 +144,7 @@ to the store. Everything below is relative to 0.1.0.
 
 ### Fixed
 
-- `memorysec scan chroma` failed on any collection with stored vectors:
+- `mimvo scan chroma` failed on any collection with stored vectors:
   chromadb returns embeddings as a numpy array, which the source tested
   with `or`.
 - pgvector vectors returned as text (`"[0.1,0.2]"`, without the pgvector
@@ -132,12 +156,12 @@ to the store. Everything below is relative to 0.1.0.
 
 ## [0.1.0] - 2026-09-12
 
-Initial public release. MemorySec v0.1 is an SDK/MVP: a vendor-neutral trust
+Initial public release. Mimvo v0.1 is an SDK/MVP: a vendor-neutral trust
 boundary between an AI agent and its memory backend.
 
 ### Added
 
-- **Facade**: `MemorySec` and `AsyncMemorySec` with `check_write`, `check_read`,
+- **Facade**: `Mimvo` and `AsyncMimvo` with `check_write`, `check_read`,
   `protect`, and `revoke_source`.
 - **Domain models** (Pydantic v2): `Source`, `Scope`, `MemoryCandidate`,
   `MemoryRecord`, `Finding`, `Decision`, `Provenance`, `Policy`, plus enums for
@@ -164,9 +188,9 @@ boundary between an AI agent and its memory backend.
 - **Telemetry**: stdlib `logging` (no `basicConfig`) and optional OpenTelemetry
   tracing (injected, never global).
 - **Modes**: `observe`, `warn`, `enforce` (default).
-- **CLI**: `memorysec check` and `memorysec audit`.
+- **CLI**: `mimvo check` and `mimvo audit`.
 - Test suite (unit, integration, security-invariant, property-based) and six
   runnable examples.
 
-[Unreleased]: https://github.com/jawadhussein462/MemorySec/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jawadhussein462/MemorySec/releases/tag/v0.1.0
+[Unreleased]: https://github.com/jawadhussein462/mimvo/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/jawadhussein462/mimvo/releases/tag/v0.1.0

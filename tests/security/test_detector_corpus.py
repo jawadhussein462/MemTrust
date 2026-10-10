@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from memorysec import MemorySec
-from memorysec.text import deobfuscate
+from mimvo import Mimvo
+from mimvo.text import deobfuscate
 from tests.corpus import BENIGN, INJECTION, KNOWN_MISSES, POISONING, SECRETS
 
 SECURITY_CODES = {
@@ -17,7 +17,7 @@ SECURITY_CODES = {
 
 
 def _report(text: str):
-    return MemorySec().scan([{"id": "m", "content": text}])
+    return Mimvo().scan([{"id": "m", "content": text}])
 
 
 def _security_codes(text: str) -> set[str]:

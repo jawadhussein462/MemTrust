@@ -3,13 +3,13 @@ requires = ["hatchling>=1.24"]
 build-backend = "hatchling.build"
 
 [project]
-name = "memorysec"
+name = "mimvo"
 version = "0.1.0"
 description = "Scan agent memory for poisoned facts, hidden instructions, and leaked secrets."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
-authors = [{ name = "MemorySec contributors" }]
+authors = [{ name = "Mimvo contributors" }]
 keywords = [
     "ai",
     "agents",
@@ -49,11 +49,12 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jawadhussein462/MemorySec"
-Documentation = "https://github.com/jawadhussein462/MemorySec#readme"
-Repository = "https://github.com/jawadhussein462/MemorySec"
-Changelog = "https://github.com/jawadhussein462/MemorySec/blob/main/CHANGELOG.md"
-Issues = "https://github.com/jawadhussein462/MemorySec/issues"
+Homepage = "https://mimvo.dev"
+Documentation = "https://github.com/jawadhussein462/mimvo#readme"
+Repository = "https://github.com/jawadhussein462/mimvo"
+Changelog = "https://github.com/jawadhussein462/mimvo/blob/main/CHANGELOG.md"
+Issues = "https://github.com/jawadhussein462/mimvo/issues"
+Dashboard = "https://mimvo.dev/dashboard"
 
 [project.optional-dependencies]
 chroma = ["chromadb>=0.5.0"]
@@ -94,18 +95,18 @@ all = [
 ]
 
 [project.scripts]
-memorysec = "memorysec.cli:main"
+mimvo = "mimvo.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["memorysec"]
+packages = ["mimvo"]
 
 [tool.hatch.build.targets.sdist]
-include = ["memorysec", "README.md", "LICENSE", "CHANGELOG.md"]
+include = ["mimvo", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["memorysec", "tests"]
+src = ["mimvo", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -129,7 +130,7 @@ ignore = [
 "examples/**" = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["memorysec"]
+known-first-party = ["mimvo"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -167,8 +168,8 @@ minversion = "8.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
 asyncio_mode = "auto"
-filterwarnings = ["error::DeprecationWarning:memorysec.*"]
+filterwarnings = ["error::DeprecationWarning:mimvo.*"]
 
 [tool.coverage.run]
-source = ["memorysec"]
+source = ["mimvo"]
 branch = true

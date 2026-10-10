@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="700" height="156" viewBox="0 0 700 156" role="img" aria-labelledby="title desc">
-  <title id="title">MemorySec scan summary</title>
+  <title id="title">Mimvo scan summary</title>
   <desc id="desc">Scanned 48,291 records. 137 records flagged (0.28%): 12 critical, 31 high, 58 medium, 36 low. Report written to report.html.</desc>
   <rect width="700" height="156" rx="8" fill="#f6f8fa"/>
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="15">

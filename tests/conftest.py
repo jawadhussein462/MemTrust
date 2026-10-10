@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from memorysec import MemorySec
-from memorysec.context import CheckContext
+from mimvo import Mimvo
+from mimvo.context import CheckContext
 from tests.factories import make_context
 
 
@@ -21,8 +21,8 @@ def now() -> datetime:
 
 
 @pytest.fixture
-def guard() -> MemorySec:
-    return MemorySec()
+def guard() -> Mimvo:
+    return Mimvo()
 
 
 @pytest.fixture

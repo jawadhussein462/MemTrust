@@ -11,7 +11,7 @@ Run it with `python examples/08_scan_store.py`.
 
 The same scan from the command line:
 
-    memorysec scan jsonl export.jsonl --report report.html --json findings.json \
+    mimvo scan jsonl export.jsonl --report report.html --json findings.json \
         --sarif results.sarif --markdown summary.md
 """
 
@@ -19,9 +19,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from memorysec import MemoryRecord, MemorySec
-from memorysec.models.results import format_scan_summary
-from memorysec.scan import render_html, render_markdown, render_sarif
+from mimvo import MemoryRecord, Mimvo
+from mimvo.models.results import format_scan_summary
+from mimvo.scan import render_html, render_markdown, render_sarif
 
 
 def main() -> None:
@@ -38,7 +38,7 @@ def main() -> None:
         )
     ]
 
-    report = MemorySec().scan(records)
+    report = Mimvo().scan(records)
     report.source = "example:agent_memory"
     path = Path("report.html")
     path.write_text(render_html(report), encoding="utf-8")
