@@ -9,6 +9,7 @@ Both `MemorySec` and `AsyncMemorySec` use this engine.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterable
 from datetime import UTC, datetime
 
@@ -20,7 +21,7 @@ from .models.finding import Finding
 from .models.memory import MemoryCandidate, MemoryRecord
 from .models.results import ScanFinding, ScanReport
 from .owasp import ASI06_REF
-from .scan.mask import mask_snippet
+from .scan.mask import mask_snippet, safe_evidence
 from .telemetry import (
     ATTR_FINDING_COUNT,
     ATTR_OPERATION,
@@ -87,7 +88,8 @@ class Evaluator:
             existing=batch,
             query=query,
         )
-        report = ScanReport(generated_at=now)
+        report = ScanReport(generated_at=now, checks=_check_inventory(self.checks))
+        started = time.perf_counter()
         with self.tracer.span(SPAN_SCAN, {ATTR_OPERATION: "scan"}) as span:
             finding_count = 0
             for record in batch:
@@ -114,9 +116,12 @@ class Evaluator:
                             action=_report_action(finding.recommended_action, finding.severity),
                             owasp=finding.owasp or ASI06_REF,
                             message=finding.message,
+                            check=finding.check or "",
+                            evidence=safe_evidence(finding.evidence),
                         )
                     )
             report.findings.sort(key=lambda item: item.severity.rank, reverse=True)
+            report.duration_seconds = round(time.perf_counter() - started, 4)
             span.set_attribute("memorysec.scanned", report.total)
             span.set_attribute("memorysec.flagged", report.flagged)
             span.set_attribute(ATTR_FINDING_COUNT, finding_count)
@@ -150,6 +155,25 @@ class Evaluator:
                         )
                     )
         return findings
+
+
+def _check_inventory(checks: list[MemoryCheck]) -> dict[str, list[str]]:
+    """Name each check and the detectors it runs, for the report header.
+
+    Args:
+        checks: The checks this engine will run.
+
+    Returns:
+        `{check name: [detector names]}`. A check without detectors (a
+        plain `MemoryCheck`) maps to an empty list.
+    """
+    inventory: dict[str, list[str]] = {}
+    for chk in checks:
+        detectors = getattr(chk, "detectors", None) or []
+        inventory[str(getattr(chk, "name", type(chk).__name__))] = [
+            str(getattr(d, "name", type(d).__name__)) for d in detectors
+        ]
+    return inventory
 
 
 def _detectors(finding: Finding) -> list[str]:

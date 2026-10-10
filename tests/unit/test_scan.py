@@ -78,8 +78,8 @@ def test_scan_rejects_non_iterables():
 def test_html_report_has_summary_and_asi06(tmp_path):
     report = MemorySec().scan(_store())
     html = render_html(report)
-    assert "Records scanned" in html
-    assert "Percentage flagged" in html
+    assert "3 of 8 records need action" in html
+    assert "37.5% of the records scanned" in html
     assert "ASI06" in html
     assert "Poisoned fact" in html
     assert "Hidden instruction" in html
@@ -136,7 +136,8 @@ def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys, monkeypatch):
     assert "✓ Scanned 2 records" in plain
     assert "! 1 record flagged (50.00%)" in plain
     assert "• 1 high" in plain
-    assert "persistent_instruction" not in plain
+    # The findings table names the rule and record, never the memory text.
+    assert "persistent_instruction" in plain and "doc_9" in plain
     assert "admin token" not in plain
     assert f"Report written to {html}" in plain
     assert f"Findings written to {findings}" in plain
@@ -145,7 +146,7 @@ def test_cli_scan_jsonl_flags_and_writes_reports(tmp_path, capsys, monkeypatch):
     assert payload["flagged"] == 1
     assert payload["findings"][0]["id"] == "doc_9"
     assert payload["findings"][0]["action"] == "review"
-    assert "ASI06" in html.read_text(encoding="utf-8")
+    assert "LLM01: Prompt Injection" in html.read_text(encoding="utf-8")
 
 
 def test_cli_scan_jsonl_clean_exit(tmp_path, capsys, monkeypatch):

@@ -11,6 +11,7 @@ returns a `ScanReport`. It does not change the store.
 
 from __future__ import annotations
 
+from ._version import __version__
 from .client import AsyncMemorySec, MemorySec
 from .config import Config
 from .exceptions import (
@@ -29,8 +30,6 @@ from .models import (
     ScanReport,
     Severity,
 )
-
-__version__ = "0.1.0"
 
 __all__ = [
     "Action",

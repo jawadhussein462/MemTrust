@@ -1,8 +1,14 @@
 """Command line: `memorysec scan`.
 
 Scan an existing store for poisoned facts, hidden instructions, and leaked
-secrets. The HTML report says what to do with each hit. Connections are
-read-only: the command lists and fetches, and it does not write to the store.
+secrets. The HTML report says what to do with each hit; JSON, SARIF, and
+Markdown carry the same findings to tickets, code scanning, and CI pages.
+Connections are read-only: the command lists and fetches, and it does not
+write to the store.
+
+Exit codes follow other security scanners: `0` when the scan finished,
+`1` when `--fail-on` is set and a finding reached that severity, `2` on a
+usage, connection, or file error.
 """
 
 from __future__ import annotations
@@ -10,21 +16,28 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 
 from . import __version__
 from .client import MemorySec
 from .exceptions import ConfigurationError
+from .models.enums import Severity
 from .models.memory import MemoryRecord
 from .models.results import ScanReport, format_scan_summary
-from .scan import render_html
+from .scan import render_html, render_markdown, render_sarif
 from .scan.chroma import ChromaScanSource
 from .scan.jsonl import JsonlScanSource
 from .scan.pgvector import PgVectorScanSource
 from .scan.pinecone import PineconeScanSource
 from .scan.qdrant import QdrantScanSource
 from .scan.source import DEFAULT_BATCH_SIZE, ScanSource
+
+EXIT_OK = 0
+EXIT_FINDINGS = 1
+EXIT_ERROR = 2
+
+_SEVERITY_CHOICES = [s.value for s in Severity]
 
 _DESCRIPTION = (
     "Scan your AI agent's memory for poisoned facts, hidden instructions "
@@ -43,8 +56,9 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Find problems in an existing memory store. Connections are "
             "read-only. Use --report for an HTML file you can forward, "
-            "--json for machine-readable findings, and --sample to cap "
-            "very large stores."
+            "--json for machine-readable findings, --sarif for GitHub code "
+            "scanning, --markdown for a CI job summary, --fail-on to gate a "
+            "pipeline, and --sample to cap very large stores."
         ),
     )
     sources = scan.add_subparsers(dest="source", required=True)
@@ -106,7 +120,35 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         "--json",
         dest="json_path",
         metavar="PATH",
-        help="Write findings as JSON.",
+        help="Write the full report as JSON (versioned schema, one object per finding).",
+    )
+    parser.add_argument(
+        "--sarif",
+        dest="sarif_path",
+        metavar="PATH",
+        help="Write SARIF 2.1.0 for GitHub code scanning. Snippets are left out.",
+    )
+    parser.add_argument(
+        "--markdown",
+        dest="markdown_path",
+        metavar="PATH",
+        help="Write a Markdown summary, e.g. to $GITHUB_STEP_SUMMARY or a PR comment.",
+    )
+    parser.add_argument(
+        "--fail-on",
+        choices=_SEVERITY_CHOICES,
+        metavar="SEVERITY",
+        default=None,
+        help=(
+            "Exit 1 when any finding is at this severity or worse "
+            f"({', '.join(_SEVERITY_CHOICES)}). Default: never fail on findings."
+        ),
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Print only the counts, not the table of findings.",
     )
     parser.add_argument(
         "--sample",
@@ -176,37 +218,71 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         report = guard.scan(records)
     except (OSError, ConfigurationError, ValueError) as exc:
         print(f"memorysec scan: {exc}", file=sys.stderr)
-        return 2
+        return EXIT_ERROR
     report.source = label
     report.sample = args.sample
+
     report_path: str | None = None
     json_path: str | None = None
+    outputs: list[tuple[str, str]] = []
+    writers: list[tuple[str | None, str, Callable[[ScanReport], str]]] = [
+        (args.report, "html", render_html),
+        (args.json_path, "json", lambda r: r.model_dump_json(indent=2) + "\n"),
+        (args.sarif_path, "SARIF", render_sarif),
+        (args.markdown_path, "Markdown summary", render_markdown),
+    ]
     try:
-        if args.report:
-            Path(args.report).write_text(render_html(report), encoding="utf-8")
-            report_path = args.report
-        if args.json_path:
-            Path(args.json_path).write_text(report.model_dump_json(indent=2), encoding="utf-8")
-            json_path = args.json_path
+        for path, kind, render in writers:
+            if not path:
+                continue
+            Path(path).write_text(render(report), encoding="utf-8")
+            if kind == "html":
+                report_path = path
+            elif kind == "json":
+                json_path = path
+            else:
+                outputs.append((kind, path))
     except OSError as exc:
-        print(_summary(report, report_path=report_path, json_path=json_path))
+        print(
+            _summary(report, args, report_path=report_path, json_path=json_path, outputs=outputs),
+            flush=True,
+        )
         print(f"memorysec scan: {exc}", file=sys.stderr)
-        return 2
-    print(_summary(report, report_path=report_path, json_path=json_path))
-    return 0
+        return EXIT_ERROR
+
+    print(
+        _summary(report, args, report_path=report_path, json_path=json_path, outputs=outputs),
+        flush=True,
+    )
+    if args.fail_on:
+        threshold = Severity(args.fail_on)
+        failing = report.at_or_above(threshold)
+        if failing:
+            noun = "finding" if len(failing) == 1 else "findings"
+            print(
+                f"memorysec scan: {len(failing):,} {noun} at {threshold.value} or above "
+                f"(--fail-on {threshold.value})",
+                file=sys.stderr,
+            )
+            return EXIT_FINDINGS
+    return EXIT_OK
 
 
 def _summary(
     report: ScanReport,
+    args: argparse.Namespace,
     *,
     report_path: str | None = None,
     json_path: str | None = None,
+    outputs: list[tuple[str, str]] | None = None,
 ) -> str:
     return format_scan_summary(
         report,
         report_path=report_path,
         json_path=json_path,
         color=_color_enabled(),
+        details=not args.quiet,
+        outputs=outputs or (),
     )
 
 
@@ -234,6 +310,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     Returns:
         `0` when the scan finished and any requested files were written.
+        `1` when `--fail-on` is set and a finding reached that severity.
         `2` when the arguments, the store, or a file write failed.
     """
     parser = _build_parser()
@@ -241,7 +318,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "scan":
         return _cmd_scan(args)
     parser.error("unknown command")  # pragma: no cover
-    return 2
+    return EXIT_ERROR
 
 
 if __name__ == "__main__":  # pragma: no cover
