@@ -27,6 +27,7 @@ class ChromaScanSource:
         path: str | Path | None = None,
         collection: str | None = None,
         handle: Any | None = None,
+        text_field: str | None = None,
     ) -> None:
         """Point at a collection on disk, or at a collection object.
 
@@ -36,6 +37,9 @@ class ChromaScanSource:
             collection: Collection name. Required unless `handle` is set.
             handle: An already-open collection. When set, `path` and
                 `collection` are not used to connect.
+            text_field: Metadata key that holds the text, for stores that
+                keep it there instead of in `documents` (mem0 uses
+                `"data"`). `None` uses the document, then common keys.
 
         Raises:
             ConfigurationError: `handle` is omitted and `path` or
@@ -46,6 +50,7 @@ class ChromaScanSource:
         self._path = None if path is None else Path(path)
         self._name = collection
         self._handle = handle
+        self._text_field = text_field
 
     def records(
         self, *, batch_size: int = DEFAULT_BATCH_SIZE, sample: int | None = None
@@ -98,10 +103,10 @@ class ChromaScanSource:
                     )
                 except Exception as exc:
                     raise ConfigurationError(f"Chroma get failed: {exc}") from exc
-            ids = list(res.get("ids") or []) if isinstance(res, dict) else []
-            docs = list(res.get("documents") or []) if isinstance(res, dict) else []
-            metas = list(res.get("metadatas") or []) if isinstance(res, dict) else []
-            embs = list(res.get("embeddings") or []) if isinstance(res, dict) else []
+            ids = _column(res, "ids")
+            docs = _column(res, "documents")
+            metas = _column(res, "metadatas")
+            embs = _column(res, "embeddings")
             if not ids:
                 return
             for i, memory_id in enumerate(ids):
@@ -110,14 +115,26 @@ class ChromaScanSource:
                 embedding = embs[i] if i < len(embs) else None
                 yield to_record(
                     memory_id,
-                    text_from_payload(doc, meta),
+                    text_from_payload(doc, meta, field=self._text_field),
                     metadata=meta,
                     embedding=embedding,
-                    namespace=self._name,
+                    namespace=self._name or getattr(collection, "name", None),
                 )
             if len(ids) < batch_size:
                 return
             offset += batch_size
+
+
+def _column(result: Any, key: str) -> list[Any]:
+    """One column of a Chroma `get()` result as a list.
+
+    Chroma returns `embeddings` as a 2-D numpy array, so `value or []`
+    would raise ("truth value of an array is ambiguous"); test for `None`.
+    """
+    if not isinstance(result, dict):
+        return []
+    value = result.get(key)
+    return [] if value is None else list(value)
 
 
 __all__ = ["ChromaScanSource"]

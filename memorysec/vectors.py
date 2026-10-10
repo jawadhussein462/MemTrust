@@ -36,8 +36,13 @@ def as_floats(value: object) -> list[float] | None:
     if hasattr(value, "tolist"):
         value = value.tolist()
     if isinstance(value, dict):
-        first = next(iter(value.values()), None)
-        return as_floats(first)
+        # Named vectors: take the first dense one. A collection with a sparse
+        # slot (mem0's "bm25", say) returns it next to the dense vector.
+        for item in value.values():
+            dense = as_floats(item)
+            if dense is not None:
+                return dense
+        return None
     if not isinstance(value, list | tuple):
         return None
     try:

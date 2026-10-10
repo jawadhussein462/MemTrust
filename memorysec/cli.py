@@ -15,10 +15,13 @@ the scan is incomplete (unless `--allow-incomplete`).
 from __future__ import annotations
 
 import argparse
+import importlib
+import json
 import os
 import sys
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .client import MemorySec
@@ -29,6 +32,9 @@ from .models.results import ScanReport, format_scan_summary
 from .scan import render_html, render_markdown, render_sarif
 from .scan.chroma import ChromaScanSource
 from .scan.jsonl import JsonlScanSource
+from .scan.langchain import LangChainScanSource
+from .scan.langgraph import LangGraphStoreScanSource
+from .scan.mem0 import Mem0ScanSource
 from .scan.pgvector import PgVectorScanSource
 from .scan.pinecone import PineconeScanSource
 from .scan.qdrant import QdrantScanSource
@@ -108,6 +114,52 @@ def _build_parser() -> argparse.ArgumentParser:
     jsonl = sources.add_parser("jsonl", help="Scan a JSON Lines export.")
     jsonl.add_argument("path", help="JSON Lines file, or '-' for stdin.")
     _add_scan_output_flags(jsonl)
+
+    langchain = sources.add_parser(
+        "langchain",
+        help="Scan a LangChain vector store or a LangGraph long-term memory store.",
+        description=(
+            "Your code builds the store; --factory names it as module:attribute (a store, or a "
+            "function that returns one), imported from the current directory."
+        ),
+    )
+    langchain.add_argument(
+        "--factory",
+        required=True,
+        metavar="MODULE:ATTR",
+        help="Where to get the store, e.g. myapp.memory:get_vector_store.",
+    )
+    langchain.add_argument(
+        "--namespace",
+        default=None,
+        help="LangGraph stores: namespace prefix to read, slash-separated (e.g. memories/alice).",
+    )
+    langchain.add_argument(
+        "--text-field",
+        default=None,
+        help="LangGraph stores: key in each value that holds the memory text.",
+    )
+    _add_scan_output_flags(langchain)
+
+    mem0 = sources.add_parser(
+        "mem0",
+        help="Scan mem0: open source with --config, or the hosted platform with --api-key.",
+    )
+    target = mem0.add_mutually_exclusive_group()
+    target.add_argument(
+        "--config",
+        metavar="PATH",
+        help="mem0 config (JSON or YAML) for Memory.from_config, the same file your app uses.",
+    )
+    target.add_argument(
+        "--api-key",
+        default=None,
+        help="mem0 platform API key (or MEM0_API_KEY). Needs --user-id, --agent-id, or --run-id.",
+    )
+    mem0.add_argument("--user-id", default=None)
+    mem0.add_argument("--agent-id", default=None)
+    mem0.add_argument("--run-id", default=None)
+    _add_scan_output_flags(mem0)
     return parser
 
 
@@ -229,6 +281,26 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
             text_field=args.text_field,
         )
         return src.records(batch_size=min(batch, 100), sample=sample), f"pinecone:{args.index}"
+    if source == "langchain":
+        store = _load_factory(args.factory)
+        if callable(getattr(store, "similarity_search", None)) or not callable(
+            getattr(store, "list_namespaces", None)
+        ):
+            vector_source = LangChainScanSource(store)
+            return vector_source.records(batch_size=batch, sample=sample), vector_source.label
+        namespace = tuple(part for part in (args.namespace or "").split("/") if part)
+        graph_source = LangGraphStoreScanSource(
+            store, namespace=namespace, text_field=args.text_field
+        )
+        return graph_source.records(batch_size=batch, sample=sample), graph_source.label
+    if source == "mem0":
+        mem0_source = Mem0ScanSource(
+            _mem0_client(args.config, args.api_key),
+            user_id=args.user_id,
+            agent_id=args.agent_id,
+            run_id=args.run_id,
+        )
+        return mem0_source.records(batch_size=batch, sample=sample), mem0_source.label
     if source == "jsonl":
         if args.path == "-":
             src = JsonlScanSource(sys.stdin)
@@ -238,6 +310,62 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
             label = f"jsonl:{args.path}"
         return src.records(sample=sample), label
     raise ConfigurationError(f"unknown scan source {source!r}")
+
+
+def _load_factory(spec: str) -> Any:
+    """Import `module:attr` from the current directory and return the store.
+
+    A class or a function is called with no arguments and must return the
+    store; a store instance is used as it is.
+    """
+    module_name, _, attr = spec.partition(":")
+    if not module_name or not attr:
+        raise ConfigurationError(f"--factory must look like module:attribute, got {spec!r}")
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as exc:
+        raise ConfigurationError(f"cannot import {module_name!r}: {exc}") from exc
+    target: Any = module
+    for part in attr.split("."):
+        if not hasattr(target, part):
+            raise ConfigurationError(f"{module_name!r} has no attribute {attr!r}")
+        target = getattr(target, part)
+    is_store = callable(getattr(target, "similarity_search", None)) or callable(
+        getattr(target, "search", None)
+    )
+    if isinstance(target, type) or (callable(target) and not is_store):
+        target = target()
+    return target
+
+
+def _mem0_client(config_path: str | None, api_key: str | None) -> Any:
+    """Build `Memory.from_config(config)` or `MemoryClient(api_key=...)`."""
+    try:
+        import mem0
+    except ImportError as exc:
+        raise ConfigurationError('mem0 support requires `pip install "memorysec[mem0]"`.') from exc
+    if config_path:
+        text = Path(config_path).read_text(encoding="utf-8")
+        if config_path.endswith((".yaml", ".yml")):
+            try:
+                import yaml
+            except ImportError as exc:
+                raise ConfigurationError("reading a YAML config needs PyYAML.") from exc
+            config = yaml.safe_load(text)
+        else:
+            config = json.loads(text)
+        if not isinstance(config, dict):
+            raise ConfigurationError(f"{config_path}: expected a mapping")
+        return mem0.Memory.from_config(config)
+    key = api_key or os.environ.get("MEM0_API_KEY")
+    if not key:
+        raise ConfigurationError(
+            "mem0 scan needs --config (open source) or --api-key / MEM0_API_KEY."
+        )
+    return mem0.MemoryClient(api_key=key)
 
 
 def _cmd_scan(args: argparse.Namespace) -> int:

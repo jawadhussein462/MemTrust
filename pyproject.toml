@@ -24,6 +24,9 @@ keywords = [
     "qdrant",
     "pgvector",
     "pinecone",
+    "langchain",
+    "langgraph",
+    "mem0",
     "guardrails",
 ]
 classifiers = [
@@ -57,6 +60,11 @@ chroma = ["chromadb>=0.5.0"]
 qdrant = ["qdrant-client>=1.9.0"]
 pgvector = ["psycopg[binary]>=3.1"]
 pinecone = ["pinecone>=5.0"]
+langchain = ["langchain-core>=0.3"]
+langgraph = ["langgraph-checkpoint>=2.0"]
+mem0 = ["mem0ai>=0.1.100"]
+# Exact nearest-neighbour search for the vector detectors on large stores.
+fast = ["numpy>=1.24"]
 otel = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
 # Model-based detectors (opt-in; the default pipeline stays offline and dependency-free).
 hf = ["transformers>=4.40", "torch>=2.0"]
@@ -77,6 +85,10 @@ all = [
     "qdrant-client>=1.9.0",
     "psycopg[binary]>=3.1",
     "pinecone>=5.0",
+    "langchain-core>=0.3",
+    "langgraph-checkpoint>=2.0",
+    "mem0ai>=0.1.100",
+    "numpy>=1.24",
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
 ]
@@ -134,12 +146,10 @@ exclude = ["tests/", "examples/", "build/", "dist/"]
 
 [[tool.mypy.overrides]]
 module = [
-    "mem0.*",
-    "langgraph.*",
+    "mem0",
+    "yaml",
     "chromadb.*",
-    "llama_index.*",
     "qdrant_client.*",
-    "langchain_core.*",
     "psycopg.*",
     "pinecone.*",
     "opentelemetry.*",

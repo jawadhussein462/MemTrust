@@ -1,6 +1,8 @@
 """Read-only scanners and the reports they produce.
 
-Each `*ScanSource` lists records from one store and never writes. A
+Each `*ScanSource` lists records from one store and never writes: Chroma,
+Qdrant, pgvector, Pinecone, JSONL exports, LangChain vector stores,
+LangGraph long-term memory stores, and mem0. A
 `ScanReport` renders as:
 
 * `render_html` — one self-contained file to forward to whoever acts on it.
@@ -14,7 +16,10 @@ from __future__ import annotations
 from .chroma import ChromaScanSource
 from .html import render_html
 from .jsonl import JsonlScanSource
+from .langchain import LangChainScanSource
+from .langgraph import LangGraphStoreScanSource
 from .markdown import render_markdown
+from .mem0 import Mem0ScanSource
 from .owasp import (
     ASI06_ID,
     ASI06_REF,
@@ -49,6 +54,9 @@ __all__ = [
     "LLM02_URL",
     "ChromaScanSource",
     "JsonlScanSource",
+    "LangChainScanSource",
+    "LangGraphStoreScanSource",
+    "Mem0ScanSource",
     "PgVectorScanSource",
     "PineconeScanSource",
     "QdrantScanSource",
