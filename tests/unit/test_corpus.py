@@ -67,20 +67,21 @@ def test_exact_index_numpy_and_python_agree(monkeypatch):
 
 
 def test_knn_table_is_computed_once_and_shared(monkeypatch):
-    calls = []
-    real = ExactIndex.knn_arrays
+    builds = []
+    real = Corpus._stored_matrix
 
-    def counting(self, vectors, k):
-        calls.append(k)
-        return real(self, vectors, k)
+    def counting(self, rows):
+        builds.append(len(rows))
+        return real(self, rows)
 
-    monkeypatch.setattr(ExactIndex, "knn_arrays", counting)
+    monkeypatch.setattr(Corpus, "_stored_matrix", counting)
     corpus = Corpus.from_records(_records(30))
-    corpus.knn(10)
+    first = corpus.knn(10)
+    assert all(len(hits) == 10 for hits in first.values())
     corpus.knn(4)  # served from the k=10 table
-    assert calls == [10]
-    corpus.knn(20)  # needs more neighbours: recomputed once
-    assert calls == [10, 20]
+    assert builds == [30]
+    assert all(len(hits) == 20 for hits in corpus.knn(20).values())  # recomputed once
+    assert builds == [30, 30]
 
 
 def test_k_occurrence_matches_brute_force():

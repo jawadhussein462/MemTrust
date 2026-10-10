@@ -355,8 +355,8 @@ def format_scan_summary(
             amber flag, and a colored dot per severity. When `False`,
             return plain text.
         details: When `True`, add a table of findings (severity, rule,
-            record id, action, OWASP) under the counts. Memory text is
-            never printed, so the table is safe for CI logs.
+            record id, action, confidence, OWASP) under the counts. Memory
+            text is never printed, so the table is safe for CI logs.
         max_rows: Most table rows to print before summarising the rest.
         outputs: More written files as `(label, path)` pairs, such as
             `("SARIF", "results.sarif")`, listed after the JSON file.
@@ -427,11 +427,12 @@ def _findings_table(report: ScanReport, *, color: bool, max_rows: int) -> list[s
             item.type,
             _clip(item.id, _ID_WIDTH),
             item.action.value,
+            "—" if item.confidence is None else f"{item.confidence:.2f}",
             item.owasp.split(":", 1)[0],
         )
         for item in report.findings[: max(max_rows, 0)]
     ]
-    header = ("SEVERITY", "RULE", "RECORD", "ACTION", "OWASP")
+    header = ("SEVERITY", "RULE", "RECORD", "ACTION", "CONF", "OWASP")
     widths = [max(len(header[i]), *(len(r[i]) for r in rows)) for i in range(len(header))]
 
     def line(cells: tuple[str, ...], *, sev: str | None = None) -> str:

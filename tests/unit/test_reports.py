@@ -78,7 +78,8 @@ def test_findings_carry_rule_metadata_and_evidence(report):
     assert secret.check == "secrets"
     assert secret.cwe == ["CWE-312"]
     assert secret.remediation[0].startswith("Rotate")
-    assert secret.evidence == {"kinds": ["credential"]}
+    assert secret.evidence == {"kinds": ["credential"], "scores": {"heuristic": 0.75}}
+    assert secret.confidence == 0.75
     inject = next(f for f in report.findings if f.id == "inject")
     assert inject.evidence["matches"] == ["ignore previous instructions"]
 
@@ -308,7 +309,7 @@ def test_terminal_table_and_overflow():
     text = format_scan_summary(ScanReport(total=50, findings=findings), details=True, max_rows=3)
     lines = text.splitlines()
     header = next(line for line in lines if "SEVERITY" in line)
-    assert header.split() == ["SEVERITY", "RULE", "RECORD", "ACTION", "OWASP"]
+    assert header.split() == ["SEVERITY", "RULE", "RECORD", "ACTION", "CONF", "OWASP"]
     assert "x" * 27 + "…" in text
     assert "  … 3 more findings" in lines
     assert "SEVERITY" not in format_scan_summary(ScanReport(total=50, findings=findings))

@@ -12,12 +12,11 @@ embeddings needed gigabytes of memory and hours of compute.
 * stored vectors packed as 4-byte floats in one buffer;
 * one k-nearest-neighbour table per scan, computed once and shared.
 
-With numpy installed (`pip install "memorysec[fast]"`, and already a
-dependency of the Chroma, Qdrant, and Pinecone clients) the table is an
-exact blocked matrix product: 50,000 records at 768 dimensions takes well under a minute on a
-laptop and about 100 MB of working memory. Without numpy a pure-Python
-fallback gives the same answers and is practical up to a few thousand
-records.
+With numpy installed (`pip install "memorysec[fast]"`; the Chroma and
+Qdrant clients already depend on it) the table is an exact matrix product,
+computed in row blocks so its working memory stays near 64 MB. Without
+numpy a pure-Python fallback gives the same answers and is practical up to
+a few thousand records.
 
 A different index (FAISS, HNSW, or the store's own search) can be plugged
 in through `Corpus(index=...)`; see `NeighbourIndex`.
@@ -574,13 +573,14 @@ class Corpus:
                 rows = self.vector_rows(active_only=active_only)
             else:
                 rows = self.active_rows() if active_only else list(range(len(self)))
+            matrix = matrix_for(rows) if rows else []
             arrays = None
             if rows and isinstance(self.index, ExactIndex):
-                arrays = self.index.knn_arrays(matrix_for(rows), k)
+                arrays = self.index.knn_arrays(matrix, k)
             if arrays is not None:
                 cached = KnnTable(rows, k, arrays=arrays)
             else:
-                lists = self.index.knn(matrix_for(rows), k) if rows else []
+                lists = self.index.knn(matrix, k) if rows else []
                 cached = KnnTable(rows, k, lists=lists)
             self._knn[(key, active_only)] = cached
         return cached.limit(k)

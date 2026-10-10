@@ -40,9 +40,11 @@ class _ClientBase:
         """Build a client and the checks it will run.
 
         Args:
-            fail_closed: When a check crashes, report a blocking `check_error`
-                instead of skipping that check. `None` keeps the value already
-                on `config` (the default config uses `True`).
+            fail_closed: Whether an incomplete scan (a check or detector
+                raised) counts as a failure: the CLI exits `2` and the guards
+                block the affected records. A failure is never a finding
+                either way; it is listed in `ScanReport.errors`. `None` keeps
+                the value already on `config` (the default config uses `True`).
             checks: Extra checks, or replacements for a default check of the
                 same name. Each item must be a `MemoryCheck`.
             config: Full settings object. Fields you also pass as arguments
