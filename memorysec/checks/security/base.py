@@ -2,7 +2,7 @@
 
 The hierarchy is::
 
-    BaseCheck
+    MemoryCheck
     └── SecurityCheck                  (this module; the "father" class)
         ├── InjectionCheck             (security/injection/)
         ├── PoisoningCheck             (security/poisoning/)
@@ -32,7 +32,7 @@ from ...models.enums import Action, Category, Severity
 from ...models.finding import Finding
 from ...models.memory import MemoryCandidate
 from ...telemetry import get_logger
-from ..base import BaseCheck
+from ..base import MemoryCheck
 
 _logger = get_logger(__name__)
 
@@ -100,7 +100,7 @@ class FindingSpec:
     message: str
 
 
-class SecurityCheck(BaseCheck):
+class SecurityCheck(MemoryCheck):
     """Base class for security checks: runs detectors and maps them to findings.
 
     Subclasses declare ``name``, ``default_code``, ``specs`` (code -> spec),

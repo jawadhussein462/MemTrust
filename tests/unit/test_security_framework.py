@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from memorysec import MemorySec, check
+from memorysec import MemorySec
 from memorysec.checks import default_checks
+from memorysec.checks.base import MemoryCheck
 from memorysec.checks.security import (
     BaseDetector,
     Detection,
@@ -165,12 +166,19 @@ def test_configured_check_replaces_default_of_same_name():
     assert report.clean
 
 
-def test_other_checks_still_append():
-    @check("extra")
-    def extra(candidate, context):
-        return None
+def test_non_check_is_rejected():
+    with pytest.raises(ConfigurationError):
+        MemorySec(checks=[lambda candidate, context: None])  # type: ignore[list-item]
 
-    guard = MemorySec(checks=[InjectionCheck(detectors=[Never()]), extra])
+
+def test_other_checks_still_append():
+    class Extra(MemoryCheck):
+        name = "extra"
+
+        def check(self, candidate, context):
+            return []
+
+    guard = MemorySec(checks=[InjectionCheck(detectors=[Never()]), Extra()])
     names = [c.name for c in guard._evaluator.checks]
     assert names.count("injection") == 1 and names[-1] == "extra"
 

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from memorysec import Finding, MemorySec, check
+from memorysec import Finding, MemorySec
+from memorysec.checks.base import MemoryCheck
 
 
 def _types(text: str) -> set[str]:
@@ -45,12 +46,14 @@ def test_invariant_critical_findings_are_reported():
     assert any(f.severity.value == "critical" for f in report.findings)
 
 
-def test_scoreless_critical_custom_check_is_reported():
-    @check("critical-no-action")
-    def critical_no_action(candidate, context):
-        return Finding(code="danger", severity="critical", category="security", message="bad")
+def test_scoreless_critical_finding_is_reported():
+    class CriticalNoAction(MemoryCheck):
+        name = "critical-no-action"
 
-    report = MemorySec(checks=[critical_no_action]).scan(
+        def check(self, candidate, context):
+            return [Finding(code="danger", severity="critical", category="security", message="bad")]
+
+    report = MemorySec(checks=[CriticalNoAction()]).scan(
         [{"id": "m", "content": "totally benign looking text"}]
     )
     danger = next(f for f in report.findings if f.type == "danger")

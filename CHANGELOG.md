@@ -29,6 +29,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- `@check`, `FunctionCheck`, `BaseCheck`, and function-style custom checks.
+  `MemoryCheck` is the base class; `SecurityCheck` subclasses it.
 - Correctness, end to end: contradiction, duplication, freshness,
   generalization (`memorysec.checks.correctness`), `Category.CORRECTNESS`,
   `MemoryRelationship`, `Action.SUPERSEDE`, `MemoryStatus.SUPERSEDED` /

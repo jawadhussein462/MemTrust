@@ -69,7 +69,7 @@ those:
 
 - Keep `fail_closed=True` (default) in production so internal check errors are
   reported rather than silently skipped.
-- Add domain-specific custom checks; the built-ins are a baseline.
+- Stack detectors on the built-in checks when the heuristics are not enough.
 
 ## Supported versions
 

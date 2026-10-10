@@ -6,7 +6,6 @@ memorysec scan jsonl export.jsonl --report report.html --json findings.json
 
 from __future__ import annotations
 
-from .checks.base import check
 from .client import AsyncMemorySec, MemorySec
 from .config import Config
 from .exceptions import (
@@ -36,14 +35,13 @@ __all__ = [
     "Config",
     "ConfigurationError",
     "Finding",
-    "MemorySec",
-    "MemorySecError",
     "MemoryCandidate",
     "MemoryRecord",
+    "MemorySec",
+    "MemorySecError",
     "MemoryStatus",
     "Risk",
     "ScanReport",
     "Severity",
     "__version__",
-    "check",
 ]

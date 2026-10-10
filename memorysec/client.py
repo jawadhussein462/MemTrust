@@ -12,7 +12,7 @@ from typing import Any
 
 from ._coerce import coerce_record
 from .checks import default_checks
-from .checks.base import MemoryCheck, normalize_check
+from .checks.base import MemoryCheck
 from .config import Config
 from .engine import Evaluator
 from .exceptions import ConfigurationError
@@ -44,19 +44,16 @@ class _ClientBase:
         # default pipeline instead of running alongside the heuristic one.
         resolved_checks: list[MemoryCheck] = list(default_checks()) if use_default_checks else []
         for chk in checks or []:
-            normalized = normalize_check(chk)
+            if not isinstance(chk, MemoryCheck):
+                raise ConfigurationError(f"{type(chk).__name__} is not a MemoryCheck.")
             position = next(
-                (
-                    i
-                    for i, existing in enumerate(resolved_checks)
-                    if existing.name == normalized.name
-                ),
+                (i for i, existing in enumerate(resolved_checks) if existing.name == chk.name),
                 None,
             )
             if position is None:
-                resolved_checks.append(normalized)
+                resolved_checks.append(chk)
             else:
-                resolved_checks[position] = normalized
+                resolved_checks[position] = chk
 
         self._evaluator = Evaluator(
             config=self.config,
