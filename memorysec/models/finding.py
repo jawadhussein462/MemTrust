@@ -27,15 +27,19 @@ class Finding(BaseModel):
             or delete). The report keeps this action.
         owasp: OWASP reference for this finding. Poisoning uses ASI06,
             injection uses LLM01, secrets and PII use LLM02.
+        confidence: How sure the detectors are, from 0 to 1. Several
+            agreeing detectors raise it. `None` when no detector scored
+            its hit (a custom detector, for example).
 
     Example:
-        A critical poisoning finding::
+        A high-severity poisoning finding::
 
             Finding(
                 code="memory_poisoning",
                 category="security",
-                severity="critical",
+                severity="high",
                 message="Content looks like an attempt to plant a false security fact.",
+                confidence=0.8,
             )
     """
 
@@ -57,6 +61,12 @@ class Finding(BaseModel):
     owasp: str = Field(
         default=ASI06_REF,
         description="OWASP item this finding maps to, e.g. ASI06 or LLM02.",
+    )
+    confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Combined detector confidence from 0 to 1, or None when unscored.",
     )
 
     def __str__(self) -> str:

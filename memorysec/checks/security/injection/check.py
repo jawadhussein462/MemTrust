@@ -38,7 +38,7 @@ class InjectionCheck(SecurityCheck):
             owasp=LLM01_REF,
         ),
         "known_answer": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.REVIEW,
             message=(
                 "The record stops a language model from following a canary "
@@ -47,7 +47,7 @@ class InjectionCheck(SecurityCheck):
             owasp=LLM01_REF,
         ),
         "embedding_injection": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.REVIEW,
             message=(
                 "The stored embedding is classified as prompt injection by an "

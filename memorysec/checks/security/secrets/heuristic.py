@@ -39,6 +39,8 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 _CREDENTIAL = re.compile(
     r"(?i)\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|token)\b"
     r"(\s*[:=]\s*)"
+    # A link is where to reset a password, not the password itself.
+    r"(?!https?://|www\.)"
     r"([^\s\"']{6,})"
 )
 
@@ -109,10 +111,31 @@ def mask_secrets(text: str) -> str:
     return _STATED_CREDENTIAL.sub(_stated, masked)
 
 
+# How sure a match of each kind is. Provider formats with fixed prefixes and
+# private-key blocks are near-certain; a `password = ...` line is likely; a
+# sentence that states a value ("the PIN is 4821") is the weakest signal.
+KIND_SCORES: dict[str, float] = {
+    "private_key": 0.99,
+    "anthropic_api_key": 0.97,
+    "openai_api_key": 0.95,
+    "stripe_key": 0.97,
+    "aws_access_key_id": 0.97,
+    "google_api_key": 0.95,
+    "slack_token": 0.95,
+    "github_token": 0.97,
+    "github_pat": 0.97,
+    "connection_string": 0.9,
+    "jwt": 0.85,
+    "bearer_token": 0.8,
+    "credential": 0.75,
+}
+
+
 class HeuristicSecretsDetector(BaseDetector):
     """Match known key formats, `key = value`, and "my password is ..." lines.
 
-    The finding code is `secret_detected`. Evidence lists `kinds` only.
+    The finding code is `secret_detected`. Evidence lists `kinds` only. The
+    score is that of the strongest kind found (`KIND_SCORES`).
     """
 
     name = "heuristic"
@@ -121,7 +144,8 @@ class HeuristicSecretsDetector(BaseDetector):
         kinds = secret_kinds(text)
         if not kinds:
             return []
-        return [self.hit(code="secret_detected", kinds=kinds)]
+        score = max(KIND_SCORES.get(kind, 0.8) for kind in kinds)
+        return [self.hit(code="secret_detected", score=score, kinds=kinds)]
 
 
-__all__ = ["HeuristicSecretsDetector", "mask_secrets", "secret_kinds"]
+__all__ = ["KIND_SCORES", "HeuristicSecretsDetector", "mask_secrets", "secret_kinds"]

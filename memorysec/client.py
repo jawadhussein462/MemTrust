@@ -7,7 +7,8 @@ sometimes a coroutine and sometimes a normal function.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import asyncio
+from collections.abc import AsyncIterable, Iterable, Sequence
 from typing import Any
 
 from ._coerce import coerce_record
@@ -39,9 +40,11 @@ class _ClientBase:
         """Build a client and the checks it will run.
 
         Args:
-            fail_closed: When a check crashes, report a blocking `check_error`
-                instead of skipping that check. `None` keeps the value already
-                on `config` (the default config uses `True`).
+            fail_closed: Whether an incomplete scan (a check or detector
+                raised) counts as a failure: the CLI exits `2` and the guards
+                block the affected records. A failure is never a finding
+                either way; it is listed in `ScanReport.errors`. `None` keeps
+                the value already on `config` (the default config uses `True`).
             checks: Extra checks, or replacements for a default check of the
                 same name. Each item must be a `MemoryCheck`.
             config: Full settings object. Fields you also pass as arguments
@@ -94,8 +97,9 @@ class _ClientBase:
                 * an object with `.all()`, such as some vector-store wrappers
                 * an iterable of `MemoryRecord` objects or dicts
 
-                Any iterable is materialised into one batch so corpus
-                detectors (TrustRAG, hubness) can see the other records.
+                Records are streamed: each one is checked as it arrives and
+                only a packed copy (text, metadata, 4-byte vector) is kept
+                for the detectors that compare records with each other.
             query: The question that retrieved this batch, when you have one.
                 Most checks ignore it. Cluster detectors can use it.
 
@@ -120,7 +124,7 @@ class _ClientBase:
                 f"Cannot scan {type(source).__name__}: pass a scan source, "
                 "an object with .all(), or an iterable of records."
             )
-        records = [coerce_record(item) for item in items]
+        records = (coerce_record(item) for item in items)
         return self._evaluator.scan(records, query=query)
 
 
@@ -146,8 +150,9 @@ class MemorySec(_ClientBase):
                 * an object with `.all()`, such as some vector-store wrappers
                 * an iterable of `MemoryRecord` objects or dicts
 
-                Any iterable is materialised into one batch so corpus
-                detectors (TrustRAG, hubness) can see the other records.
+                Records are streamed: each one is checked as it arrives and
+                only a packed copy (text, metadata, 4-byte vector) is kept
+                for the detectors that compare records with each other.
             query: The question that retrieved this batch, when you have one.
                 Most checks ignore it. Cluster detectors can use it.
 
@@ -165,22 +170,33 @@ class MemorySec(_ClientBase):
 class AsyncMemorySec(_ClientBase):
     """Asynchronous client. Same arguments as `MemorySec`.
 
-    `scan` is a coroutine so it can be awaited. The work inside is the same
-    synchronous scan; it does not talk to the network by itself.
+    `scan` runs the scan in a worker thread (`asyncio.to_thread`), so the
+    event loop keeps serving other tasks while detectors run and while a
+    scan source fetches pages from its store. Async iterables (an async
+    generator, or a source whose `records()` is one) are read on the loop
+    first, then scanned in the thread.
     """
 
-    async def scan(self, source: Iterable[Any], *, query: str | None = None) -> ScanReport:
+    async def scan(
+        self, source: Iterable[Any] | AsyncIterable[Any], *, query: str | None = None
+    ) -> ScanReport:
         """Scan records and return the report. See `MemorySec.scan`.
 
         Args:
-            source: A scan source, an object with `.all()`, or an iterable
-                of records or dicts.
+            source: A scan source, an object with `.all()`, an iterable of
+                records or dicts, or an async iterable of them.
             query: The retrieval question for this batch, if you have one.
 
         Returns:
             The same `ScanReport` the synchronous client would return.
         """
-        return self._scan(source, query=query)
+        records_fn = getattr(source, "records", None)
+        if callable(records_fn) and not isinstance(source, AsyncIterable):
+            # Called once here; a sync iterator is handed to the thread as is.
+            source = records_fn()
+        if isinstance(source, AsyncIterable):
+            source = [item async for item in source]
+        return await asyncio.to_thread(self._scan, source, query=query)
 
 
 __all__ = [

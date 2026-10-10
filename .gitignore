@@ -44,3 +44,4 @@ summary.md
 findings.json
 *.jsonl
 !examples/**/*.jsonl
+.benchmark-cache/

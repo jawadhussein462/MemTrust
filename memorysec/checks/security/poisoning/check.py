@@ -52,7 +52,7 @@ class PoisoningCheck(SecurityCheck):
             owasp=ASI06_REF,
         ),
         "poisoning_cluster": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.LOW,
             action=Action.REVIEW,
             message=(
                 "Content is one of several near-identical retrieved records, the "
@@ -61,7 +61,7 @@ class PoisoningCheck(SecurityCheck):
             owasp=ASI06_REF,
         ),
         "adversarial_text": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.REVIEW,
             message=(
                 "A span of this content reads as machine-optimised rather than "
@@ -70,7 +70,7 @@ class PoisoningCheck(SecurityCheck):
             owasp=ASI06_REF,
         ),
         "hub_record": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.LOW,
             action=Action.REVIEW,
             message=(
                 "This record appears in unusually many other records' nearest "
@@ -80,7 +80,7 @@ class PoisoningCheck(SecurityCheck):
             owasp=ASI06_REF,
         ),
         "embedding_mismatch": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.QUARANTINE,
             message=(
                 "The stored vector does not match a fresh embedding of the "
@@ -89,7 +89,7 @@ class PoisoningCheck(SecurityCheck):
             owasp=ASI06_REF,
         ),
         "temporal_contradiction": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.REVIEW,
             message=(
                 "A newer record contradicts older established neighbours; "
@@ -98,7 +98,7 @@ class PoisoningCheck(SecurityCheck):
             owasp=ASI06_REF,
         ),
         "retrieval_flip": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.REVIEW,
             message=(
                 "Removing this record changes the answer to probe questions "

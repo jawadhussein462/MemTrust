@@ -36,10 +36,11 @@ class IntegrationError(MemorySecError):
 
 
 class CheckError(MemorySecError):
-    """A check crashed, and the caller asked to see that crash.
+    """A check crashed.
 
-    With the default `fail_closed=True`, the engine records a `check_error`
-    finding instead of raising this.
+    The scan engine does not raise this: a crashing check or detector is
+    recorded in `ScanReport.errors` and the scan is marked incomplete. It is
+    kept for callers that want to raise on `not report.complete`.
     """
 
 

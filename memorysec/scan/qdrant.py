@@ -27,6 +27,9 @@ class QdrantScanSource:
         api_key: str | None = None,
         client: Any | None = None,
         text_field: str | None = None,
+        metadata_field: str | None = None,
+        vector_name: str | None = None,
+        path: str | None = None,
     ) -> None:
         """Point at a Qdrant collection, or at an already-open client.
 
@@ -38,13 +41,22 @@ class QdrantScanSource:
                 is not used.
             text_field: Payload key that holds the memory text. `None`
                 tries common keys such as `content` and `text`.
+            metadata_field: Payload key that holds a nested metadata dict
+                (LangChain writes `"metadata"`). `None` uses the whole payload.
+            vector_name: Named vector to read when the collection has
+                several. `None` takes the unnamed or first vector.
+            path: Local (embedded) Qdrant directory, instead of `url`.
 
         Raises:
-            ConfigurationError: `client` is omitted and `url` is missing.
+            ConfigurationError: `client` is omitted and neither `url` nor
+                `path` is given.
         """
-        if client is None and not url:
+        if client is None and not url and not path:
             raise ConfigurationError("qdrant scan needs --url.")
         self._url = url
+        self._path = path
+        self._metadata_field = metadata_field
+        self._vector_name = vector_name
         self._api_key = api_key
         self._collection = collection
         self._client = client
@@ -76,6 +88,8 @@ class QdrantScanSource:
             from qdrant_client import QdrantClient
         except ImportError as exc:
             raise missing_extra("Qdrant", "qdrant") from exc
+        if self._path and not self._url:
+            return QdrantClient(path=self._path)
         return QdrantClient(url=self._url, api_key=self._api_key)
 
     def _scroll(self, client: Any, *, batch_size: int) -> Iterator[MemoryRecord]:
@@ -108,10 +122,16 @@ class QdrantScanSource:
         payload = payload if isinstance(payload, dict) else {}
         memory_id = payload.get("memorysec_id") or payload.get("id") or raw_id or "qdrant_unknown"
         content = text_from_payload(payload.get("content"), payload, field=self._text_field)
+        metadata: dict[str, Any] = payload
+        if self._metadata_field:
+            nested = payload.get(self._metadata_field)
+            metadata = dict(nested) if isinstance(nested, dict) else {}
+        if self._vector_name and isinstance(vector, dict):
+            vector = vector.get(self._vector_name)
         return to_record(
             memory_id,
             content,
-            metadata=payload,
+            metadata=metadata,
             embedding=vector,
             namespace=self._collection,
         )

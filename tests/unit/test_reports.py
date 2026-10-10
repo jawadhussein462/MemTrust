@@ -78,7 +78,8 @@ def test_findings_carry_rule_metadata_and_evidence(report):
     assert secret.check == "secrets"
     assert secret.cwe == ["CWE-312"]
     assert secret.remediation[0].startswith("Rotate")
-    assert secret.evidence == {"kinds": ["credential"]}
+    assert secret.evidence == {"kinds": ["credential"], "scores": {"heuristic": 0.75}}
+    assert secret.confidence == 0.75
     inject = next(f for f in report.findings if f.id == "inject")
     assert inject.evidence["matches"] == ["ignore previous instructions"]
 
@@ -191,7 +192,7 @@ def test_markdown_summary(report):
     assert "| 🔴 Critical | 2 |" in md
     assert "### What to do" in md
     assert "**Delete 2 records**" in md
-    assert "| Severity | Finding | Record | Action | OWASP |" in md
+    assert "| Severity | Finding | Record | Action | Confidence | OWASP |" in md
     assert "<details>" in md and "</details>" in md
 
 
@@ -212,7 +213,7 @@ def test_markdown_neutralises_hostile_content():
     assert "``a\\|b`c``" in md  # pipe escaped, backtick cannot close the span
     assert "`````text\n[click me](https://evil.example)" in md  # fence outlasts content
     table_row = next(line for line in md.splitlines() if line.startswith("| 🟠 high"))
-    assert table_row.count(" | ") == 4
+    assert table_row.count(" | ") == 5
 
 
 def test_markdown_truncates_and_handles_clean():
@@ -308,7 +309,7 @@ def test_terminal_table_and_overflow():
     text = format_scan_summary(ScanReport(total=50, findings=findings), details=True, max_rows=3)
     lines = text.splitlines()
     header = next(line for line in lines if "SEVERITY" in line)
-    assert header.split() == ["SEVERITY", "RULE", "RECORD", "ACTION", "OWASP"]
+    assert header.split() == ["SEVERITY", "RULE", "RECORD", "ACTION", "CONF", "OWASP"]
     assert "x" * 27 + "…" in text
     assert "  … 3 more findings" in lines
     assert "SEVERITY" not in format_scan_summary(ScanReport(total=50, findings=findings))

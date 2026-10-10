@@ -44,6 +44,16 @@ class Severity(StrEnum):
         """
         return self.rank >= other.rank
 
+    def lower(self) -> Severity:
+        """Return the severity one step below this one.
+
+        Returns:
+            `HIGH` for `CRITICAL`, `MEDIUM` for `HIGH`, and so on. `INFO`
+            stays `INFO`.
+        """
+        rank = max(0, self.rank - 1)
+        return next(sev for sev, r in _SEVERITY_ORDER.items() if r == rank)
+
 
 _SEVERITY_ORDER: dict[Severity, int] = {
     Severity.INFO: 0,

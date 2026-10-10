@@ -27,6 +27,7 @@ from .models import (
     MemoryRecord,
     MemoryStatus,
     Risk,
+    ScanError,
     ScanReport,
     Severity,
 )
@@ -45,6 +46,7 @@ __all__ = [
     "MemorySecError",
     "MemoryStatus",
     "Risk",
+    "ScanError",
     "ScanReport",
     "Severity",
     "__version__",

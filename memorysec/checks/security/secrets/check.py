@@ -44,7 +44,7 @@ class SecretsCheck(SecurityCheck):
             owasp=LLM02_REF,
         ),
         "pii_detected": FindingSpec(
-            severity=Severity.HIGH,
+            severity=Severity.MEDIUM,
             action=Action.REVIEW,
             message=(
                 "Personal data detected; redact it or apply a retention rule. "

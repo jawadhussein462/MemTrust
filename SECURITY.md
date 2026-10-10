@@ -58,17 +58,22 @@ those:
   consider `min_detectors=2` when stacking noisy methods.
 - Hosted detectors (Azure Prompt Shields, Lakera Guard) send the candidate
   text to a third party. Only the text is sent; nothing is logged locally.
-- A detector that raises (model not downloaded, network error) makes the
-  check fail closed under `fail_closed=True`, i.e. the record is reported as
-  a `check_error` finding.
+- A detector that raises (model not downloaded, network error, bad API key)
+  is listed in `ScanReport.errors` and the scan is marked incomplete; the
+  other detectors' results are kept. A failure is never reported as a
+  finding, so it can never produce a "delete" recommendation that automation
+  could act on. Under `fail_closed=True` the CLI exits `2` and `WriteGuard` /
+  `RetrieveGuard` treat the affected records as unsafe.
 - Detector evidence carries kinds, labels, and scores — never the matched
   text or secret values. This is an invariant for built-in detectors and a
   requirement for custom ones. Scan reports include only masked snippets.
 
 ## Operational guidance
 
-- Keep `fail_closed=True` (default) in production so internal check errors are
-  reported rather than silently skipped.
+- Keep `fail_closed=True` (default) in production so an incomplete scan fails
+  the pipeline instead of passing as clean.
+- If you automate cleanup from `ScanReport.action_plan()`, gate it on
+  `report.complete` and a confidence floor, and quarantine before deleting.
 - Stack detectors on the built-in checks when the heuristics are not enough.
 
 ## Supported versions

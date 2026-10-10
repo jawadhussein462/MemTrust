@@ -8,26 +8,33 @@ write to the store.
 
 Exit codes follow other security scanners: `0` when the scan finished,
 `1` when `--fail-on` is set and a finding reached that severity, `2` on a
-usage, connection, or file error.
+usage, connection, or file error, or when a check or detector failed so
+the scan is incomplete (unless `--allow-incomplete`).
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib
+import json
 import os
 import sys
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .client import MemorySec
-from .exceptions import ConfigurationError
+from .exceptions import ConfigurationError, MemorySecError
 from .models.enums import Severity
 from .models.memory import MemoryRecord
 from .models.results import ScanReport, format_scan_summary
 from .scan import render_html, render_markdown, render_sarif
 from .scan.chroma import ChromaScanSource
 from .scan.jsonl import JsonlScanSource
+from .scan.langchain import LangChainScanSource
+from .scan.langgraph import LangGraphStoreScanSource
+from .scan.mem0 import Mem0ScanSource
 from .scan.pgvector import PgVectorScanSource
 from .scan.pinecone import PineconeScanSource
 from .scan.qdrant import QdrantScanSource
@@ -107,6 +114,52 @@ def _build_parser() -> argparse.ArgumentParser:
     jsonl = sources.add_parser("jsonl", help="Scan a JSON Lines export.")
     jsonl.add_argument("path", help="JSON Lines file, or '-' for stdin.")
     _add_scan_output_flags(jsonl)
+
+    langchain = sources.add_parser(
+        "langchain",
+        help="Scan a LangChain vector store or a LangGraph long-term memory store.",
+        description=(
+            "Your code builds the store; --factory names it as module:attribute (a store, or a "
+            "function that returns one), imported from the current directory."
+        ),
+    )
+    langchain.add_argument(
+        "--factory",
+        required=True,
+        metavar="MODULE:ATTR",
+        help="Where to get the store, e.g. myapp.memory:get_vector_store.",
+    )
+    langchain.add_argument(
+        "--namespace",
+        default=None,
+        help="LangGraph stores: namespace prefix to read, slash-separated (e.g. memories/alice).",
+    )
+    langchain.add_argument(
+        "--text-field",
+        default=None,
+        help="LangGraph stores: key in each value that holds the memory text.",
+    )
+    _add_scan_output_flags(langchain)
+
+    mem0 = sources.add_parser(
+        "mem0",
+        help="Scan mem0: open source with --config, or the hosted platform with --api-key.",
+    )
+    target = mem0.add_mutually_exclusive_group()
+    target.add_argument(
+        "--config",
+        metavar="PATH",
+        help="mem0 config (JSON or YAML) for Memory.from_config, the same file your app uses.",
+    )
+    target.add_argument(
+        "--api-key",
+        default=None,
+        help="mem0 platform API key (or MEM0_API_KEY). Needs --user-id, --agent-id, or --run-id.",
+    )
+    mem0.add_argument("--user-id", default=None)
+    mem0.add_argument("--agent-id", default=None)
+    mem0.add_argument("--run-id", default=None)
+    _add_scan_output_flags(mem0)
     return parser
 
 
@@ -145,6 +198,24 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         ),
     )
     parser.add_argument(
+        "--min-confidence",
+        type=_confidence,
+        metavar="SCORE",
+        default=None,
+        help=(
+            "With --fail-on, ignore findings whose confidence is below SCORE (0 to 1). "
+            "Unscored findings still count."
+        ),
+    )
+    parser.add_argument(
+        "--allow-incomplete",
+        action="store_true",
+        help=(
+            "Exit 0 even when a check or detector failed (missing model, bad API key). "
+            "By default a failure makes the scan incomplete and exits 2."
+        ),
+    )
+    parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
@@ -163,6 +234,16 @@ def _add_scan_output_flags(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_BATCH_SIZE,
         help=f"Records fetched per round-trip (default: {DEFAULT_BATCH_SIZE}).",
     )
+
+
+def _confidence(value: str) -> float:
+    try:
+        score = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{value!r} is not a number") from exc
+    if not 0.0 <= score <= 1.0:
+        raise argparse.ArgumentTypeError("must be between 0 and 1")
+    return score
 
 
 def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]:
@@ -200,6 +281,26 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
             text_field=args.text_field,
         )
         return src.records(batch_size=min(batch, 100), sample=sample), f"pinecone:{args.index}"
+    if source == "langchain":
+        store = _load_factory(args.factory)
+        if callable(getattr(store, "similarity_search", None)) or not callable(
+            getattr(store, "list_namespaces", None)
+        ):
+            vector_source = LangChainScanSource(store)
+            return vector_source.records(batch_size=batch, sample=sample), vector_source.label
+        namespace = tuple(part for part in (args.namespace or "").split("/") if part)
+        graph_source = LangGraphStoreScanSource(
+            store, namespace=namespace, text_field=args.text_field
+        )
+        return graph_source.records(batch_size=batch, sample=sample), graph_source.label
+    if source == "mem0":
+        mem0_source = Mem0ScanSource(
+            _mem0_client(args.config, args.api_key),
+            user_id=args.user_id,
+            agent_id=args.agent_id,
+            run_id=args.run_id,
+        )
+        return mem0_source.records(batch_size=batch, sample=sample), mem0_source.label
     if source == "jsonl":
         if args.path == "-":
             src = JsonlScanSource(sys.stdin)
@@ -211,12 +312,68 @@ def _records_for(args: argparse.Namespace) -> tuple[Iterator[MemoryRecord], str]
     raise ConfigurationError(f"unknown scan source {source!r}")
 
 
+def _load_factory(spec: str) -> Any:
+    """Import `module:attr` from the current directory and return the store.
+
+    A class or a function is called with no arguments and must return the
+    store; a store instance is used as it is.
+    """
+    module_name, _, attr = spec.partition(":")
+    if not module_name or not attr:
+        raise ConfigurationError(f"--factory must look like module:attribute, got {spec!r}")
+    cwd = os.getcwd()
+    if cwd not in sys.path:
+        sys.path.insert(0, cwd)
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError as exc:
+        raise ConfigurationError(f"cannot import {module_name!r}: {exc}") from exc
+    target: Any = module
+    for part in attr.split("."):
+        if not hasattr(target, part):
+            raise ConfigurationError(f"{module_name!r} has no attribute {attr!r}")
+        target = getattr(target, part)
+    is_store = callable(getattr(target, "similarity_search", None)) or callable(
+        getattr(target, "search", None)
+    )
+    if isinstance(target, type) or (callable(target) and not is_store):
+        target = target()
+    return target
+
+
+def _mem0_client(config_path: str | None, api_key: str | None) -> Any:
+    """Build `Memory.from_config(config)` or `MemoryClient(api_key=...)`."""
+    try:
+        import mem0
+    except ImportError as exc:
+        raise ConfigurationError('mem0 support requires `pip install "memorysec[mem0]"`.') from exc
+    if config_path:
+        text = Path(config_path).read_text(encoding="utf-8")
+        if config_path.endswith((".yaml", ".yml")):
+            try:
+                import yaml
+            except ImportError as exc:
+                raise ConfigurationError("reading a YAML config needs PyYAML.") from exc
+            config = yaml.safe_load(text)
+        else:
+            config = json.loads(text)
+        if not isinstance(config, dict):
+            raise ConfigurationError(f"{config_path}: expected a mapping")
+        return mem0.Memory.from_config(config)
+    key = api_key or os.environ.get("MEM0_API_KEY")
+    if not key:
+        raise ConfigurationError(
+            "mem0 scan needs --config (open source) or --api-key / MEM0_API_KEY."
+        )
+    return mem0.MemoryClient(api_key=key)
+
+
 def _cmd_scan(args: argparse.Namespace) -> int:
-    guard = MemorySec()
+    guard = MemorySec(fail_closed=not args.allow_incomplete)
     try:
         records, label = _records_for(args)
         report = guard.scan(records)
-    except (OSError, ConfigurationError, ValueError) as exc:
+    except (OSError, MemorySecError, ValueError) as exc:
         print(f"memorysec scan: {exc}", file=sys.stderr)
         return EXIT_ERROR
     report.source = label
@@ -254,14 +411,24 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         _summary(report, args, report_path=report_path, json_path=json_path, outputs=outputs),
         flush=True,
     )
+    if not report.complete and guard.config.fail_closed:
+        print(
+            f"memorysec scan: incomplete: {report.records_with_errors:,} records were not fully "
+            "checked because a check or detector failed (see above). Fix it and scan again, "
+            "or pass --allow-incomplete.",
+            file=sys.stderr,
+        )
+        return EXIT_ERROR
     if args.fail_on:
         threshold = Severity(args.fail_on)
-        failing = report.at_or_above(threshold)
+        failing = report.at_or_above(threshold, min_confidence=args.min_confidence)
         if failing:
             noun = "finding" if len(failing) == 1 else "findings"
+            gate = f"--fail-on {threshold.value}"
+            if args.min_confidence is not None:
+                gate += f" --min-confidence {args.min_confidence:g}"
             print(
-                f"memorysec scan: {len(failing):,} {noun} at {threshold.value} or above "
-                f"(--fail-on {threshold.value})",
+                f"memorysec scan: {len(failing):,} {noun} at {threshold.value} or above ({gate})",
                 file=sys.stderr,
             )
             return EXIT_FINDINGS
@@ -311,7 +478,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     Returns:
         `0` when the scan finished and any requested files were written.
         `1` when `--fail-on` is set and a finding reached that severity.
-        `2` when the arguments, the store, or a file write failed.
+        `2` when the arguments, the store, or a file write failed, or when
+        the scan is incomplete and `--allow-incomplete` was not passed.
     """
     parser = _build_parser()
     args = parser.parse_args(argv)

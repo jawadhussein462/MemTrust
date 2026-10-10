@@ -16,6 +16,7 @@ from .enums import (
 from .finding import Finding
 from .memory import MemoryCandidate, MemoryRecord
 from .results import (
+    ScanError,
     ScanFinding,
     ScanReport,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "MemoryRecord",
     "MemoryStatus",
     "Risk",
+    "ScanError",
     "ScanFinding",
     "ScanReport",
     "Severity",

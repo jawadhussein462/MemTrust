@@ -33,6 +33,7 @@ class ProbeQueryDetector(BaseDetector):
     """
 
     name = "probe_query"
+    needs_corpus = True
 
     def __init__(
         self,

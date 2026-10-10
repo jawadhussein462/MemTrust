@@ -30,6 +30,7 @@ class EmbeddingConsistencyDetector(BaseDetector):
     """
 
     name = "embedding_consistency"
+    needs_corpus = False
 
     def __init__(
         self,

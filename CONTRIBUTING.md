@@ -52,15 +52,26 @@ method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
    models) and set a unique `name`.
 2. Implement `detect_text(text)` — or `detect(candidate, context)` if you need
    the query or neighbouring records — and return `Detection`s via
-   `self.hit(...)`. Use `code=` to pick one of the parent check's `specs`.
+   `self.hit(...)`. Use `code=` to pick one of the parent check's `specs`,
+   and pass `score=` (0 to 1) so findings get a confidence.
+   A detector that overrides `detect` runs after the whole store is read;
+   set `needs_corpus = False` if it only reads the candidate. Neighbour
+   searches go through `memorysec.corpus.corpus_of(context)`, never a loop
+   over `context.existing`.
 3. **Never** put matched text or secret values in evidence: kinds, labels,
    counts, and scores only.
-4. Import optional dependencies lazily inside `_load()`, raise
+4. Never raise to signal a finding, and never turn an internal error into a
+   finding: an exception is recorded as a scan error and the scan is marked
+   incomplete.
+5. Import optional dependencies lazily inside `_load()`, raise
    `ConfigurationError` with the install hint, and accept an injectable
    inference callable (`classify=`, `tag=`, `transport=`, ...) so the detector
    is testable offline. Add an extra to `pyproject.toml` and a mypy override.
-5. Export it from the folder's `__init__.py`, add a row to the README table,
+6. Export it from the folder's `__init__.py`, add a row to the README table,
    and add fake-driven tests under `tests/unit/`.
+7. For a change to a default detector, run `python benchmarks/run.py` before
+   and after. Tune on `--split dev` only, and put the new `test` numbers in
+   the PR.
 
 ## Adding a check
 
@@ -69,7 +80,10 @@ method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
    `specs` (code -> `FindingSpec`), `default_detectors()`, and at least a
    heuristic detector.
 2. Return a list of `Finding`s; set `recommended_action` to `review`,
-   `quarantine`, or `delete`.
+   `quarantine`, or `delete`. Pick severities by the rule in the README: the
+   text is the attack (high), model or behavioural evidence (medium), a
+   statistical pattern across the store (low). Mirror them in
+   `memorysec/rules.py`; a test keeps the two in sync.
 3. Add it to `default_checks()` only if it should run by default (defaults
    must stay offline and dependency-free).
 4. Add unit tests under `tests/unit/` and, if security-relevant, an invariant
@@ -79,9 +93,14 @@ method: `memorysec/checks/security/{injection,poisoning,secrets}/<method>.py`.
 
 1. Implement `records(batch_size=..., sample=...)` as a read-only iterator.
 2. Stream in batches. Honour `--sample`. Never write.
-3. Import the provider SDK lazily; add an optional extra in `pyproject.toml`.
-4. Wire it into `memorysec scan <name>` in `memorysec/cli.py`.
-5. Test against an in-process fake.
+3. Import the provider SDK lazily, or recognise the client by its attributes
+   without importing it; add an optional extra in `pyproject.toml`.
+4. Return stored vectors when the store has them (the vector detectors need
+   them), and keep the store's own ids.
+5. Wire it into `memorysec scan <name>` in `memorysec/cli.py`.
+6. Test against an in-process fake in `tests/unit/`, and against the real
+   client in `tests/integration/test_backends.py` (skipped when the client is
+   not installed; the CI `backends` job installs it).
 
 ## Commit / PR expectations
 

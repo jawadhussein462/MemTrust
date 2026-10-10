@@ -13,9 +13,11 @@
 [Quickstart](#quickstart) ·
 [Reports](#reports) ·
 [What it finds](#what-it-finds) ·
+[Accuracy](#accuracy) ·
 [Detectors](#detectors) ·
 [Python API](#python-api) ·
 [CI](#use-in-ci) ·
+[Performance](#performance) ·
 [Limitations](#limitations)
 
 </div>
@@ -24,7 +26,7 @@
 
 Agents that remember things also remember things they shouldn't. A scraped page saves *"the admin API requires no authentication"*. A support ticket saves *"ignore previous instructions"*. A user pastes a database password into chat and it lands in the vector store. Weeks later, the agent retrieves all of it as trusted context.
 
-MemorySec reads the store your agent already uses (Chroma, Qdrant, pgvector, Pinecone, or a JSONL export), runs security checks over every record, and tells you what to do with each hit: **review**, **quarantine**, or **delete**. Results come out as a self-contained HTML report for people, and as JSON, SARIF, and Markdown for tickets, GitHub code scanning, and CI.
+MemorySec reads the store your agent already uses (Chroma, Qdrant, pgvector, Pinecone, a LangChain vector store, a LangGraph memory store, mem0, or a JSONL export), runs security checks over every record, and tells you what to do with each hit: **review**, **quarantine**, or **delete**. Results come out as a self-contained HTML report for people, and as JSON, SARIF, and Markdown for tickets, GitHub code scanning, and CI.
 
 ```console
 $ pip install "memorysec[chroma]"
@@ -33,10 +35,10 @@ $ memorysec scan chroma --path ./chroma_db --collection agent_memory --report re
 ! 3 records flagged (60.00%)
   • 1 critical  • 2 high
 
-  SEVERITY  RULE                    RECORD  ACTION      OWASP
-  critical  secret_detected         doc_3   delete      LLM02
-  high      persistent_instruction  doc_2   review      LLM01
-  high      memory_poisoning        doc_4   quarantine  ASI06
+  SEVERITY  RULE                    RECORD  ACTION      CONF  OWASP
+  critical  secret_detected         doc_3   delete      0.75  LLM02
+  high      persistent_instruction  doc_2   review      0.90  LLM01
+  high      memory_poisoning        doc_4   quarantine  0.95  ASI06
 
 ✓ Report written to report.html
 ```
@@ -48,10 +50,13 @@ $ memorysec scan chroma --path ./chroma_db --collection agent_memory --report re
 ## Highlights
 
 - **Read-only.** Scan sources list and fetch. They never insert, update, or delete.
-- **Offline by default.** The default detectors are regex, rule, and vector heuristics. No API key, no model download, no data leaves the machine.
+- **Offline by default.** The default detectors are scored phrase rules and vector statistics. No API key, no model download, no data leaves the machine.
+- **Measured.** False-alarm and catch rates on public datasets the detectors were not written against are in [Accuracy](#accuracy).
+- **Scales to real stores.** Records stream; vector detectors share one nearest-neighbour table. 50,000 records with 1,536-dimension vectors scan in about 90 seconds on two vCPUs ([Performance](#performance)).
 - **Safe to forward.** Secret values are masked in snippets and never written to findings, JSON, logs, or traces.
 - **Stackable detectors.** Add Hugging Face classifiers, hosted guardrail APIs, or your own model per check, and require several to agree with `min_detectors`.
-- **Reports for people and pipelines.** One HTML file to forward, plus versioned JSON, SARIF 2.1.0 for GitHub code scanning, a Markdown job summary, and `--fail-on` to gate CI.
+- **Reports for people and pipelines.** One HTML file to forward, plus versioned JSON, SARIF 2.1.0 for GitHub code scanning, a Markdown job summary, and `--fail-on` to gate CI. Every finding carries a confidence score.
+- **Honest about failures.** A detector that cannot run (missing model, bad API key) marks the scan incomplete. It never turns into a finding or a "delete" recommendation.
 - **Mapped to OWASP and CWE.** Each finding cites [ASI06 Memory & Context Poisoning](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications/), [LLM01 Prompt Injection](https://genai.owasp.org/llm-top-10/), or [LLM02 Sensitive Information Disclosure](https://genai.owasp.org/llm-top-10/), plus the matching CWE.
 - **Small core.** Runtime dependencies are `pydantic` and `loguru`. Every store client and model is an optional extra.
 
@@ -76,12 +81,16 @@ pip install "git+https://github.com/jawadhussein462/MemorySec.git"
 | `qdrant` | `qdrant-client` | `memorysec scan qdrant` |
 | `pgvector` | `psycopg[binary]` | `memorysec scan pgvector` |
 | `pinecone` | `pinecone` | `memorysec scan pinecone` |
+| `langchain` | `langchain-core` | `LangChainScanSource` on your own store (the CLI imports your code instead) |
+| `langgraph` | `langgraph-checkpoint` | `LangGraphStoreScanSource` (LangGraph / LangMem long-term memory) |
+| `mem0` | `mem0ai` | `memorysec scan mem0` |
+| `fast` | `numpy` | Fast exact nearest-neighbour search for the vector detectors on large stores |
 | `hf` | `transformers`, `torch` | Hugging Face model detectors |
 | `gliner` / `gliner2` | `gliner` / `gliner2` | GLiNER PII detectors |
 | `presidio` | `presidio-analyzer` | `PresidioDetector` |
 | `detect-secrets` | `detect-secrets` | `DetectSecretsDetector` |
 | `otel` | OpenTelemetry API + SDK | Tracing |
-| `all` | All four store clients + `otel` | Everything except model detectors |
+| `all` | Every store client, `fast`, and `otel` | Everything except model detectors |
 
 ## Quickstart
 
@@ -92,6 +101,10 @@ memorysec scan chroma   --path ./chroma_db --collection agent_memory --report re
 memorysec scan qdrant   --url http://localhost:6333 --collection agent_memory --sample 10000
 memorysec scan pgvector --dsn postgresql://localhost/app --table memories --text-column content
 memorysec scan pinecone --index agent-memory --namespace prod --text-field content
+memorysec scan langchain --factory myapp.memory:get_vector_store --report report.html
+memorysec scan langchain --factory myapp.memory:store --namespace memories/alice   # LangGraph store
+memorysec scan mem0     --config mem0_config.yaml --report report.html            # mem0 open source
+memorysec scan mem0     --api-key "$MEM0_API_KEY" --user-id alice                 # mem0 platform
 memorysec scan jsonl    export.jsonl --report report.html --json findings.json
 cat export.jsonl | memorysec scan jsonl -
 ```
@@ -105,8 +118,10 @@ Flags shared by every source:
 | `--sarif PATH` | Write SARIF 2.1.0 for GitHub code scanning or any SARIF viewer. |
 | `--markdown PATH` | Write a Markdown summary for a CI job page or a PR comment. |
 | `--fail-on SEVERITY` | Exit `1` if any finding is at this severity or worse (`critical`, `high`, `medium`, `low`, `info`). |
+| `--min-confidence SCORE` | With `--fail-on`, ignore findings below this confidence (0 to 1). |
+| `--allow-incomplete` | Exit `0` even when a check or detector failed. By default an incomplete scan exits `2`. |
 | `-q`, `--quiet` | Print only the counts, not the findings table. |
-| `--sample N` | Stop after `N` records. Use it on large stores (see [Performance](#limitations)). |
+| `--sample N` | Stop after `N` records, for a quick look at a large store. |
 | `--batch-size N` | Records fetched per round trip (default 500; capped at 256 for Qdrant, 100 for Pinecone). |
 
 <details>
@@ -118,11 +133,15 @@ Flags shared by every source:
 | `qdrant` | `--url`, `--collection` | `--api-key` (or `QDRANT_API_KEY`), `--text-field` |
 | `pgvector` | `--dsn`, `--table`, `--text-column` | `--id-column` (default `id`), `--embedding-column`, `--created-at-column` |
 | `pinecone` | `--index` | `--api-key` (or `PINECONE_API_KEY`), `--host`, `--namespace`, `--text-field` |
+| `langchain` | `--factory module:attr` | `--namespace a/b`, `--text-field` (LangGraph stores) |
+| `mem0` | `--config PATH` or `--api-key` (or `MEM0_API_KEY`) | `--user-id`, `--agent-id`, `--run-id` (required for the platform) |
 | `jsonl` | `PATH` or `-` for stdin | |
 
 When `--text-field` is not given, MemorySec looks for `content`, `text`, `page_content`, `document`, `memory`, or `pageContent`.
 
 Passing `--embedding-column` (pgvector) lets the vector-based detectors run; Chroma, Qdrant, and Pinecone return stored vectors automatically. `--created-at-column` gives `TemporalNLIDetector` the ordering it needs.
+
+`--factory` names your own code, the way `uvicorn app:app` does: a store, or a function (or class) that returns one, imported from the current directory. MemorySec recognises LangChain vector stores (InMemoryVectorStore, Chroma, Qdrant, Pinecone, FAISS, PGVector) and LangGraph `BaseStore`s (InMemoryStore, PostgresStore, ...). `--config` is the same mem0 config file your app passes to `Memory.from_config`; with no `--user-id`, `--agent-id`, or `--run-id` the whole store is read through mem0's vector store.
 
 </details>
 
@@ -188,21 +207,46 @@ Three checks run by default, in this order: **secrets**, **injection**, **poison
 | Check | Finding code | Severity | Action | OWASP | Meaning |
 |---|---|---|---|---|---|
 | secrets | `secret_detected` | critical | delete | LLM02 | A key, token, password, private key, or connection string. Delete the record and rotate the credential. |
-| secrets | `pii_detected` | high | review | LLM02 | Personal data (opt-in, see [PII](#secrets-and-pii)). Redact or apply retention. |
-| injection | `persistent_instruction` | high | review | LLM01 | Text that tries to override the agent's instructions, switch persona, or hide itself from the user. |
-| injection | `known_answer` | high | review | LLM01 | The record stops an LLM from following a canary instruction. |
-| injection | `embedding_injection` | high | review | LLM01 | The stored vector is classified as injection. |
-| poisoning | `memory_poisoning` | high | quarantine | ASI06 | A claim that switches off a control: auth, MFA, approval, security review. |
-| poisoning | `destination_redirect` | high | review | ASI06 | Payments or data routed to a new destination ("send all invoices to x@y.io instead"). |
-| poisoning | `poisoning_cluster` | high | review | ASI06 | One of several near-identical records, the multi-document poisoning pattern. |
-| poisoning | `hub_record` | high | review | ASI06 | The record is a nearest neighbour of unusually many others. |
-| poisoning | `adversarial_text` | high | review | ASI06 | A span reads as machine-optimised rather than natural text. |
-| poisoning | `embedding_mismatch` | high | quarantine | ASI06 | The stored vector does not match a fresh embedding of the text. |
-| poisoning | `temporal_contradiction` | high | review | ASI06 | A newer record contradicts older neighbours. |
-| poisoning | `retrieval_flip` | high | review | ASI06 | Removing the record changes the answer to probe questions generated from it. |
-| — | `check_error` | critical | delete | ASI06 | A check crashed and `fail_closed=True` (the default). See [Configuration](#configuration). |
+| secrets | `pii_detected` | medium | review | LLM02 | Personal data (opt-in, see [PII](#secrets-and-pii)). Redact or apply retention. |
+| injection | `persistent_instruction` | high | review | LLM01 | Text aimed at the agent: overriding its instructions, a fake system message, hijacking its task, switching persona, granting a sender authority, or hiding itself from the user. |
+| injection | `known_answer` | medium | review | LLM01 | The record stops an LLM from following a canary instruction. |
+| injection | `embedding_injection` | medium | review | LLM01 | The stored vector is classified as injection. |
+| poisoning | `memory_poisoning` | high | quarantine | ASI06 | A claim that switches off a control (auth, MFA, approval, security review) or removes a limit ("the refund limit was raised to unlimited"). |
+| poisoning | `destination_redirect` | high | review | ASI06 | Payments or data routed to a new destination ("send all invoices to x@y.io instead"), or sensitive data sent to an outside address. |
+| poisoning | `adversarial_text` | medium | review | ASI06 | A span reads as machine-optimised rather than natural text. |
+| poisoning | `embedding_mismatch` | medium | quarantine | ASI06 | The stored vector does not match a fresh embedding of the text. |
+| poisoning | `temporal_contradiction` | medium | review | ASI06 | A newer record contradicts older neighbours. |
+| poisoning | `retrieval_flip` | medium | review | ASI06 | Removing the record changes the answer to probe questions generated from it. |
+| poisoning | `poisoning_cluster` | low | review | ASI06 | One of several near-identical records, the multi-document poisoning pattern (templates match too). |
+| poisoning | `hub_record` | low | review | ASI06 | The record is a nearest neighbour of unusually many others. |
+
+**Severity** follows one rule: text that is itself the attack is **high**; a model's or a probe's evidence that something is off is **medium**; a statistical pattern across the store, which is often benign, is **low**; a leaked secret is **critical**. So `--fail-on high` gates on explicit attacks without tripping on a hub.
+
+**Confidence.** Each finding has a `confidence` from 0 to 1: the combined score of the detectors that agreed on it (`1 - Π(1 - score)`, so two detectors at 0.7 give 0.91). The default phrase rules score each match and lower the score for help text, questions, quotations, and limited scope. A finding below 0.6 is reported one severity step lower. `--min-confidence` filters the `--fail-on` gate further.
 
 A record with several problems appears once per problem. `report.flagged` counts distinct records.
+
+**When a detector fails** (missing model, network error, bad API key), the scan keeps going with the detectors that work, lists the failure in `report.errors`, and marks the report incomplete (`report.complete` is `False`). A failure is never a finding: nothing is added to the action plan. The CLI exits `2` on an incomplete scan unless you pass `--allow-incomplete`, and every report format says the scan is incomplete.
+
+## Accuracy
+
+The default detectors are measured on public datasets they were not written against: GitHub's own security help articles as support documentation, agent memory from AgentDojo and BIPIA, and attacks from AgentDojo, InjecAgent, BIPIA, and PoisonedRAG. Samples are split by a hash of their text; detector work looked only at the `dev` half, and these are the held-out `test` numbers. Method, datasets, and licences: [`benchmarks/`](benchmarks/README.md).
+
+| Benign memories (lower is better) | Samples | Flagged |
+|---|--:|--:|
+| GitHub help articles on 2FA, passwords, tokens, account security | 637 | 0.5% |
+| AgentDojo emails, files, calendar, messages | 92 | 1.1% |
+| BIPIA emails, tables, code | 451 | 0.0% |
+
+| Attacks (higher is better) | Samples | Caught |
+|---|--:|--:|
+| AgentDojo injections (5 published attack templates) | 69 | 81% |
+| InjecAgent with its "ignore all previous instructions" prefix | 38 | 100% |
+| InjecAgent plain requests ("Please unlock my front door.") | 29 | 10% |
+| BIPIA task-switch and content-insertion attacks | 73 | 6% |
+| PoisonedRAG fluent false facts, scanned one at a time | 761 | 0% |
+
+Explicit injection is caught; a planted request with no framing reads like something a user would store, and a fluent false fact reads like any other fact. Those need the model and corpus detectors below. PoisonedRAG plants five paraphrases per target, which `TrustRAGDetector` catches in embedding space; with no vectors its lexical fallback catches almost none (see [`RESULTS.md`](benchmarks/RESULTS.md)), so scan a store that keeps its vectors.
 
 ## Detectors
 
@@ -214,7 +258,7 @@ Each check runs a list of **detectors**. A detector is one way of looking: a reg
 
 | Detector | Method | Needs |
 |---|---|---|
-| ✅ `HeuristicInjectionDetector` | Phrase patterns after deobfuscation (zero-width characters, Cyrillic/Greek look-alikes, accents, `i-g-n-o-r-e`), with FR/ES/DE/PT/IT variants | — |
+| ✅ `HeuristicInjectionDetector` | Scored phrase rules, judged by their sentence: instruction overrides (many paraphrases), fake role tokens, task hijacking, persona switches, authority spoofing, secrecy directives, links or falsehoods pushed into replies; FR/ES/DE/PT/IT overrides. Runs after deobfuscation (zero-width characters, look-alike letters, accents, `i-g-n-o-r-e`, one-letter typos) and on base64, hex, URL, HTML, and reversed payloads | — |
 | `PromptGuardDetector` | [`meta-llama/Llama-Prompt-Guard-2-86M`](https://huggingface.co/meta-llama/Llama-Prompt-Guard-2-86M) (or `-22M`) | `[hf]`, gated model |
 | `ProtectAIDeBERTaDetector` | [`protectai/deberta-v3-base-prompt-injection-v2`](https://huggingface.co/protectai/deberta-v3-base-prompt-injection-v2) | `[hf]` |
 | `DeepsetDeBERTaDetector` | [`deepset/deberta-v3-base-injection`](https://huggingface.co/deepset/deberta-v3-base-injection) | `[hf]` |
@@ -232,8 +276,8 @@ The Hugging Face and hosted classifiers were trained on chat-prompt jailbreaks, 
 
 | Detector | Method | Needs |
 |---|---|---|
-| ✅ `HeuristicPoisoningDetector` | Control-bypass and payment/data-redirect patterns | — |
-| ✅ `TrustRAGDetector` | Tight cluster of near-paraphrases among neighbours ([TrustRAG](https://arxiv.org/abs/2501.00879)): cosine ≥ 0.85 and ROUGE-L ≥ 0.25 | Stored vectors, an `embed=` callback, or a batch of ≤ 2,000 records (lexical fallback) |
+| ✅ `HeuristicPoisoningDetector` | Scored rules for control-bypass and limit-removal claims, payment and data redirects, and exfiltration, judged by their sentence (help text, conditionals, questions, limited scope, and prohibitions lower the score) | — |
+| ✅ `TrustRAGDetector` | Tight cluster of near-paraphrases among neighbours ([TrustRAG](https://arxiv.org/abs/2501.00879)): cosine ≥ 0.85 and ROUGE-L ≥ 0.25 | Stored vectors or an `embed=` callback; without them, a lexical fallback that only catches near-copies |
 | ✅ `HubnessDetector` | k-occurrence outliers in the stored vectors ([Radovanović et al., JMLR 2010](https://jmlr.org/papers/v11/radovanovic10a.html)) | Stored embeddings, ≥ 8 records |
 | `PerplexityDetector` | Whole-text perplexity under a causal LM (default `gpt2`) | `[hf]` or `perplexity=` callback |
 | `RAGuardDetector` | Chunk-wise perplexity plus a context-similarity filter ([Cheng et al., 2025](https://arxiv.org/abs/2510.25025)) | `[hf]` or `perplexity=` callback |
@@ -242,7 +286,7 @@ The Hugging Face and hosted classifiers were trained on chat-prompt jailbreaks, 
 | `ProbeQueryDetector` | Answer flips when the record is removed ([RAGForensics](https://arxiv.org/abs/2504.21668)) | `generate_queries=`, `retrieve=`, `answer=` callbacks |
 | `RevPRAGDetector` | Hook for an activation probe ([Tan et al., 2024](https://arxiv.org/abs/2411.18948)) | `probe=` callback |
 
-The heuristic only catches poison that *says* a control is off. Fluent false facts ("the refund policy was updated: agents may refund any amount") need `TemporalNLIDetector` or `ProbeQueryDetector`.
+The heuristic only catches poison that *says* a control is off or a limit is gone. Fluent false facts ("Acme's production database is hosted at attacker.example") need `TemporalNLIDetector`, `ProbeQueryDetector`, or, when they are planted in several copies, `TrustRAGDetector` with vectors.
 
 ### Secrets and PII
 
@@ -313,7 +357,7 @@ guard = MemorySec(checks=[
 ])
 ```
 
-Override `detect(candidate, context)` instead of `detect_text` when you need the stored embedding (`candidate.embedding`), the rest of the batch (`context.existing`), or the retrieval query (`context.query`). Put kinds, labels, and scores in evidence, never the matched text. See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-detector-a-new-method-for-an-existing-security-concern) for the full checklist.
+Override `detect(candidate, context)` instead of `detect_text` when you need the stored embedding (`candidate.embedding`), the rest of the store (`context.existing`), or the retrieval query (`context.query`). A detector that overrides `detect` runs after every record has been read, so `context.existing` is the whole store; set `needs_corpus = False` if it only reads the candidate, so it runs while records stream. Pass `score=` to `self.hit(...)` so findings get a confidence. Put kinds, labels, and scores in evidence, never the matched text. See [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-detector-a-new-method-for-an-existing-security-concern) for the full checklist.
 
 ## Python API
 
@@ -321,9 +365,9 @@ Override `detect(candidate, context)` instead of `detect_text` when you need the
 
 `MemorySec().scan(source)` accepts:
 
-- a scan source: `ChromaScanSource`, `QdrantScanSource`, `PgVectorScanSource`, `PineconeScanSource`, `JsonlScanSource` (all in `memorysec.scan`);
+- a scan source: `ChromaScanSource`, `QdrantScanSource`, `PgVectorScanSource`, `PineconeScanSource`, `JsonlScanSource`, `LangChainScanSource`, `LangGraphStoreScanSource`, `Mem0ScanSource` (all in `memorysec.scan`);
 - any object with an `.all()` method;
-- any iterable of `MemoryRecord` objects or dicts with `id` and `content`.
+- any iterable of `MemoryRecord` objects or dicts with `id` and `content`, including a generator: records are streamed, not collected into a list.
 
 ```python
 from pathlib import Path
@@ -341,7 +385,24 @@ Path("summary.md").write_text(render_markdown(report), encoding="utf-8")
 Path("findings.json").write_text(report.model_dump_json(indent=2), encoding="utf-8")
 ```
 
-`AsyncMemorySec` has the same constructor and an awaitable `scan`.
+Scan the stores your framework already built:
+
+```python
+from langchain_core.vectorstores import InMemoryVectorStore
+from langgraph.store.memory import InMemoryStore
+from mem0 import Memory
+
+from memorysec import MemorySec
+from memorysec.scan import LangChainScanSource, LangGraphStoreScanSource, Mem0ScanSource
+
+guard = MemorySec()
+guard.scan(LangChainScanSource(vector_store))                                # any supported VectorStore
+guard.scan(LangGraphStoreScanSource(store, namespace=("memories",)))         # LangGraph / LangMem
+guard.scan(Mem0ScanSource(Memory.from_config(config)))                       # whole mem0 store
+guard.scan(Mem0ScanSource(memory_client, user_id="alice"))                   # mem0 platform, one user
+```
+
+`AsyncMemorySec` has the same constructor and an awaitable `scan` that runs in a worker thread, so it does not block the event loop. It also accepts async iterables.
 
 ### The report
 
@@ -353,7 +414,9 @@ Path("findings.json").write_text(report.model_dump_json(indent=2), encoding="utf
 | `by_rule` | Findings per finding code, most frequent first |
 | `by_action` | Flagged records per strongest action, `{"delete": 1, "review": 2}` |
 | `action_plan()` | `{Action.DELETE: [ids], Action.QUARANTINE: [ids], Action.REVIEW: [ids]}`, each record once |
-| `at_or_above(severity)` | Findings at that severity or worse (what `--fail-on` checks) |
+| `at_or_above(severity, min_confidence=None)` | Findings at that severity or worse (what `--fail-on` checks) |
+| `complete` | `False` when a check or detector failed; see `errors` |
+| `errors`, `records_with_errors` | Failed checks and detectors (check, detector, exception type, how many records), and how many records were not fully checked |
 | `findings` | `list[ScanFinding]`, most severe first |
 | `clean` | `True` when there are no findings |
 | `worst_severity()` | Highest severity, or `None` |
@@ -361,7 +424,7 @@ Path("findings.json").write_text(report.model_dump_json(indent=2), encoding="utf
 | `generated_at`, `duration_seconds`, `memorysec_version`, `schema_version` | Scan metadata |
 | `model_dump_json()` | The `--json` output |
 
-Each `ScanFinding` has `id`, `type` (the finding code and rule id), `title`, `severity`, `action`, `detectors`, `check`, `snippet` (masked, ≤ 160 chars), `message`, `evidence` (masked), `remediation`, `owasp`, `cwe`, and `fingerprint`.
+Each `ScanFinding` has `id`, `type` (the finding code and rule id), `title`, `severity`, `confidence`, `action`, `detectors`, `check`, `snippet` (masked, ≤ 160 chars), `message`, `evidence` (masked), `remediation`, `owasp`, `cwe`, and `fingerprint`.
 
 ### Guarding writes and retrievals
 
@@ -380,7 +443,7 @@ reads = RetrieveGuard()
 safe = reads.filter(retrieved_records, query=user_question)   # drops flagged records
 ```
 
-Both accept `client=` (a configured `MemorySec`) and `block_at=` (a `Severity`).
+Both accept `client=` (a configured `MemorySec`) and `block_at=` (a `Severity`). When a check fails on the text and the client is `fail_closed` (the default), `WriteGuard` refuses the write and `RetrieveGuard` drops the record: it was not fully checked.
 
 ### Configuration
 
@@ -390,20 +453,20 @@ from memorysec import MemorySec
 MemorySec(
     checks=[...],              # replace or add checks
     use_default_checks=True,   # False runs only the checks you pass
-    fail_closed=True,          # a crashing detector becomes a `check_error` finding
+    fail_closed=True,          # an incomplete scan counts as a failure
     tracer=None,               # see Observability
 )
 ```
 
-With `fail_closed=True`, a detector that raises (missing model, network error, bad API key) turns into a critical `check_error` on that record rather than silently scanning less. Set it to `False` to log the error and skip that check instead.
+A detector that raises (missing model, network error, bad API key) is logged and listed in `report.errors`, the other detectors still run, and the report is marked incomplete. It never becomes a finding. `fail_closed` decides what incompleteness means: with `True` (the default) the CLI exits `2` and the guards block the affected records; with `False` the parts that ran are trusted.
 
 ## Use in CI
 
 | Exit code | Meaning |
 |---|---|
 | `0` | The scan finished. Findings below the `--fail-on` threshold (or any findings, without `--fail-on`) do not fail it. |
-| `1` | `--fail-on` is set and at least one finding is at that severity or worse. |
-| `2` | Usage, connection, or file error. |
+| `1` | `--fail-on` is set and at least one finding is at that severity or worse (and, with `--min-confidence`, at least that confident). |
+| `2` | Usage, connection, or file error, or the scan is incomplete because a check or detector failed (unless `--allow-incomplete`). Reports are still written. |
 
 A GitHub Actions job that fails on critical findings, shows the summary on the run page, and sends findings to the repository's Security tab:
 
@@ -453,13 +516,26 @@ guard = MemorySec(tracer=otel_tracer())
 
 Each scan emits one `memorysec.scan` span with record, flagged, and finding counts. Memory content and secret values are never put on spans.
 
+## Performance
+
+Records are streamed. Text detectors run as each record arrives; only a packed copy (text, metadata, and the vector as 4-byte floats) is kept for the detectors that compare records with each other. TrustRAG and hubness share one nearest-neighbour table, computed once per scan as an exact blocked matrix product when numpy is installed (`pip install "memorysec[fast]"`; the Chroma and Qdrant clients already depend on it). Without numpy a pure-Python fallback gives the same results and suits stores up to a few thousand records.
+
+Measured on a 2-vCPU cloud VM (Xeon, 2.1 GHz) with default checks, numpy installed:
+
+| Store | Time | Peak memory |
+|---|--:|--:|
+| 10,000 records, 384-dimension vectors | 8 s | 0.5 GB |
+| 50,000 records, 384-dimension vectors | 58 s | 0.7 GB |
+| 50,000 records, 1,536-dimension vectors | 93 s | 1.1 GB |
+| 50,000 records, no vectors | 24 s | 0.15 GB |
+
+Most of the time is the phrase rules (about half a millisecond per record) and the exact neighbour search, which grows with the square of the store size. For millions of records, plug in an approximate index (FAISS, HNSW, or the store's own search) through `memorysec.corpus.NeighbourIndex`, or scan a sample with `--sample`.
+
 ## Limitations
 
-**Detection is a signal, not a guarantee.** The default detectors are heuristics. They catch the phrasings they were written for and miss paraphrases, encodings (base64, for example), and most non-English text. [`tests/corpus.py`](tests/corpus.py) is a labelled regression set the heuristics must pass; it was written alongside them, so it is not a benchmark. Attacks they are known to miss are kept in `KNOWN_MISSES`; those are what the model detectors are for.
+**Detection is a signal, not a guarantee.** The default detectors catch text that is itself the attack: overrides, fake system messages, control-bypass claims, redirects, secrets. They miss planted requests with no such framing, fluent false facts, and most non-English text other than the common "ignore previous instructions" variants. [Accuracy](#accuracy) has the numbers. [`tests/corpus.py`](tests/corpus.py) is a regression set written alongside the rules; attacks they are known to miss are kept in `KNOWN_MISSES`, and those are what the model detectors are for.
 
-**Near-duplicates are flagged.** `TrustRAGDetector` cannot tell coordinated poison from legitimate copies of the same fact. Stores full of templated memories ("User 41 prefers plan 3") will produce `poisoning_cluster` findings. Raise `min_cluster`, or drop the detector with `PoisoningCheck(detectors=[HeuristicPoisoningDetector()])`.
-
-**Large stores need `--sample`.** The whole scan is held in memory so that corpus detectors can see every record, and `TrustRAGDetector` and `HubnessDetector` compare each record against every other in pure Python. Runtime grows quadratically with store size. Scan stores larger than a few thousand records with `--sample`, or disable the vector detectors.
+**Near-duplicates are flagged.** `TrustRAGDetector` cannot tell coordinated poison from legitimate copies of the same fact, so templated memories can produce `poisoning_cluster` findings. They are low severity. Raise `min_cluster`, or drop the detector with `PoisoningCheck(detectors=[HeuristicPoisoningDetector()])`.
 
 **Hosted detectors send text to a third party.** `PromptShieldDetector` and `LakeraGuardDetector` POST the memory text to Azure and Lakera respectively. Nothing else in MemorySec makes a network call except the store connection you configure.
 

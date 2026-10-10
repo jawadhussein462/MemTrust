@@ -62,6 +62,8 @@ class GitleaksDetector(BaseDetector):
     """Match a port of common Gitleaks rules. Offline.
 
     The finding code is `secret_detected`. Evidence lists `kinds` only.
+    Every rule matches a provider's fixed token format, so hits score 0.95
+    (JWTs, which any service can issue, 0.85).
     """
 
     name = "gitleaks"
@@ -70,7 +72,8 @@ class GitleaksDetector(BaseDetector):
         kinds = gitleaks_kinds(text)
         if not kinds:
             return []
-        return [self.hit(code="secret_detected", kinds=kinds)]
+        score = 0.85 if kinds == ["jwt"] else 0.95
+        return [self.hit(code="secret_detected", score=score, kinds=kinds)]
 
 
 __all__ = ["GitleaksDetector", "gitleaks_kinds"]
