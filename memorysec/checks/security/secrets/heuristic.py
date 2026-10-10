@@ -39,6 +39,8 @@ _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 _CREDENTIAL = re.compile(
     r"(?i)\b(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|token)\b"
     r"(\s*[:=]\s*)"
+    # A link is where to reset a password, not the password itself.
+    r"(?!https?://|www\.)"
     r"([^\s\"']{6,})"
 )
 

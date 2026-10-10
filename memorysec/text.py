@@ -7,9 +7,14 @@ stored back into the memory.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import difflib
+import functools
+import html
 import re
 import unicodedata
+import urllib.parse
 
 _PUNCT = re.compile(r"[^\w\s]")
 _WS = re.compile(r"\s+")
@@ -27,6 +32,7 @@ _SPACED = re.compile(r"\b[A-Za-z](?:[-._*]|\s)(?:[A-Za-z](?:[-._*]|\s)){2,}[A-Za
 _SEPARATORS = re.compile(r"[-._*\s]")
 
 
+@functools.lru_cache(maxsize=512)
 def deobfuscate(text: str) -> str:
     """Undo common tricks used to hide a phrase from a regex.
 
@@ -47,6 +53,218 @@ def deobfuscate(text: str) -> str:
         ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch)
     )
     return _SPACED.sub(lambda m: _SEPARATORS.sub("", m.group(0)), text)
+
+
+# -- encoded payloads -----------------------------------------------------------
+
+_BASE64_RUN = re.compile(r"(?<![A-Za-z0-9+/=_-])[A-Za-z0-9+/_-]{16,}={0,2}(?![A-Za-z0-9+/=_-])")
+_HEX_RUN = re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){12,}(?![0-9A-Fa-f])")
+_PERCENT = re.compile(r"%[0-9A-Fa-f]{2}")
+_ENTITY = re.compile(r"&(?:#\d{2,6}|#x[0-9A-Fa-f]{2,6}|[A-Za-z]{2,8});")
+_WORDS = re.compile(r"[A-Za-z]{2,}")
+_MAX_DECODED_RUNS = 8
+_MAX_RUN_CHARS = 20_000
+
+
+def _looks_like_text(raw: bytes) -> str | None:
+    """Return `raw` as text when it reads like words, not binary or a key."""
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if not text:
+        return None
+    printable = sum(1 for ch in text if ch.isprintable() or ch in "\n\t\r")
+    if printable / len(text) < 0.95:
+        return None
+    words = _WORDS.findall(text)
+    letters = sum(len(w) for w in words)
+    # At least three words, and mostly letters and spaces: rules out hashes and tokens.
+    if len(words) < 3 or letters < 0.6 * len(text.replace(" ", "")):
+        return None
+    return text
+
+
+def decoded_views(text: str) -> list[tuple[str, str]]:
+    """Decode payloads hidden in `text` so phrase patterns can read them.
+
+    A stored memory can carry an instruction as base64, hex, URL
+    percent-encoding, HTML entities, or written backwards. Each candidate is
+    decoded only when the result reads as natural-language text, so API keys,
+    hashes, and ordinary words are left alone. Work is capped: at most a few
+    runs per text are decoded, and very long runs are skipped.
+
+    Args:
+        text: The memory content, unchanged.
+
+    Returns:
+        `(encoding, decoded text)` pairs, such as `("base64", "ignore previous
+        instructions")`. `encoding` is one of `base64`, `hex`, `url`, `html`,
+        or `reversed`. Empty when nothing decoded to text.
+    """
+    views: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(kind: str, decoded: str | None) -> None:
+        if decoded and decoded not in seen and decoded != text:
+            seen.add(decoded)
+            views.append((kind, decoded))
+
+    for count, match in enumerate(_BASE64_RUN.finditer(text)):
+        if count >= _MAX_DECODED_RUNS:
+            break
+        run = match.group(0)
+        if len(run) > _MAX_RUN_CHARS or run.isalpha() or run.isdigit():
+            continue
+        body = run.rstrip("=")
+        padded = body + "=" * (-len(body) % 4)
+        decoder = base64.urlsafe_b64decode if ("-" in body or "_" in body) else base64.b64decode
+        try:
+            add("base64", _looks_like_text(decoder(padded)))
+        except (binascii.Error, ValueError):
+            continue
+    for count, match in enumerate(_HEX_RUN.finditer(text)):
+        if count >= _MAX_DECODED_RUNS:
+            break
+        if len(match.group(0)) <= _MAX_RUN_CHARS:
+            add("hex", _looks_like_text(bytes.fromhex(match.group(0))))
+    if len(_PERCENT.findall(text)) >= 3:
+        add("url", urllib.parse.unquote(text))
+    if _ENTITY.search(text):
+        add("html", html.unescape(text))
+    # Text written backwards reads as words only when reversed: compare how
+    # many common English words each direction contains.
+    reversed_text = text[::-1]
+    forward, backward = _common_words(text), _common_words(reversed_text)
+    if backward >= 2 and backward > forward:
+        add("reversed", reversed_text)
+    return views
+
+
+_COMMON = frozenset(
+    [
+        "the",
+        "and",
+        "you",
+        "your",
+        "to",
+        "of",
+        "all",
+        "any",
+        "previous",
+        "prior",
+        "instructions",
+        "ignore",
+        "is",
+        "are",
+        "this",
+        "that",
+        "with",
+        "for",
+        "from",
+        "now",
+        "not",
+    ]
+)
+
+
+def _common_words(text: str) -> int:
+    return sum(1 for word in _WORDS.findall(text.lower()) if word in _COMMON)
+
+
+# -- typo-tolerant keywords -----------------------------------------------------
+
+_TOKEN = re.compile(r"[A-Za-z]{6,}")
+
+
+def _within_one_edit(a: str, b: str) -> bool:
+    """Whether `a` becomes `b` with one insert, delete, substitution, or swap."""
+    if a == b:
+        return True
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1:
+        return False
+    if la == lb:
+        diffs = [i for i in range(la) if a[i] != b[i]]
+        if len(diffs) == 1:
+            return True
+        return (
+            len(diffs) == 2
+            and diffs[1] == diffs[0] + 1
+            and a[diffs[0]] == b[diffs[1]]
+            and a[diffs[1]] == b[diffs[0]]
+        )
+    if la > lb:
+        a, b = b, a
+    i = j = 0
+    skipped = False
+    while i < len(a) and j < len(b):
+        if a[i] == b[j]:
+            i += 1
+        elif skipped:
+            return False
+        else:
+            skipped = True
+        j += 1
+    return True
+
+
+def correct_keywords(text: str, keywords: frozenset[str]) -> str:
+    """Replace near-misspellings of `keywords` with the keyword.
+
+    Attackers misspell trigger words ("ignore previous iunstructions") to
+    slip past exact patterns. A word of six or more letters that is one edit
+    away from a keyword (insert, delete, substitute, or swap two neighbours)
+    is rewritten to that keyword, keeping its case style. Shorter words are
+    left alone, so ordinary vocabulary is not rewritten into triggers.
+
+    Args:
+        text: Text to correct, usually already deobfuscated.
+        keywords: Lowercase words to snap to, such as `"instructions"`.
+
+    Returns:
+        A copy of `text` with near-misses replaced.
+    """
+
+    def fix(match: re.Match[str]) -> str:
+        word = match.group(0)
+        lower = word.lower()
+        if lower in keywords:
+            return word
+        for keyword in keywords:
+            if abs(len(keyword) - len(lower)) <= 1 and _within_one_edit(lower, keyword):
+                return keyword.capitalize() if word[:1].isupper() else keyword
+        return word
+
+    return _TOKEN.sub(fix, text)
+
+
+# -- sentences ------------------------------------------------------------------
+
+_SENTENCE_END = re.compile(r"(?<=[.!?;])\s+|\n+|(?<=:)\s+(?=[A-Z])")
+
+
+def sentence_around(text: str, start: int, end: int) -> str:
+    """Return the sentence that contains `text[start:end]`.
+
+    Sentences end at `.`, `!`, `?`, `;`, a line break, or a colon followed
+    by a capitalised word. Used to judge a pattern hit by its own sentence,
+    so a warning in one sentence does not excuse a claim in the next.
+
+    Args:
+        text: The full text.
+        start: Start offset of the hit.
+        end: End offset of the hit.
+
+    Returns:
+        The enclosing sentence, stripped.
+    """
+    left = 0
+    for match in _SENTENCE_END.finditer(text, 0, start):
+        left = match.end()
+    right_match = _SENTENCE_END.search(text, end)
+    right = right_match.start() if right_match else len(text)
+    return text[left:right].strip()
 
 
 # Common filler words ignored when comparing token sets.
@@ -236,12 +454,15 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 
 __all__ = [
+    "correct_keywords",
     "cosine",
+    "decoded_views",
     "deobfuscate",
     "jaccard",
     "normalize",
     "ratio",
     "rouge_l",
+    "sentence_around",
     "similarity",
     "token_set",
     "tokenize",
